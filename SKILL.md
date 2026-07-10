@@ -199,7 +199,7 @@ Every brief run produces a standalone interactive HTML file in addition to the i
 
 ### When to generate
 
-Generate the HTML file on every brief run. Name the file: `Daily Brief_YYYY-MM-DD.html` using the local date.
+Generate the HTML file on every brief run. Name the file: `Daily Brief_YYYY-MM-DD_HHmm.html` using the local date and 24-hour time (e.g., `Daily Brief_2026-07-10_0830.html`). This ensures multiple runs on the same day each produce a distinct file rather than overwriting.
 
 ### HTML structure
 
@@ -247,7 +247,7 @@ Use `class="lbtn primary"` for the primary CTA (Join Zoom, Open doc). Use `class
 
 ### localStorage key
 
-Use `brief:YYYY-MM-DD` as the key (matching the file date). The `TOTAL` constant in the script must equal the actual number of checkable items (`.item[data-id]` elements) in that specific brief.
+Use `brief:YYYY-MM-DD_HHmm` as the key (matching the filename timestamp). The `TOTAL` constant in the script must equal the actual number of checkable items (`.item[data-id]` elements) in that specific brief.
 
 ### Sensitive data rules
 
@@ -260,7 +260,7 @@ The HTML file produced during a live brief run will contain real names, meeting 
 
 ### Delivering the file
 
-After generating the HTML, upload it to Google Drive folder `BRIEF_OUTPUT_FOLDER_ID` (`1h6AGEIHGLTAFM_6OB17_K4zl3HoLJ1uT`) using `Google Drive: create_file` with `contentMimeType: text/html` and `disableConversionToGoogleType: true`. Name the file `Daily Brief_YYYY-MM-DD.html`. If a file with that name already exists for today (e.g., a second brief run), overwrite it by updating the existing file rather than creating a duplicate.
+After generating the HTML, upload it to Google Drive folder `BRIEF_OUTPUT_FOLDER_ID` (`1h6AGEIHGLTAFM_6OB17_K4zl3HoLJ1uT`) using `Google Drive: create_file` with `contentMimeType: text/html` and `disableConversionToGoogleType: true`. Name the file `Daily Brief_YYYY-MM-DD_HHmm.html` (e.g., `Daily Brief_2026-07-10_0830.html`). Each run produces a new file; no overwriting required.
 
 Also present the file as a downloadable artifact in chat so it is immediately accessible without opening Drive.
 
