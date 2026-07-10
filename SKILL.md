@@ -1,7 +1,7 @@
 ---
 name: daily-brief
 description: >
-  Generates a personalized daily briefing for the configured user.
+  Generates a personalized daily briefing for Aaron Hubbart, Senior TAM at Camunda.
   Pulls from all available data sources: Outlook calendar, Outlook email, Slack (DMs,
   account channels, tiger team channels, direct mentions), Zoom meeting summaries,
   and Asana tasks. Produces a structured, easy-to-read summary covering the current
@@ -70,12 +70,12 @@ Run all data pulls in parallel where possible. Use the time windows below.
 - Recap window: emails received since EOD yesterday (or past 24 hours)
 - Ahead window: not applicable — omit from forward section unless there's a scheduled send or thread requiring same-day action
 - Focus on: unread, flagged, or emails from key contacts
-- Key contacts: configure in the Admin Config block — list your AE, SA, and key customer contact domains
+- Key contacts: Rodrigo Scaldaferri, Micah De Boer, David Paroulek, Colin Teubner, and any contact at AcmeFin, Zebra Financial, Umbrella Financial, Initech Financial, Acme Health, Zebra Health
 - Summarize threads, not individual messages — group by sender/topic
 
 ### Slack (Slack: slack_search_public_and_private)
 Run multiple targeted searches:
-1. Direct mentions: search for your Slack user ID (e.g. `to:<@UXXXXXXXXXX>` or `<@UXXXXXXXXXX>`). Configure your Slack user ID in the Admin Config block.
+1. Direct mentions: `to:<@U0A0ZRB4JM8>` or `<@U0A0ZRB4JM8>`
 2. DMs: channel_types=im, recent messages
 3. Account channels: search for channels related to AcmeFin, Zebra Financial, Umbrella Financial, Initech Financial, Acme Health, Zebra Health
 4. Tiger team / AI-First CS: search for tiger team, AI-first, CS tiger
@@ -148,6 +148,80 @@ End with a brief **Open Time** note if there are meaningful unblocked blocks in 
 
 ---
 
+### Section 3: Customer Updates
+
+One collapsible card per active customer account, collapsed by default. The entire section is also collapsed by default.
+
+For each account, generate a plain-text update summarizing recent activity suitable for posting to the account's internal Slack channel. The update should be factual, professional, and peer-level — written as a TAM status post, not a brief excerpt.
+
+**Finding the last update window:**
+1. Search the account's Slack channel for posts containing `[TAM-UPDATE] #claude-brief-skill`. Use `slack_search_public_and_private` with that query scoped to the channel.
+2. If a matching post exists within the last 7 days, use its timestamp as the start of the summary window.
+3. If no matching post exists, or the most recent one is older than 7 days, default to a 7-day lookback from today.
+
+**Update content:** Summarize what has happened across the account in that window — meetings, email threads, support tickets, Slack activity, decisions made, next steps. Do not copy verbatim from sources; synthesize into a coherent narrative.
+
+**Format of each update post:**
+```
+[TAM-UPDATE] #claude-brief-skill
+
+*[Account Name] — TAM Update*
+[Date range covered]
+
+[Narrative summary — 2–5 sentences or short bullets]
+
+Next steps:
+• [item]
+• [item]
+```
+
+**Slack channel mapping** (used to pre-populate the post destination):
+
+| Account | Slack Channel ID |
+|---------|-----------------|
+| Acme Financial | C0XXXXXXX |
+| Zebra Financial | C0XXXXXXX |
+| Acme Health | C0XXXXXXX |
+| Globex System Services | C0XXXXXXX |
+
+Add new accounts to this table in `SKILL.md` as they are onboarded.
+
+The HTML brief presents each account card with:
+- An editable text area pre-populated with the generated update
+- A channel field showing the channel name, editable
+- A "Post to Slack" button that opens `https://slack.com/app_redirect?channel={channel_id}` — the user pastes and sends from Slack
+- A timestamp showing when the last `[TAM-UPDATE] #claude-brief-skill` post was made (or "No previous update found")
+
+---
+
+### Section 4: Manager/Leadership Update
+
+A single collapsed section (collapsed by default) containing one editable text area with a synthesized update across all active accounts and initiatives. Suitable for a quick verbal or written update to your manager.
+
+**Format:**
+```
+[TAM-UPDATE] #claude-brief-skill
+
+*TAM Weekly Update — [Your Name]*
+[Date]
+
+[Account]: [1–2 sentence status]
+[Account]: [1–2 sentence status]
+...
+
+Key risks: [brief list]
+Focus this week: [brief list]
+```
+
+**Finding the last manager update:**
+Search the manager DM channel (`D0A25TNDGJJ`) for `[TAM-UPDATE] #claude-brief-skill`. Use the same 7-day lookback logic as customer updates.
+
+**Posting:** The HTML brief presents a "Post to Manager" button that opens `https://slack.com/app_redirect?channel=D0A25TNDGJJ`. The user pastes and sends from Slack.
+
+The section shows when the last manager update was posted (or "No previous update found").
+
+---
+
 ## Formatting Rules
 
 - Prose for summaries, not bullet spray
@@ -164,6 +238,8 @@ End with a brief **Open Time** note if there are meaningful unblocked blocks in 
 Configure your primary accounts, key colleagues, and team members in the Admin Config block.
 
 Use this context to prioritize and flag items — a Slack DM from your AE about a strategic account matters more than a general announcement channel.
+
+The Slack channel ID mapping for Customer Updates lives in Section 3 of the Output Format above. Update it as accounts are added or changed.
 
 ---
 

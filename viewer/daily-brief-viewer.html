@@ -63,6 +63,32 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 [data-theme="dark"] .jira-btn{color:#4c9aff;background:#0a1f44;border-color:#4c9aff44;}
 [data-theme="light"] .jira-btn{color:#0052cc;background:#e8f0fe;border-color:#0052cc44;}
 
+/* ── Update sections (Customer Updates + Manager Update) ── */
+.update-outer{margin-top:1.5rem;border-top:1px solid var(--border-strong);padding-top:1rem;}
+.update-toggle{display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:.5rem 0;-webkit-user-select:none;user-select:none;}
+.update-toggle-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);}
+.update-toggle-chevron{font-size:12px;color:var(--t3);transition:transform .2s;}
+.update-toggle.open .update-toggle-chevron{transform:rotate(180deg);}
+.update-body{display:none;padding-top:.5rem;}
+.update-body.open{display:block;}
+.account-card{border:1px solid var(--border);border-radius:var(--r);margin-bottom:.75rem;overflow:hidden;}
+.account-card-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface2);cursor:pointer;-webkit-user-select:none;user-select:none;}
+.account-card-name{font-size:12px;font-weight:600;color:var(--t1);}
+.account-card-meta{font-size:10px;color:var(--t3);}
+.account-card-body{display:none;padding:10px 12px;}
+.account-card-body.open{display:block;}
+.update-textarea{width:100%;min-height:120px;padding:8px;font-family:var(--font);font-size:11.5px;color:var(--t1);background:var(--surface);border:1px solid var(--border);border-radius:4px;resize:vertical;line-height:1.5;margin-bottom:8px;outline:none;}
+.update-textarea:focus{border-color:var(--accent);}
+.update-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.channel-input{flex:1;min-width:120px;height:28px;padding:0 8px;font-family:var(--font);font-size:11px;color:var(--t2);background:var(--surface2);border:1px solid var(--border-strong);border-radius:4px;outline:none;}
+.channel-input:focus{border-color:var(--accent);color:var(--t1);}
+.post-btn{height:28px;padding:0 12px;font-family:var(--font);font-size:11px;font-weight:500;color:#fff;background:#4a1fa8;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;transition:background .1s;text-decoration:none;display:inline-flex;align-items:center;}
+.post-btn:hover{background:#5b2ec4;}
+.gen-btn{height:28px;padding:0 10px;font-family:var(--font);font-size:11px;font-weight:500;color:var(--t2);background:var(--surface);border:1px solid var(--border-strong);border-radius:4px;cursor:pointer;white-space:nowrap;transition:background .1s;}
+.gen-btn:hover{background:var(--surface2);color:var(--t1);}
+.gen-btn:disabled{opacity:.4;cursor:default;}
+.last-posted{font-size:10px;color:var(--t3);margin-top:4px;}
+
 /* ── Timeline ── */
 .timeline{display:flex;align-items:center;gap:6px;padding:0 1.25rem;height:34px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;flex-shrink:0;}
 .timeline::-webkit-scrollbar{display:none;}
@@ -299,6 +325,9 @@ function initBriefState(filename) {
   // Add "Run in Claude" button to each Schedule item (items with a time column)
   injectClaudeButtons(container);
   injectJiraButtons(container);
+
+  // Inject collapsible update sections after the brief content
+  injectUpdateSections(container, filename);
 }
 
 function injectJiraButtons(container) {
@@ -420,6 +449,325 @@ function injectClaudeButtons(container) {
     }
     links.appendChild(btn);
   });
+}
+
+
+// ── Customer Updates + Manager/Leadership Update ────────────────
+
+const UPDATE_TAG = '[TAM-UPDATE] #claude-brief-skill';
+const MANAGER_DM = 'D0A25TNDGJJ';
+
+const ACCOUNT_CHANNELS = {
+  'Acme Financial':      { id: 'C0XXXXXXX', name: '#acct-acme-financial' },
+  'Zebra Financial':       { id: 'C0XXXXXXX', name: '#acct-zebra-financial' },
+  'Acme Health':                { id: 'C0XXXXXXX', name: '#acct-acme-health' },
+  'Globex System Services':{ id: 'C0XXXXXXX', name: '#acct-globex-system-services' },
+};
+
+function updateStateKey(filename) {
+  return 'viewer:updates:' + filename;
+}
+function loadUpdateState(filename) {
+  try { return JSON.parse(localStorage.getItem(updateStateKey(filename)) || '{}'); } catch(e) { return {}; }
+}
+function saveUpdateState(filename, state) {
+  try { localStorage.setItem(updateStateKey(filename), JSON.stringify(state)); } catch(e) {}
+}
+
+function slackPostUrl(channelId) {
+  return 'https://slack.com/app_redirect?channel=' + channelId;
+}
+
+function formatUpdatePost(accountName, text) {
+  return UPDATE_TAG + '\n\n*' + accountName + ' — TAM Update*\n\n' + text.trim();
+}
+
+function formatManagerPost(text) {
+  return UPDATE_TAG + '\n\n*TAM Weekly Update*\n\n' + text.trim();
+}
+
+async function callClaudeForUpdate(prompt) {
+  // Use local proxy if available, fall back to noting it's unavailable
+  const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if (!IS_LOCAL) return '[Open the viewer via the local server to auto-generate updates. Edit this text manually.]';
+
+  const res = await fetch('/api/claude', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1000,
+      system: 'You generate concise TAM status updates for internal Slack posts. Plain text only — no markdown headers, no bullet asterisks, just clean prose or simple dashes for lists. 3–6 sentences or short bullet lines. Professional but direct.',
+      messages: [{ role: 'user', content: prompt }],
+      mcp_servers: [{ type: 'url', url: 'https://mcp.slack.com/mcp', name: 'slack' }]
+    })
+  });
+  if (!res.ok) throw new Error('API error ' + res.status);
+  const data = await res.json();
+  return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+}
+
+function makeCollapsible(labelText, bodyEl, storageKey, defaultOpen) {
+  const outer = document.createElement('div');
+  outer.className = 'update-outer';
+
+  const toggle = document.createElement('div');
+  toggle.className = 'update-toggle' + (defaultOpen ? ' open' : '');
+  toggle.innerHTML = '<span class="update-toggle-label">' + labelText + '</span><span class="update-toggle-chevron">▾</span>';
+
+  bodyEl.className = 'update-body' + (defaultOpen ? ' open' : '');
+
+  toggle.addEventListener('click', () => {
+    const isOpen = toggle.classList.toggle('open');
+    bodyEl.classList.toggle('open', isOpen);
+    try { localStorage.setItem('viewer:section:' + storageKey, isOpen ? '1' : '0'); } catch(e) {}
+  });
+
+  // Restore from localStorage
+  const saved = localStorage.getItem('viewer:section:' + storageKey);
+  if (saved !== null) {
+    const open = saved === '1';
+    toggle.classList.toggle('open', open);
+    bodyEl.classList.toggle('open', open);
+  }
+
+  outer.appendChild(toggle);
+  outer.appendChild(bodyEl);
+  return outer;
+}
+
+function makeAccountCard(accountName, channel, filename, savedState) {
+  const card = document.createElement('div');
+  card.className = 'account-card';
+
+  const header = document.createElement('div');
+  header.className = 'account-card-header';
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'account-card-name';
+  nameEl.textContent = accountName;
+
+  const metaEl = document.createElement('span');
+  metaEl.className = 'account-card-meta';
+  const lastPosted = savedState.lastPosted || null;
+  metaEl.textContent = lastPosted ? 'Last posted: ' + new Date(lastPosted).toLocaleDateString() : 'No previous update';
+
+  header.appendChild(nameEl);
+  header.appendChild(metaEl);
+
+  const body = document.createElement('div');
+  body.className = 'account-card-body';
+
+  const textarea = document.createElement('textarea');
+  textarea.className = 'update-textarea';
+  textarea.value = savedState.draft || '';
+  textarea.placeholder = 'Generating update…';
+
+  // Save edits to localStorage
+  textarea.addEventListener('input', () => {
+    const state = loadUpdateState(filename);
+    if (!state.accounts) state.accounts = {};
+    if (!state.accounts[accountName]) state.accounts[accountName] = {};
+    state.accounts[accountName].draft = textarea.value;
+    saveUpdateState(filename, state);
+  });
+
+  const row = document.createElement('div');
+  row.className = 'update-row';
+
+  const channelInput = document.createElement('input');
+  channelInput.type = 'text';
+  channelInput.className = 'channel-input';
+  channelInput.value = channel.name;
+  channelInput.placeholder = '#channel-name';
+
+  const genBtn = document.createElement('button');
+  genBtn.className = 'gen-btn';
+  genBtn.textContent = '↺ Regenerate';
+  genBtn.addEventListener('click', () => generateAccountUpdate(accountName, textarea, genBtn, filename));
+
+  const postBtn = document.createElement('a');
+  postBtn.className = 'post-btn';
+  postBtn.textContent = '↗ Post to Slack';
+  postBtn.target = '_blank';
+  postBtn.addEventListener('click', () => {
+    // Update the draft with current text + tag prefix, open slack
+    const fullText = formatUpdatePost(accountName, textarea.value);
+    // Copy to clipboard for easy pasting
+    try { navigator.clipboard.writeText(fullText); } catch(e) {}
+    // Record post timestamp
+    const state = loadUpdateState(filename);
+    if (!state.accounts) state.accounts = {};
+    if (!state.accounts[accountName]) state.accounts[accountName] = {};
+    state.accounts[accountName].lastPosted = new Date().toISOString();
+    saveUpdateState(filename, state);
+    metaEl.textContent = 'Last posted: ' + new Date().toLocaleDateString();
+    // Open Slack — use channel ID from saved mapping, or parse from input
+    const chId = channel.id;
+    postBtn.href = slackPostUrl(chId);
+  });
+
+  row.appendChild(channelInput);
+  row.appendChild(genBtn);
+  row.appendChild(postBtn);
+
+  const hint = document.createElement('div');
+  hint.className = 'last-posted';
+  hint.textContent = 'Text is copied to clipboard when you click Post — paste it in Slack.';
+
+  body.appendChild(textarea);
+  body.appendChild(row);
+  body.appendChild(hint);
+  card.appendChild(header);
+  card.appendChild(body);
+
+  // Toggle card open/closed
+  header.addEventListener('click', () => {
+    body.classList.toggle('open');
+  });
+
+  return { card, textarea, genBtn };
+}
+
+async function generateAccountUpdate(accountName, textarea, genBtn, filename) {
+  genBtn.disabled = true;
+  genBtn.textContent = '…';
+  textarea.placeholder = 'Generating…';
+
+  try {
+    const state = loadUpdateState(filename);
+    const acctState = (state.accounts || {})[accountName] || {};
+    const lastPosted = acctState.lastPosted ? new Date(acctState.lastPosted) : null;
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const since = (lastPosted && lastPosted > sevenDaysAgo) ? lastPosted : sevenDaysAgo;
+    const sinceStr = since.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    const channel = ACCOUNT_CHANNELS[accountName];
+    const channelId = channel ? channel.id : '';
+
+    const prompt = `Generate a concise TAM status update for ${accountName} covering activity since ${sinceStr}. Search the Slack channel ${channelId} for recent messages and activity. Also look for any emails or calendar meetings with ${accountName} contacts in that period. Write a 3–5 sentence update suitable for posting to the internal account Slack channel. Cover: what happened, key decisions or blockers, next steps. Do NOT include the [TAM-UPDATE] tag — just the body text.`;
+
+    const text = await callClaudeForUpdate(prompt);
+    textarea.value = text;
+
+    // Save draft
+    const newState = loadUpdateState(filename);
+    if (!newState.accounts) newState.accounts = {};
+    if (!newState.accounts[accountName]) newState.accounts[accountName] = {};
+    newState.accounts[accountName].draft = text;
+    saveUpdateState(filename, newState);
+  } catch(err) {
+    textarea.value = 'Error generating update: ' + err.message + '\n\nEdit this manually.';
+  } finally {
+    genBtn.disabled = false;
+    genBtn.textContent = '↺ Regenerate';
+    textarea.placeholder = '';
+  }
+}
+
+async function generateManagerUpdate(textarea, genBtn, filename) {
+  genBtn.disabled = true;
+  genBtn.textContent = '…';
+
+  try {
+    const accountSummaries = Object.keys(ACCOUNT_CHANNELS).join(', ');
+    const prompt = `Generate a concise TAM weekly update across all active accounts for a manager update. Accounts: ${accountSummaries}. For each active account, write 1–2 sentences on current status, key activity, and any risks. Then add 2–3 bullet points for key risks across all accounts and 2–3 bullets for focus areas this week. Plain text, no markdown formatting, dashes for bullets. Keep it under 200 words total.`;
+
+    const text = await callClaudeForUpdate(prompt);
+    textarea.value = text;
+
+    const state = loadUpdateState(filename);
+    state.managerDraft = text;
+    saveUpdateState(filename, state);
+  } catch(err) {
+    textarea.value = 'Error generating update: ' + err.message + '\n\nEdit this manually.';
+  } finally {
+    genBtn.disabled = false;
+    genBtn.textContent = '↺ Regenerate';
+  }
+}
+
+function injectUpdateSections(container, filename) {
+  const state = loadUpdateState(filename);
+
+  // ── Customer Updates ──────────────────────────────────────────
+  const cuBody = document.createElement('div');
+
+  const accountEntries = Object.entries(ACCOUNT_CHANNELS);
+  const cards = [];
+
+  accountEntries.forEach(([accountName, channel]) => {
+    const acctState = (state.accounts || {})[accountName] || {};
+    const { card, textarea, genBtn } = makeAccountCard(accountName, channel, filename, acctState);
+    cuBody.appendChild(card);
+    cards.push({ accountName, textarea, genBtn });
+
+    // Auto-generate if no draft saved
+    if (!acctState.draft) {
+      generateAccountUpdate(accountName, textarea, genBtn, filename);
+    }
+  });
+
+  const cuSection = makeCollapsible('Customer Updates', cuBody, 'customer-updates', false);
+
+  // ── Manager / Leadership Update ───────────────────────────────
+  const mgBody = document.createElement('div');
+
+  const mgTextarea = document.createElement('textarea');
+  mgTextarea.className = 'update-textarea';
+  mgTextarea.value = state.managerDraft || '';
+  mgTextarea.placeholder = state.managerDraft ? '' : 'Generating manager update…';
+  mgTextarea.style.minHeight = '150px';
+  mgTextarea.addEventListener('input', () => {
+    const s = loadUpdateState(filename);
+    s.managerDraft = mgTextarea.value;
+    saveUpdateState(filename, s);
+  });
+
+  const mgRow = document.createElement('div');
+  mgRow.className = 'update-row';
+
+  const mgGenBtn = document.createElement('button');
+  mgGenBtn.className = 'gen-btn';
+  mgGenBtn.textContent = '↺ Regenerate';
+  mgGenBtn.addEventListener('click', () => generateManagerUpdate(mgTextarea, mgGenBtn, filename));
+
+  const mgPostBtn = document.createElement('a');
+  mgPostBtn.className = 'post-btn';
+  mgPostBtn.href = slackPostUrl(MANAGER_DM);
+  mgPostBtn.target = '_blank';
+  mgPostBtn.textContent = '↗ DM Manager';
+  mgPostBtn.addEventListener('click', () => {
+    const fullText = formatManagerPost(mgTextarea.value);
+    try { navigator.clipboard.writeText(fullText); } catch(e) {}
+    const s = loadUpdateState(filename);
+    s.managerLastPosted = new Date().toISOString();
+    saveUpdateState(filename, s);
+  });
+
+  const mgHint = document.createElement('div');
+  mgHint.className = 'last-posted';
+  const lastMgr = state.managerLastPosted;
+  mgHint.textContent = lastMgr
+    ? 'Last sent: ' + new Date(lastMgr).toLocaleDateString() + ' — text copied to clipboard on click.'
+    : 'Text is copied to clipboard when you click DM Manager — paste it in Slack.';
+
+  mgRow.appendChild(mgGenBtn);
+  mgRow.appendChild(mgPostBtn);
+  mgBody.appendChild(mgTextarea);
+  mgBody.appendChild(mgRow);
+  mgBody.appendChild(mgHint);
+
+  const mgSection = makeCollapsible('Manager / Leadership Update', mgBody, 'manager-update', false);
+
+  // Auto-generate manager update if no draft
+  if (!state.managerDraft) {
+    generateManagerUpdate(mgTextarea, mgGenBtn, filename);
+  }
+
+  // Append both sections after the brief content
+  container.appendChild(cuSection);
+  container.appendChild(mgSection);
 }
 
 
