@@ -20,6 +20,16 @@ description: >
 
 # Daily Brief Skill
 
+## Admin Config
+
+```
+BRIEF_OUTPUT_FOLDER_ID: 1h6AGEIHGLTAFM_6OB17_K4zl3HoLJ1uT
+MEETING_RUN_LOG_SHEET_ID: 1S36RADUN3O2xmywgvy-cK26yVtxUpwGecp1E7dXty60
+RECURRING_ACTIVITIES_PROJECT_GID: 1216434461108524
+```
+
+---
+
 ## Purpose
 
 Produce a structured daily briefing that covers:
@@ -250,5 +260,7 @@ The HTML file produced during a live brief run will contain real names, meeting 
 
 ### Delivering the file
 
-After generating the HTML, present it as a downloadable file artifact. Also offer to upload it to Google Drive if the user has a brief folder configured in the meeting-manager routing table.
+After generating the HTML, upload it to Google Drive folder `BRIEF_OUTPUT_FOLDER_ID` (`1h6AGEIHGLTAFM_6OB17_K4zl3HoLJ1uT`) using `Google Drive: create_file` with `contentMimeType: text/html` and `disableConversionToGoogleType: true`. Name the file `Daily Brief_YYYY-MM-DD.html`. If a file with that name already exists for today (e.g., a second brief run), overwrite it by updating the existing file rather than creating a duplicate.
+
+Also present the file as a downloadable artifact in chat so it is immediately accessible without opening Drive.
 
