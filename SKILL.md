@@ -111,37 +111,50 @@ Then two sections:
 
 ### Section 1: Yesterday / Today So Far
 
-Subsections (only include if there's content):
+After pulling all data sources, consolidate everything by **customer account or internal initiative** — not by source. Each subsection covers one account or initiative and synthesizes across calendar, email, Slack, and Zoom for that topic.
 
-**Calendar** — List meetings with time, title, and a one-line note on what it was or who attended. Flag anything that ran long, was cancelled, or had a notable outcome from Zoom summary.
+Order subsections by priority: customer accounts with active signals first (in rough order of urgency), then internal initiatives, then a catch-all "General / Admin" for anything that doesn't fit elsewhere.
 
-**Email** — Summarize by thread/topic, not message count. Call out anything needing a response or follow-up.
+For each account or initiative subsection, include only what's relevant:
+- Meetings that occurred (time, who attended, outcome or Zoom summary if available)
+- Email threads needing attention or follow-up
+- Slack signals: DMs, mentions, or key channel activity
+- Overdue Asana tasks tied to that account
 
-**Slack** — Surface DMs needing a reply, key discussion threads in account or tiger team channels, and any direct mentions. One line per item unless it warrants more detail.
+Skip any account or initiative with nothing to report. Do not create a section just to say nothing happened.
 
-**Asana** — List overdue tasks by name and original due date.
+Example structure (only include sections with content):
+
+**Acme Financial** — Upgrade testing thread from Alex Rivera shows the 8.6→8.9 migration failed. Triage session ran this morning. Two overdue tasks.
+
+**Zebra Financial** — Bi-Weekly Sync occurred, ended early at 10 minutes. No summary available.
+
+**AI-First CS Tiger Team** — Alana tagged you in #prj-cs-ai-first on actora PR #74.
+
+**Internal / Admin** — Required training block at 2:30 PM. Submit Timesheet overdue.
 
 ---
 
 ### Section 2: Today / Tomorrow Ahead
 
-Subsections:
+Same structure: organize by **customer account or internal initiative**, not by source.
 
-**Calendar** — Full schedule with time, title, attendees. Flag prep needed (e.g., customer call with no notes pulled yet). Flag open time blocks if the day looks light.
+For each, include:
+- Upcoming meetings (time, attendees, prep needed)
+- Asana tasks due today or tomorrow tied to that account
+- Any flagged email or Slack threads requiring same-day action
 
-**Asana** — Tasks due today or tomorrow. Group: due today, due tomorrow.
-
-**Email / Slack** — Only include if there are flagged threads or known time-sensitive items to address.
+End with a brief **Open Time** note if there are meaningful unblocked blocks in the day.
 
 ---
 
 ## Formatting Rules
 
 - Prose for summaries, not bullet spray
-- Use a simple list only when enumerating meetings or tasks
+- Use a simple list only when enumerating meetings or tasks within a section
 - No bold text mid-sentence; section headers only
 - Keep each item concise — this is a brief, not a report
-- If a section is empty, omit it entirely (don't say "No emails today")
+- If an account or initiative has nothing to report, omit it entirely
 - Estimated read time: count ~200 words per minute, round up to nearest half minute
 
 ---
