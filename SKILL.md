@@ -20,16 +20,6 @@ description: >
 
 # Daily Brief Skill
 
-## Admin Config
-
-```
-BRIEF_OUTPUT_FOLDER_ID: 1h6AGEIHGLTAFM_6OB17_K4zl3HoLJ1uT
-MEETING_RUN_LOG_SHEET_ID: 1S36RADUN3O2xmywgvy-cK26yVtxUpwGecp1E7dXty60
-RECURRING_ACTIVITIES_PROJECT_GID: 1216434461108524
-```
-
----
-
 ## Purpose
 
 Produce a structured daily briefing that covers:
@@ -190,77 +180,3 @@ If there is genuinely nothing to report in a section, omit it silently.
 ## Tone
 
 Peer-level, direct. No filler. No affirmations. Write like a prepared colleague who pulled the information for you before the call, not like a dashboard widget.
-
----
-
-## HTML Output
-
-Every brief run produces a standalone interactive HTML file in addition to the in-chat response. The file is self-contained (no external dependencies), works offline, and persists checkbox state in `localStorage` so it can be referenced throughout the day.
-
-### When to generate
-
-Generate the HTML file on every brief run. Name the file: `Daily Brief_YYYY-MM-DD_HHmm.html` using the local date and 24-hour time (e.g., `Daily Brief_2026-07-10_0830.html`). This ensures multiple runs on the same day each produce a distinct file rather than overwriting.
-
-### HTML structure
-
-The file has four sections, in order:
-
-1. **Header** — date, brief type (Morning / Midday / Evening), timezone label, progress counter ("N of N done"), progress bar
-2. **Schedule** — every meeting in the next 24 hours as a checkable item with time, title, attendees, and a Join link if a Zoom/Webex URL is present
-3. **Action Items** — every task that needs action today: overdue Asana tasks, email threads needing a reply, Slack items flagged for response, meeting manager runs needed. Each item is checkable, has a one-line subtitle, and optional link buttons.
-4. **FYI** — non-actionable signals worth knowing: post-meeting summaries generated, recurring tasks spawned, informational Slack threads, status summary highlights
-
-### CSS design system
-
-Use exactly the CSS from the existing example (reproduced below). Do not deviate from the design tokens, class names, or layout. The only dynamic changes are content and the `data-id` / `TOTAL` values in the script.
-
-```css
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg:#f5f4f1; --surface:#fff; --border:#e2e0d8; --border-strong:#c8c6bc;
-  --t1:#1a1916; --t2:#5a5850; --t3:#9a9890;
-  --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
-  --warn-bg:#fdf5e6; --warn-t:#7a5000;
-  --bad-bg:#fef1f0; --bad-t:#b02520;
-  --done:.35; --font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-  --mono:ui-monospace,"SF Mono","Cascadia Code",monospace; --r:5px;
-}
-@media(prefers-color-scheme:dark){:root{
-  --bg:#18181b; --surface:#1e1e22; --border:#2c2c32; --border-strong:#3c3c44;
-  --t1:#e6e4de; --t2:#9a9890; --t3:#5a5850;
-  --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
-  --warn-bg:#28200a; --warn-t:#e8a020; --bad-bg:#280e0e; --bad-t:#e06868;
-}}
-```
-
-### Badge types
-
-| Class | Use |
-|-------|-----|
-| `bwarn` | Tentative, needs confirmation, time-sensitive |
-| `bbad` | Overdue, blocking, critical |
-| Custom inline style using `--accent-bg`/`--accent-t` | Informational label (e.g., "hiring", "prep run") |
-
-### Link buttons
-
-Use `class="lbtn primary"` for the primary CTA (Join Zoom, Open doc). Use `class="lbtn"` for secondary links (Asana task, Slack thread, email). All `href` values must be real URLs from the data — never placeholder `#` values in actual output. The example file uses `#` only because it is a sanitized demo.
-
-### localStorage key
-
-Use `brief:YYYY-MM-DD_HHmm` as the key (matching the filename timestamp). The `TOTAL` constant in the script must equal the actual number of checkable items (`.item[data-id]` elements) in that specific brief.
-
-### Sensitive data rules
-
-The HTML file produced during a live brief run will contain real names, meeting titles, and links. That is correct for personal use. However:
-
-- **Never commit a real brief to the GitHub repo.** The `example/` folder in the repo is for sanitized demo files only.
-- The example file must use fictional names, companies, and placeholder `#` links.
-- No real email addresses, Slack user IDs, Asana GIDs, Zoom meeting IDs, or calendar event IDs may appear in any committed file.
-- Customer names in examples must be fictional (e.g., "Acme Financial", "Pinnacle Health", "Meridian Bank") — never real account names.
-
-### Delivering the file
-
-After generating the HTML, upload it to Google Drive folder `BRIEF_OUTPUT_FOLDER_ID` (`1h6AGEIHGLTAFM_6OB17_K4zl3HoLJ1uT`) using `Google Drive: create_file` with `contentMimeType: text/html` and `disableConversionToGoogleType: true`. Name the file `Daily Brief_YYYY-MM-DD_HHmm.html` (e.g., `Daily Brief_2026-07-10_0830.html`). Each run produces a new file; no overwriting required.
-
-Also present the file as a downloadable artifact in chat so it is immediately accessible without opening Drive.
-

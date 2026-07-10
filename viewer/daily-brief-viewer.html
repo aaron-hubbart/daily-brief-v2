@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Brief Viewer</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#f5f4f1; --surface:#fff; --surface2:#f0efe9;
+  --border:#e2e0d8; --border-strong:#c8c6bc;
+  --t1:#1a1916; --t2:#5a5850; --t3:#9a9890;
+  --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
+  --bad-bg:#fef1f0; --bad-t:#b02520;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --r:6px;
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#18181b; --surface:#1e1e22; --surface2:#26262c;
+  --border:#2c2c32; --border-strong:#3c3c44;
+  --t1:#e6e4de; --t2:#9a9890; --t3:#5a5850;
+  --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
+  --bad-bg:#280e0e; --bad-t:#e06868;
+}}
+:root[data-theme="dark"]{
+  --bg:#18181b; --surface:#1e1e22; --surface2:#26262c;
+  --border:#2c2c32; --border-strong:#3c3c44;
+  --t1:#e6e4de; --t2:#9a9890; --t3:#5a5850;
+  --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
+  --bad-bg:#280e0e; --bad-t:#e06868;
+}
+:root[data-theme="light"]{
+  --bg:#f5f4f1; --surface:#fff; --surface2:#f0efe9;
+  --border:#e2e0d8; --border-strong:#c8c6bc;
+  --t1:#1a1916; --t2:#5a5850; --t3:#9a9890;
+  --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
+  --bad-bg:#fef1f0; --bad-t:#b02520;
+}
+html,body{height:100%;}
+body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100vh;}
+
+/* ── Topbar ── */
+.topbar{background:var(--surface);border-bottom:1px solid var(--border-strong);padding:0 1.25rem;display:flex;align-items:center;gap:.75rem;height:52px;flex-shrink:0;position:sticky;top:0;z-index:10;}
+.topbar-title{font-size:13px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;}
+.mode-btn{height:28px;width:28px;padding:0;background:none;border:1px solid var(--border-strong);border-radius:var(--r);cursor:pointer;color:var(--t2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .1s;}
+.mode-btn:hover{background:var(--surface2);color:var(--t1);}
+.sep{width:1px;height:18px;background:var(--border-strong);flex-shrink:0;}
+.selector-wrap{display:flex;align-items:center;gap:8px;flex:1;min-width:0;}
+.brief-count{font-size:11px;color:var(--t2);white-space:nowrap;}
+.brief-select{flex:1;max-width:360px;height:32px;padding:0 28px 0 10px;font-family:var(--font);font-size:12.5px;color:var(--t1);background:var(--surface2);border:1px solid var(--border-strong);border-radius:var(--r);cursor:pointer;outline:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239a9890' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
+.brief-select:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg);}
+.brief-select:disabled{opacity:.5;cursor:default;}
+.icon-btn{height:32px;padding:0 10px;font-family:var(--font);font-size:12px;font-weight:500;color:var(--t2);background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r);cursor:pointer;white-space:nowrap;transition:background .1s;}
+.icon-btn:hover{background:var(--surface2);color:var(--t1);}
+.icon-btn:disabled{opacity:.4;cursor:default;}
+.claude-btn{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:3px 8px;border-radius:var(--r);text-decoration:none;border:.5px solid #7c3aed44;color:#7c3aed;background:#f5f3ff;cursor:pointer;white-space:nowrap;transition:filter .1s;}
+.claude-btn:hover{filter:brightness(.93);}
+@media(prefers-color-scheme:dark){.claude-btn{color:#a78bfa;background:#1e1040;border-color:#a78bfa44;}}
+[data-theme="dark"] .claude-btn{color:#a78bfa;background:#1e1040;border-color:#a78bfa44;}
+[data-theme="light"] .claude-btn{color:#7c3aed;background:#f5f3ff;border-color:#7c3aed44;}
+.jira-btn{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:3px 8px;border-radius:var(--r);text-decoration:none;border:.5px solid #0052cc44;color:#0052cc;background:#e8f0fe;cursor:pointer;white-space:nowrap;transition:filter .1s;}
+.jira-btn:hover{filter:brightness(.93);}
+[data-theme="dark"] .jira-btn{color:#4c9aff;background:#0a1f44;border-color:#4c9aff44;}
+[data-theme="light"] .jira-btn{color:#0052cc;background:#e8f0fe;border-color:#0052cc44;}
+
+/* ── Timeline ── */
+.timeline{display:flex;align-items:center;gap:6px;padding:0 1.25rem;height:34px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;flex-shrink:0;}
+.timeline::-webkit-scrollbar{display:none;}
+.tl-dot{width:8px;height:8px;border-radius:50%;background:var(--border-strong);flex-shrink:0;cursor:pointer;transition:background .15s,transform .15s;position:relative;}
+.tl-dot:hover{transform:scale(1.4);background:var(--t3);}
+.tl-dot.active{background:var(--accent);transform:scale(1.3);}
+.tl-dot::after{content:attr(data-tip);position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:var(--t1);color:var(--bg);font-size:10px;padding:2px 6px;border-radius:3px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;z-index:20;}
+.tl-dot:hover::after{opacity:1;}
+.tl-line{flex:1;height:1px;background:var(--border);min-width:10px;max-width:28px;flex-shrink:0;}
+
+/* ── Status ── */
+.status-bar{display:none;align-items:center;gap:8px;padding:.55rem 1.25rem;font-size:12px;color:var(--t2);background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;}
+.status-bar.show{display:flex;}
+.status-bar.err{background:var(--bad-bg);color:var(--bad-t);border-color:var(--bad-t);}
+.spinner{width:13px;height:13px;border:2px solid var(--border-strong);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── Content area ── */
+.viewer-wrap{flex:1;overflow-y:auto;min-height:0;}
+/* Brighter FYI text when rendered inside viewer */
+#brief-content .fyi-lbl{color:var(--t1);}
+#brief-content .fyi-txt{color:var(--t2);}
+#brief-content .isub{color:var(--t2);}
+.brief-content{display:none;}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:.5rem;color:var(--t3);font-size:13px;padding:2rem;text-align:center;}
+.empty-state svg{opacity:.25;margin-bottom:.5rem;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-title">Daily Briefs</span>
+  <div class="sep"></div>
+  <div class="selector-wrap">
+    <select class="brief-select" id="brief-select" disabled><option value="">Loading…</option></select>
+    <button class="icon-btn" id="refresh-btn" onclick="loadBriefList()">Refresh</button>
+    <span class="brief-count" id="brief-count"></span>
+  </div>
+  <button class="mode-btn" id="mode-btn" onclick="toggleMode()" title="Toggle light/dark mode">☀</button>
+</div>
+
+<div class="timeline" id="timeline"></div>
+
+<div class="status-bar" id="status-bar">
+  <div class="spinner" id="spinner"></div>
+  <span id="status-msg"></span>
+</div>
+
+<div class="viewer-wrap" id="viewer-wrap">
+  <div class="empty-state" id="empty-state">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14,2 14,8 20,8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+      <polyline points="10,9 9,9 8,9"/>
+    </svg>
+    <span id="empty-msg">Loading briefs…</span>
+  </div>
+  <!-- Brief HTML injected here directly — same document, no iframe, no sandbox -->
+  <div class="brief-content" id="brief-content"></div>
+</div>
+
+<script>
+let briefs = [];
+
+function setStatus(msg, loading=true, error=false) {
+  const bar = document.getElementById('status-bar');
+  bar.className = 'status-bar show' + (error ? ' err' : '');
+  document.getElementById('spinner').style.display = loading ? 'block' : 'none';
+  document.getElementById('status-msg').textContent = msg;
+}
+function clearStatus() { document.getElementById('status-bar').className = 'status-bar'; }
+
+function formatLabel(b) {
+  const mTime = b.label.match(/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/);
+  const mDate = b.label.match(/(\d{4})-(\d{2})-(\d{2})$/);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  if (mTime) {
+    const [,y,mo,d,hh,mm] = mTime;
+    const dt = new Date(+y,+mo-1,+d,+hh,+mm);
+    const h = +hh;
+    return days[dt.getDay()] + ', ' + months[+mo-1] + ' ' + +d + ' \xb7 ' + (h%12||12) + ':' + mm + (h>=12?' PM':' AM');
+  }
+  if (mDate) {
+    const [,y,mo,d] = mDate;
+    const dt = new Date(+y,+mo-1,+d);
+    return days[dt.getDay()] + ', ' + months[+mo-1] + ' ' + +d;
+  }
+  return b.name;
+}
+
+async function loadBriefList() {
+  const sel = document.getElementById('brief-select');
+  const btn = document.getElementById('refresh-btn');
+  sel.disabled = true; btn.disabled = true;
+  setStatus('Scanning for briefs…');
+  try {
+    const res = await fetch('/api/briefs');
+    if (!res.ok) throw new Error('Server error ' + res.status);
+    briefs = await res.json();
+    document.getElementById('brief-count').textContent = briefs.length ? briefs.length + ' brief' + (briefs.length !== 1 ? 's' : '') : '';
+    if (!briefs.length) {
+      sel.innerHTML = '<option value="">No briefs found</option>';
+      buildTimeline([]); clearStatus();
+      document.getElementById('empty-msg').textContent = 'No Daily Brief files found in this folder.';
+      return;
+    }
+    sel.innerHTML = briefs.map((b,i) => '<option value="'+i+'">' + formatLabel(b) + '</option>').join('');
+    sel.disabled = false;
+    buildTimeline(briefs); clearStatus(); selectBrief(0);
+  } catch(err) {
+    setStatus('Could not load brief list: ' + err.message, false, true);
+    document.getElementById('empty-msg').textContent = 'Error loading briefs. Is the server running?';
+    sel.innerHTML = '<option value="">Error</option>';
+  } finally { btn.disabled = false; }
+}
+
+function buildTimeline(files) {
+  const tl = document.getElementById('timeline');
+  if (!files.length) { tl.innerHTML = ''; return; }
+  tl.innerHTML = files.map((f,i) =>
+    (i>0 ? '<div class="tl-line"></div>' : '') +
+    '<div class="tl-dot" data-tip="' + f.label + '" onclick="selectBrief('+i+')"></div>'
+  ).join('');
+  setActiveDot(0);
+}
+function setActiveDot(idx) {
+  document.querySelectorAll('.tl-dot').forEach((d,i) => d.classList.toggle('active', i===idx));
+}
+
+
+// ── Brief state management ──────────────────────────────────────
+// Persists checkbox state in the viewer's own localStorage, keyed by filename.
+// This works regardless of how the brief was generated or what KEY it uses internally.
+
+function briefStateKey(filename) {
+  return 'viewer:state:' + filename;
+}
+
+function loadBriefState(filename) {
+  try {
+    const raw = localStorage.getItem(briefStateKey(filename));
+    return raw ? JSON.parse(raw) : {};
+  } catch(e) { return {}; }
+}
+
+function saveBriefState(filename, state) {
+  try {
+    localStorage.setItem(briefStateKey(filename), JSON.stringify(state));
+  } catch(e) {}
+}
+
+function initBriefState(filename) {
+  const container = document.getElementById('brief-content');
+  const state = loadBriefState(filename);
+
+  // Re-query live DOM every time — never cache NodeList across cloneNode ops
+  function liveItems() {
+    return container.querySelectorAll('.item[data-id]');
+  }
+
+  function applyState() {
+    const items = liveItems();
+    let done = 0;
+    items.forEach(el => {
+      const on = !!state[el.dataset.id];
+      el.classList.toggle('done', on);
+      const cb = el.querySelector('input[type=checkbox]');
+      if (cb) cb.checked = on;
+      if (on) done++;
+    });
+    const total = items.length;
+    const pct = total ? Math.round(done / total * 100) : 0;
+    const lbl = container.querySelector('#prog-label');
+    const fill = container.querySelector('#prog-fill');
+    if (lbl) lbl.textContent = done + ' of ' + total + ' done';
+    if (fill) fill.style.width = pct + '%';
+  }
+
+  function toggle(id) {
+    state[id] = !state[id];
+    saveBriefState(filename, state);
+    applyState();
+  }
+
+  // Clone each item to strip the brief's own handlers, then wire ours
+  liveItems().forEach(el => {
+    const id = el.dataset.id;
+    const fresh = el.cloneNode(true);
+    el.parentNode.replaceChild(fresh, el);
+    const cb = fresh.querySelector('input[type=checkbox]');
+
+    // Checkbox change is the single source of truth for toggling.
+    // The div click handler only fires when the click landed outside the checkbox,
+    // in which case it manually flips the checkbox and dispatches change — one event, one toggle.
+    if (cb) {
+      cb.addEventListener('change', e => {
+        e.stopPropagation();
+        toggle(id);
+      });
+    }
+    fresh.addEventListener('click', e => {
+      if (e.target.closest('a')) return;
+      if (e.target === cb || e.target.closest('input[type=checkbox]')) return; // checkbox handles itself
+      if (cb) {
+        cb.checked = !cb.checked;
+        cb.dispatchEvent(new Event('change', { bubbles: false }));
+      } else {
+        toggle(id);
+      }
+    });
+  });
+
+  // Wire reset button
+  const resetBtn = container.querySelector('.reset-btn');
+  if (resetBtn) {
+    const freshReset = resetBtn.cloneNode(true);
+    resetBtn.parentNode.replaceChild(freshReset, resetBtn);
+    freshReset.addEventListener('click', () => {
+      if (!confirm('Reset all checkboxes?')) return;
+      Object.keys(state).forEach(k => delete state[k]);
+      saveBriefState(filename, state);
+      applyState();
+    });
+  }
+
+  // Restore persisted state against the now-live cloned elements
+  applyState();
+
+  // Add "Run in Claude" button to each Schedule item (items with a time column)
+  injectClaudeButtons(container);
+  injectJiraButtons(container);
+}
+
+function injectJiraButtons(container) {
+  const JIRA_BASE = 'https://jira.camunda.com/browse/';
+  const ISSUE_RE = /(?<![A-Z0-9])([A-Z][A-Z0-9]+-[0-9]+)(?![A-Z0-9-])/g;
+
+  // Target action items — those without an .itime element
+  container.querySelectorAll('.item[data-id]').forEach(el => {
+    if (el.querySelector('.itime')) return; // skip schedule items
+
+    // Collect all text from title and subtitle
+    const titleEl = el.querySelector('.ititle');
+    const subEl = el.querySelector('.isub');
+    const text = (titleEl ? titleEl.textContent : '') + ' ' + (subEl ? subEl.textContent : '');
+
+    // Find all unique issue keys
+    const keys = [...new Set([...text.matchAll(ISSUE_RE)].map(m => m[1]))];
+    if (!keys.length) return;
+
+    // Don't add if already present
+    if (el.querySelector('.jira-btn')) return;
+
+    let links = el.querySelector('.ilinks');
+    if (!links) {
+      links = document.createElement('div');
+      links.className = 'ilinks';
+      el.querySelector('.ibody').appendChild(links);
+    }
+
+    keys.forEach(key => {
+      const btn = document.createElement('a');
+      btn.className = 'jira-btn';
+      btn.href = JIRA_BASE + key;
+      btn.target = '_blank';
+      btn.rel = 'noopener noreferrer';
+      btn.textContent = key + ' ↗';
+      links.appendChild(btn);
+    });
+  });
+}
+
+function parseBriefDateTime(briefName, timeStr) {
+  // Extract date from brief filename: Daily Brief_YYYY-MM-DD or Daily Brief_YYYY-MM-DD_HHmm
+  const dateMatch = briefName.match(/Daily Brief_([0-9]{4}-[0-9]{2}-[0-9]{2})(?:_([0-9]{4}))?/i);
+  if (!dateMatch) return null;
+  const [, datePart] = dateMatch;
+
+  // Parse time string from .itime — formats: "9:00a", "10:30a", "1:00p", "2:30p"
+  const tMatch = timeStr.trim().match(/^([0-9]{1,2}):([0-9]{2})[ ]?([ap])/i);
+  if (!tMatch) return null;
+  let [, hStr, mStr, ampm] = tMatch;
+  let h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  if (ampm.toLowerCase() === 'p' && h !== 12) h += 12;
+  if (ampm.toLowerCase() === 'a' && h === 12) h = 0;
+
+  const [y, mo, d] = datePart.split('-').map(Number);
+  return new Date(y, mo - 1, d, h, m, 0);
+}
+
+function injectClaudeButtons(container) {
+  // Get brief filename from the current dropdown selection for date context
+  const sel = document.getElementById('brief-select');
+  const idx = sel ? parseInt(sel.value, 10) : NaN;
+  const briefName = (!isNaN(idx) && briefs[idx]) ? briefs[idx].name : '';
+
+  const now = new Date();
+
+  // Schedule items have an .itime element; action items do not
+  container.querySelectorAll('.item[data-id]').forEach(el => {
+    const timeEl = el.querySelector('.itime');
+    if (!timeEl) return; // skip non-schedule items
+
+    const title = el.querySelector('.ititle');
+    if (!title) return;
+
+    // Extract plain text title (strip badge text)
+    const titleText = Array.from(title.childNodes)
+      .filter(n => n.nodeType === Node.TEXT_NODE)
+      .map(n => n.textContent.trim())
+      .join(' ')
+      .trim();
+    const timeStr = timeEl.textContent.trim();
+
+    if (!titleText) return;
+
+    // Don't add if already present
+    if (el.querySelector('.claude-btn')) return;
+
+    // Determine past vs future to pick pre vs post meeting mode
+    const meetingDt = parseBriefDateTime(briefName, timeStr);
+    const isPast = meetingDt ? meetingDt < now : false;
+
+    let prompt, btnLabel, btnTitle;
+    if (isPast) {
+      prompt = '/meeting-manager Run post-meeting notes for: ' + titleText + ' (' + timeStr + ')';
+      btnLabel = '✦ Post-meeting';
+      btnTitle = 'Run post-meeting notes in Claude Desktop';
+    } else {
+      prompt = '/meeting-manager Run pre-meeting prep for: ' + titleText + ' (' + timeStr + ')';
+      btnLabel = '✦ Pre-meeting prep';
+      btnTitle = 'Run pre-meeting prep in Claude Desktop';
+    }
+
+    const url = 'claude://claude.ai/new?q=' + encodeURIComponent(prompt);
+
+    const btn = document.createElement('a');
+    btn.className = 'claude-btn';
+    btn.href = url;
+    btn.title = btnTitle;
+    btn.textContent = btnLabel;
+
+    // Append into .ilinks if present, else create one
+    let links = el.querySelector('.ilinks');
+    if (!links) {
+      links = document.createElement('div');
+      links.className = 'ilinks';
+      el.querySelector('.ibody').appendChild(links);
+    }
+    links.appendChild(btn);
+  });
+}
+
+
+// ── Dark mode ────────────────────────────────────────────────────
+const MODE_KEY = 'daily-brief-viewer:mode';
+
+function applyMode(mode) {
+  document.documentElement.setAttribute('data-theme', mode);
+  document.getElementById('mode-btn').textContent = mode === 'dark' ? '☀' : '☾';
+}
+
+function toggleMode() {
+  const current = localStorage.getItem(MODE_KEY) ||
+    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const next = current === 'dark' ? 'light' : 'dark';
+  localStorage.setItem(MODE_KEY, next);
+  applyMode(next);
+}
+
+function initMode() {
+  const saved = localStorage.getItem(MODE_KEY);
+  const mode = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  applyMode(mode);
+}
+
+async function selectBrief(idx) {
+  document.getElementById('brief-select').value = String(idx);
+  setActiveDot(idx);
+  const brief = briefs[idx];
+  const content = document.getElementById('brief-content');
+  const empty = document.getElementById('empty-state');
+
+  setStatus('Loading ' + formatLabel(brief) + '…');
+  content.style.display = 'none';
+  empty.style.display = 'flex';
+  document.getElementById('empty-msg').textContent = 'Loading…';
+
+  try {
+    const res = await fetch('/brief/' + encodeURIComponent(brief.name));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const html = await res.text();
+
+    // Extract <style> blocks from the brief
+    const styles = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)]
+      .map(m => '<style>' + m[1] + '</style>').join('\n');
+
+    // Extract <body> content
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    const bodyHTML = bodyMatch ? bodyMatch[1] : html;
+
+    // Inject into the page
+    content.innerHTML = styles + bodyHTML;
+
+    // Re-execute any <script> tags (innerHTML doesn't run them)
+    content.querySelectorAll('script').forEach(oldScript => {
+      const newScript = document.createElement('script');
+      newScript.textContent = oldScript.textContent;
+      oldScript.replaceWith(newScript);
+    });
+
+    content.style.display = 'block';
+    empty.style.display = 'none';
+    clearStatus();
+    document.getElementById('viewer-wrap').scrollTop = 0;
+
+    // Wait for paint before wiring state — fixes first-load checkbox issue
+    requestAnimationFrame(() => {
+      initBriefState(brief.name);
+    });
+
+  } catch(err) {
+    setStatus('Could not load brief: ' + err.message, false, true);
+    document.getElementById('empty-msg').textContent = 'Could not load this brief.';
+    content.style.display = 'none';
+    empty.style.display = 'flex';
+  }
+}
+
+document.getElementById('brief-select').addEventListener('change', function() {
+  const i = parseInt(this.value, 10);
+  if (!isNaN(i)) selectBrief(i);
+});
+
+initMode();
+loadBriefList();
+</script>
+</body>
+</html>
