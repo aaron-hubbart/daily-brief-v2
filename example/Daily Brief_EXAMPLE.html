@@ -56,6 +56,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 .fyi-dot{width:4px;height:4px;border-radius:50%;background:var(--t3);flex-shrink:0;margin-top:7px;}
 .fyi-lbl{font-size:11px;font-weight:600;color:var(--t2);margin-bottom:2px;}
 .fyi-txt{font-size:12px;color:var(--t2);line-height:1.45;}
+.status-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:.75rem;}
+.status-acct{font-size:11px;font-weight:700;color:var(--t2);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em;}
+.status-txt{font-size:12px;color:var(--t2);line-height:1.5;}
 .footer{margin-top:1.5rem;padding-top:1rem;border-top:.5px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
 .foot-note{font-size:11px;color:var(--t3);}
 .reset-btn{font-size:11px;color:var(--t3);background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--border-strong);padding:0;}
@@ -71,7 +74,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
       <div class="sub">Morning brief &middot; Central time</div>
     </div>
     <div>
-      <div class="prog-label" id="prog-label">0 of 11 done</div>
+      <div class="prog-label" id="prog-label">0 of 12 done</div>
       <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
     </div>
   </div>
@@ -84,7 +87,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
       <div class="icb"><input type="checkbox"></div>
       <div class="itime">9:00a</div>
       <div class="ibody">
-        <div class="ititle">AMER TAM team standup</div>
+        <div class="ititle">AMER TAM team standup <span class="badge" style="background:var(--accent-bg);color:var(--accent-t)">prep run</span></div>
         <div class="isub">15 min &middot; Weekly sync with Jessica Park, Omar Reyes, Priya Nair</div>
         <div class="ilinks">
           <a class="lbtn primary" href="#" target="_blank">Join Zoom &nearr;</a>
@@ -96,11 +99,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
       <div class="icb"><input type="checkbox"></div>
       <div class="itime">10:00a</div>
       <div class="ibody">
-        <div class="ititle">Acme Financial &mdash; QBR Prep</div>
+        <div class="ititle">Acme Financial &mdash; QBR Prep <span class="badge" style="background:var(--accent-bg);color:var(--accent-t)">prep run</span></div>
         <div class="isub">30 min &middot; Internal &middot; Derek Walsh (AE), Sandra Lim (CSM) &middot; Review slide deck before tomorrow's EBR</div>
         <div class="ilinks">
           <a class="lbtn primary" href="#" target="_blank">Join Zoom &nearr;</a>
-          <a class="lbtn" href="#" target="_blank">Open deck &nearr;</a>
+          <a class="lbtn" href="#" target="_blank">Meeting prep doc &nearr;</a>
         </div>
       </div>
     </div>
@@ -110,7 +113,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
       <div class="itime">11:30a</div>
       <div class="ibody">
         <div class="ititle">Pinnacle Health &mdash; Technical Deep Dive</div>
-        <div class="isub">60 min &middot; Marcus Webb (organizer), Lisa Tran, Raj Gupta &middot; Zeebe cluster scaling discussion</div>
+        <div class="isub">60 min &middot; Marcus Webb (organizer), Lisa Tran, Raj Gupta &middot; Zeebe cluster scaling &middot; prep needed</div>
         <div class="ilinks">
           <a class="lbtn primary" href="#" target="_blank">Join Zoom &nearr;</a>
         </div>
@@ -121,7 +124,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
       <div class="icb"><input type="checkbox"></div>
       <div class="itime">1:00p</div>
       <div class="ibody">
-        <div class="ititle">Stakeholder Interview: Jordan Martinez <span class="badge" style="background:var(--accent-bg);color:var(--accent-t);font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:3px;">hiring</span></div>
+        <div class="ititle">Stakeholder Interview: Jordan Martinez <span class="badge" style="background:var(--accent-bg);color:var(--accent-t)">hiring</span></div>
         <div class="isub">50 min &middot; TAM East Coast role &middot; With Ryan Foust (panel lead)</div>
         <div class="ilinks">
           <a class="lbtn primary" href="#" target="_blank">Join Zoom &nearr;</a>
@@ -152,6 +155,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
         </div>
       </div>
     </div>
+
   </div>
 
   <!-- Action Items -->
@@ -172,12 +176,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
     <div class="item" data-id="a2">
       <div class="icb"><input type="checkbox"></div>
       <div class="ibody">
-        <div class="ititle">Triage Meridian Bank support ticket</div>
-        <div class="isub">j.hoffman@meridianbank.com &middot; Process instance stuck in incident state &middot; Renewal in Q2 &middot; Danielle CC'd</div>
+        <div class="ititle">Run post-meeting: Acme Financial weekly sync (yesterday)</div>
+        <div class="isub">No Zoom summary available &middot; Paste transcript or notes to process</div>
       </div>
     </div>
 
     <div class="item" data-id="a3">
+      <div class="icb"><input type="checkbox"></div>
+      <div class="ibody">
+        <div class="ititle">Triage Meridian Bank support ticket</div>
+        <div class="isub">j.hoffman@example.com &middot; Process instance stuck in incident state &middot; Renewal in Q2 &middot; Danielle CC'd</div>
+      </div>
+    </div>
+
+    <div class="item" data-id="a4">
       <div class="icb"><input type="checkbox"></div>
       <div class="ibody">
         <div class="ititle">Confirm Westbrook Capital onboarding call (2:30p) <span class="badge bwarn">before noon</span></div>
@@ -185,7 +197,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
       </div>
     </div>
 
-    <div class="item" data-id="a4">
+    <div class="item" data-id="a5">
       <div class="icb"><input type="checkbox"></div>
       <div class="ibody">
         <div class="ititle">Submit Ashby feedback: Jordan Martinez</div>
@@ -196,7 +208,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
       </div>
     </div>
 
-    <div class="item" data-id="a5">
+    <div class="item" data-id="a6">
       <div class="icb"><input type="checkbox"></div>
       <div class="ibody">
         <div class="ititle">Complete compliance training: Data Privacy Essentials <span class="badge bbad">overdue</span></div>
@@ -206,6 +218,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
         </div>
       </div>
     </div>
+
   </div>
 
   <!-- FYI -->
@@ -239,10 +252,50 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
     <div class="fyi-item">
       <div class="fyi-dot"></div>
       <div>
+        <div class="fyi-lbl">Recurring task spawned &middot; Submit weekly timesheet (due today)</div>
+        <div class="fyi-txt">Created in Asana from TAM Recurring Activities board. Due today.</div>
+      </div>
+    </div>
+
+    <div class="fyi-item">
+      <div class="fyi-dot"></div>
+      <div>
         <div class="fyi-lbl">CS Toolkit v1.2.0 &middot; released</div>
         <div class="fyi-txt">Omar merged the Expansion Opportunity Analyst skill yesterday. Available in the Claude.ai marketplace. No action needed.</div>
       </div>
     </div>
+
+  </div>
+
+  <!-- Status Summary -->
+  <div class="section">
+    <div class="sec-label">Status summary</div>
+
+    <div class="status-block">
+      <div class="status-acct">Acme Financial</div>
+      <div class="status-txt">EBR is tomorrow. Deck is prepped, new exec stakeholder (Claire Donovan, VP Eng) just identified by Sandra Lim. Renewal is Q3 and tracking green. Primary risk is exec alignment given the late addition.</div>
+    </div>
+
+    <div class="status-block">
+      <div class="status-acct">Pinnacle Health</div>
+      <div class="status-txt">8.6 &rarr; 8.9 upgrade confirmed for Jan 20 with Raj Gupta as technical lead. Technical deep dive today at 11:30a. No blockers currently; monitoring closely given their cluster scale.</div>
+    </div>
+
+    <div class="status-block">
+      <div class="status-acct">Meridian Bank</div>
+      <div class="status-txt">Active support ticket (process instance incident) with renewal at risk. No executive sponsor confirmed for renewal conversation. Needs escalation path defined before end of month.</div>
+    </div>
+
+    <div class="status-block">
+      <div class="status-acct">Westbrook Capital</div>
+      <div class="status-txt">30-day onboarding check-in today (tentative). On track so far; platform is up and first process deployed. Main gap is internal enablement — no training sessions scheduled yet.</div>
+    </div>
+
+    <div class="status-block">
+      <div class="status-acct">AI-First CS Toolkit</div>
+      <div class="status-txt">v1.2.0 shipped yesterday with the Renewal Risk Analyst skill. PR #112 in review (your approval needed). Marketplace sync is live; 30-min deployment lag from merge to availability.</div>
+    </div>
+
   </div>
 
   <div class="footer">
@@ -252,7 +305,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 
 </div>
 <script>
-const KEY='brief:demo-2026-01-15';const TOTAL=11;let state={};
+const KEY='brief:demo-2026-01-15';const TOTAL=12;let state={};
 function load(){try{const s=localStorage.getItem(KEY);if(s)state=JSON.parse(s);}catch(e){}apply();}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state));const n=document.getElementById('saved-note');if(n){n.textContent='Saved';setTimeout(()=>{n.textContent='';},1500);}}catch(e){}}
 function toggle(id){state[id]=!state[id];save();apply();}

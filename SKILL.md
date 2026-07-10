@@ -3,12 +3,9 @@ name: daily-brief
 description: >
   Generates a personalized daily briefing for Aaron Hubbart, Senior TAM at Camunda.
   Pulls from all available data sources: Outlook calendar, Outlook email, Slack (DMs,
-  account channels, tiger team channels, direct mentions), Zoom AI summaries,
+  account channels, tiger team channels, direct mentions), Zoom meeting summaries,
   and Asana tasks. Produces a structured, easy-to-read summary covering the current
-  day in review and the day ahead in plan. Automatically triggers meeting-manager
-  pre-meeting and post-meeting for qualifying meetings. Evaluates the TAM Recurring
-  Activities Asana board and spawns due tasks. Generates a boss-ready account
-  status summary on the first run of each morning or when explicitly requested.
+  day in review and the day ahead in plan.
 
   Trigger on any of these phrases or clear variations: "daily brief", "morning brief",
   "evening brief", "brief me", "what's my day look like", "catch me up", "day ahead",
@@ -28,20 +25,8 @@ description: >
 Produce a structured daily briefing that covers:
 - A recap of the current or previous day (what happened, what came in)
 - A forward look at the upcoming day or remainder of today
-- Automated meeting manager pre/post runs for qualifying meetings
-- Recurring task evaluation and Asana task creation
-- A boss-ready status summary (morning first-run or on demand)
 
-The brief is always split into two sections: **Yesterday / Today So Far** and **Today / Tomorrow Ahead**, followed by the **Status Summary** when applicable.
-
----
-
-## Admin Config
-
-```
-MEETING_RUN_LOG_SHEET_ID: 1S36RADUN3O2xmywgvy-cK26yVtxUpwGecp1E7dXty60
-RECURRING_ACTIVITIES_PROJECT_GID: 1216434461108524
-```
+The brief is always split into two sections: **Yesterday / Today So Far** and **Today / Tomorrow**.
 
 ---
 
@@ -69,19 +54,16 @@ Infer the user's intent from the user's current local time (resolved above) and 
 
 State the timing assumption briefly at the top of the brief (e.g., "Morning brief for Thursday, June 19").
 
-Track whether this is the **first run of the morning** (before noon, first time today the brief has been run). The boss-ready status summary runs on first morning run or when explicitly requested.
-
 ---
 
 ## Data Sources and What to Pull
 
 Run all data pulls in parallel where possible. Use the time windows below.
 
-### Outlook Calendar (Microsoft 365: outlook_calendar_search) — Source of truth for all meetings
+### Outlook Calendar (Microsoft 365: outlook_calendar_search)
 - Recap window: yesterday (or today so far if midday/evening)
-- Ahead window: next 24 hours from current local time
+- Ahead window: today (morning) or tomorrow (evening)
 - Pull all events in the window: title, time, attendees, location/link
-- This is the authoritative meeting list. Do not add, remove, or infer meetings from Zoom or any other source.
 - Flag any conflicts, back-to-back blocks, or meetings with key accounts
 
 ### Outlook Email (Microsoft 365: outlook_email_search)
@@ -101,100 +83,16 @@ Run multiple targeted searches:
 
 Consolidate into a single Slack section. Surface only items that need attention or are informational — skip noise, bot messages, and automated notifications.
 
-### Zoom (Zoom for Claude: get_meeting_assets) — Supplementary AI summaries only
-- Do not use Zoom to discover or enumerate meetings. The M365 calendar is the source of truth for what meetings occurred.
-- For each meeting on the M365 calendar that has a Zoom link, attempt to fetch the AI summary and next steps via `get_meeting_assets` using the meeting ID from the calendar event.
-- If a summary is available, surface it under the relevant account or initiative section.
-- If no summary is available, do not note the absence — simply omit the Zoom enrichment for that meeting.
-- Never surface a Zoom meeting that does not have a corresponding M365 calendar event.
+### Zoom (Zoom for Claude: search_meetings + get_meeting_assets)
+- Search for meetings completed in the recap window
+- Pull AI summary and next steps for each completed meeting
+- If no summary is available, note the meeting occurred
+- Only surface meetings that produced meaningful content (skip 1:1 standups with no summary)
 
 ### Asana (Asana: get_my_tasks)
 - Pull incomplete tasks with due_on = today or overdue
 - Group by: overdue, due today, due tomorrow (for evening brief)
 - Omit tasks with no due date unless they appear high priority from the name
-
----
-
-## Meeting Manager Integration
-
-This is a core part of the brief. Run meeting manager for qualifying meetings automatically — do not ask for permission. The user has opted in by running the brief.
-
-### Run Log Sheet
-
-The run log is a Google Sheet (ID: `1S36RADUN3O2xmywgvy-cK26yVtxUpwGecp1E7dXty60`). Read it at the start of every brief run to know what has already been processed. It has the following columns:
-
-| Column | Description |
-|--------|-------------|
-| meeting_id | M365 calendar event ID |
-| meeting_subject | Human-readable title |
-| meeting_start | ISO datetime of meeting start (local) |
-| phase | `pre` or `post` |
-| run_at | ISO datetime when meeting manager was run |
-| status | `completed` or `error` |
-
-Write a new row each time meeting manager runs successfully for a meeting+phase combination.
-
-### Pre-Meeting Rules
-
-For every meeting in the **next 24 hours** from the M365 calendar:
-1. Skip personal/medication reminders (z-Personal category, no attendees, solo events).
-2. Skip meetings with no attendees other than the user.
-3. Check the run log: if a `pre` row exists for this meeting_id, skip — it has already been prepped.
-4. Otherwise: invoke the meeting-manager skill in pre-meeting mode for this meeting. Log the result.
-5. Summarize in the brief under the relevant account/initiative section: "Meeting prep run for [title] at [time]."
-
-### Post-Meeting Rules
-
-For every meeting in the **past 3 days** from the M365 calendar that has already ended:
-1. Apply the same skip rules as pre-meeting (personal, no-attendee, solo).
-2. Check the run log: if a `post` row exists for this meeting_id, skip — it has already been processed.
-3. Otherwise: invoke the meeting-manager skill in post-meeting mode for this meeting. If a Zoom AI summary is available, pass it in as the transcript source. Log the result.
-4. Summarize in the brief under the relevant account/initiative section: "Post-meeting notes generated for [title] from [date]."
-
-### Ambiguity Handling
-
-If meeting manager cannot determine mode (pre vs. post) or encounters an error for a specific meeting, note it once at the bottom of the brief under a "Meeting Manager — Needs Attention" subsection. Do not halt the rest of the brief.
-
----
-
-## Recurring Activities Evaluation
-
-At each brief run, read the TAM Recurring Activities Asana project (GID: `1216434461108524`) and evaluate every active task template against the current date.
-
-### Reading the Board
-
-Pull all tasks from the project. For each task, read:
-- `name` and `notes` (the activity description)
-- Custom fields: `Frequency`, `Day of Week`, `Week of Month`, `Day of Month`, `Month`, `Month of Quarter`, `Due Offset Days`, `Customer`, `Active`, `Snooze Until`, `Last Run`
-
-Skip any task where `Active` = false.
-Skip any task where `Snooze Until` is set and is in the future.
-
-### Schedule Evaluation Logic
-
-Determine whether today is a trigger date for each template using the following rules:
-
-| Frequency | Trigger condition |
-|-----------|------------------|
-| daily | Every day |
-| weekly | Current day of week matches `Day of Week` |
-| bi-weekly | Current day of week matches `Day of Week`, and it has been ≥ 14 days since `Last Run` (or `Last Run` is unset) |
-| monthly | Today's date matches `Day of Month`, OR today matches `Week of Month` + `Day of Week` (e.g., 2nd Monday) |
-| quarterly | Monthly condition is met AND current month matches `Month of Quarter` within the current calendar quarter |
-| annually | Monthly condition is met AND current month matches `Month` |
-
-If `Day of Month`, `Week of Month`, `Day of Week`, `Month`, or `Month of Quarter` are set but create an ambiguous schedule, ask the user for clarification at brief time before spawning a task. Do not skip silently.
-
-### Task Creation
-
-When a template is triggered:
-1. Create a new Asana task assigned to `me` with:
-   - `name`: same as the template task name
-   - `notes`: the template's notes/description
-   - `due_on`: today + `Due Offset Days` (0 if unset)
-   - Project: route to the customer's account project if `Customer` is set and the routing table in meeting-manager has a GID for that account; otherwise add to My Tasks
-2. Update the template's `Last Run` custom field to today's date.
-3. Surface the created task in the brief under the relevant account/initiative section.
 
 ---
 
@@ -207,25 +105,33 @@ Start with a one-line header:
 Estimated read time: X min
 ```
 
-Then the following sections in order:
+Then two sections:
 
 ---
 
 ### Section 1: Yesterday / Today So Far
 
-After pulling all data sources, consolidate everything by **customer account or internal initiative** — not by source. Each subsection covers one account or initiative and synthesizes across calendar, email, Slack, Zoom summaries, meeting manager results, and Asana for that topic.
+After pulling all data sources, consolidate everything by **customer account or internal initiative** — not by source. Each subsection covers one account or initiative and synthesizes across calendar, email, Slack, and Zoom for that topic.
 
 Order subsections by priority: customer accounts with active signals first (in rough order of urgency), then internal initiatives, then a catch-all "General / Admin" for anything that doesn't fit elsewhere.
 
 For each account or initiative subsection, include only what's relevant:
-- Meetings that occurred (time, who attended, outcome or Zoom AI summary if available)
-- Post-meeting notes generated (with link to doc if meeting-manager produced one)
+- Meetings that occurred (time, who attended, outcome or Zoom summary if available)
 - Email threads needing attention or follow-up
 - Slack signals: DMs, mentions, or key channel activity
 - Overdue Asana tasks tied to that account
-- Recurring tasks that were spawned today for that account
 
-Skip any account or initiative with nothing to report.
+Skip any account or initiative with nothing to report. Do not create a section just to say nothing happened.
+
+Example structure (only include sections with content):
+
+**Acme Financial** — Upgrade testing thread from Alex Rivera shows the 8.6→8.9 migration failed. Triage session ran this morning. Two overdue tasks.
+
+**Zebra Financial** — Bi-Weekly Sync occurred, ended early at 10 minutes. No summary available.
+
+**AI-First CS Tiger Team** — Alana tagged you in #prj-cs-ai-first on actora PR #74.
+
+**Internal / Admin** — Required training block at 2:30 PM. Submit Timesheet overdue.
 
 ---
 
@@ -234,35 +140,11 @@ Skip any account or initiative with nothing to report.
 Same structure: organize by **customer account or internal initiative**, not by source.
 
 For each, include:
-- Upcoming meetings in the next 24 hours (time, attendees, prep status — "prep run" or "prep needed")
-- Meeting prep that was generated this run (with link to doc if produced)
+- Upcoming meetings (time, attendees, prep needed)
 - Asana tasks due today or tomorrow tied to that account
 - Any flagged email or Slack threads requiring same-day action
-- Recurring tasks spawned for today tied to that account
 
-End with a brief **Open Time** note if there are meaningful unblocked blocks in the next 24 hours.
-
----
-
-### Section 3: Status Summary (morning first-run or on demand only)
-
-Produce a concise account-by-account status update suitable for a quick verbal or written update to your manager. This is not a deep dive — it is a one-paragraph-per-account snapshot of where things stand, what's moving, and what's at risk.
-
-Format:
-
-**[Account or Initiative]** — [1–3 sentences: current state, recent activity, next milestone or open risk. No bullet spray. Write as if briefing your boss verbally.]
-
-Include all active accounts and internal initiatives with meaningful activity in the past 2 weeks. Omit accounts with no recent activity.
-
-This section runs:
-- On the first brief run before noon each day (morning first-run)
-- Any time the user explicitly asks for the status summary, boss update, or similar
-
----
-
-### Meeting Manager — Needs Attention (only if errors or ambiguity)
-
-List any meetings where meeting manager could not complete pre or post processing, with a one-line reason. Prompt the user to resolve these manually or clarify.
+End with a brief **Open Time** note if there are meaningful unblocked blocks in the day.
 
 ---
 
@@ -291,47 +173,82 @@ Use this context to prioritize and flag items. A Slack DM from Rodrigo about Acm
 
 If a data source is unavailable (MCP auth issue, timeout), note it briefly at the bottom of the brief under "Unavailable Sources" and proceed with what's available. Do not fail the whole brief because one source errored.
 
-If the meeting run log sheet is unavailable, proceed with the brief and skip meeting manager automation — note it under Unavailable Sources.
-
-If the recurring activities project is unavailable, proceed with the brief and skip recurring task evaluation — note it under Unavailable Sources.
-
 If there is genuinely nothing to report in a section, omit it silently.
-
----
-
-## Regression Test Checklist
-
-Before shipping changes to this skill, verify:
-
-1. **Timezone**: `nowDateTime` from `outlook_find_available_time` is used, not Claude's clock. Brief header reflects correct local date.
-2. **Meeting source of truth**: All meetings in Sections 1 and 2 come from M365 calendar only. No Zoom-only meetings appear.
-3. **Pre-meeting dedup**: A meeting that already has a `pre` row in the run log does not trigger meeting manager again.
-4. **Post-meeting dedup**: A meeting that already has a `post` row in the run log does not trigger meeting manager again.
-5. **Post-meeting window**: Only meetings in the past 3 days are evaluated for post-meeting. Older meetings are skipped.
-6. **Solo event skip**: Personal/medication/no-attendee events are not passed to meeting manager.
-7. **Recurring task trigger**: A `weekly` task set for Friday fires on Friday, not other days.
-8. **Recurring task dedup**: `Last Run` = today means the task does not spawn again on a second brief run the same day.
-9. **Snooze**: A task with `Snooze Until` in the future is skipped without note.
-10. **Ambiguous schedule**: An ambiguous recurring schedule produces a clarifying question, not a silent skip.
-11. **Status summary timing**: Status summary appears on morning first-run; does not appear on a second morning run unless explicitly requested.
-12. **Run log write**: After meeting manager runs, a new row is written to the Google Sheet with correct phase, meeting_id, and run_at.
-13. **Error isolation**: A meeting manager failure for one meeting does not prevent the rest of the brief from completing.
-14. **Output structure**: Sections are organized by account/initiative, not by data source.
-
----
-
-## Suggested Improvements
-
-The following are worth considering for future iterations:
-
-1. **Slack DM drafting**: After post-meeting notes are generated for a customer meeting, auto-draft a Slack message to the AE (Rodrigo for AcmeFin/Zebra Financial) with the key next steps, staged for review.
-2. **Recurring task completion detection**: Before spawning a new task, check if an identical task was created and completed recently — avoid re-spawning tasks the user already closed.
-3. **Boss summary delivery**: Option to send the status summary directly to a specified Slack DM or email on a schedule.
-4. **Meeting prep quality gate**: Flag meetings with no Asana project, no recent email thread, and no Slack channel — these are likely under-documented accounts that need attention.
-5. **Brief run log**: Track brief runs (not just meeting manager runs) so the skill can reliably distinguish "first run of the morning" across sessions without relying on conversation state.
 
 ---
 
 ## Tone
 
 Peer-level, direct. No filler. No affirmations. Write like a prepared colleague who pulled the information for you before the call, not like a dashboard widget.
+
+---
+
+## HTML Output
+
+Every brief run produces a standalone interactive HTML file in addition to the in-chat response. The file is self-contained (no external dependencies), works offline, and persists checkbox state in `localStorage` so it can be referenced throughout the day.
+
+### When to generate
+
+Generate the HTML file on every brief run. Name the file: `Daily Brief_YYYY-MM-DD.html` using the local date.
+
+### HTML structure
+
+The file has four sections, in order:
+
+1. **Header** — date, brief type (Morning / Midday / Evening), timezone label, progress counter ("N of N done"), progress bar
+2. **Schedule** — every meeting in the next 24 hours as a checkable item with time, title, attendees, and a Join link if a Zoom/Webex URL is present
+3. **Action Items** — every task that needs action today: overdue Asana tasks, email threads needing a reply, Slack items flagged for response, meeting manager runs needed. Each item is checkable, has a one-line subtitle, and optional link buttons.
+4. **FYI** — non-actionable signals worth knowing: post-meeting summaries generated, recurring tasks spawned, informational Slack threads, status summary highlights
+
+### CSS design system
+
+Use exactly the CSS from the existing example (reproduced below). Do not deviate from the design tokens, class names, or layout. The only dynamic changes are content and the `data-id` / `TOTAL` values in the script.
+
+```css
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#f5f4f1; --surface:#fff; --border:#e2e0d8; --border-strong:#c8c6bc;
+  --t1:#1a1916; --t2:#5a5850; --t3:#9a9890;
+  --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
+  --warn-bg:#fdf5e6; --warn-t:#7a5000;
+  --bad-bg:#fef1f0; --bad-t:#b02520;
+  --done:.35; --font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",monospace; --r:5px;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#18181b; --surface:#1e1e22; --border:#2c2c32; --border-strong:#3c3c44;
+  --t1:#e6e4de; --t2:#9a9890; --t3:#5a5850;
+  --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
+  --warn-bg:#28200a; --warn-t:#e8a020; --bad-bg:#280e0e; --bad-t:#e06868;
+}}
+```
+
+### Badge types
+
+| Class | Use |
+|-------|-----|
+| `bwarn` | Tentative, needs confirmation, time-sensitive |
+| `bbad` | Overdue, blocking, critical |
+| Custom inline style using `--accent-bg`/`--accent-t` | Informational label (e.g., "hiring", "prep run") |
+
+### Link buttons
+
+Use `class="lbtn primary"` for the primary CTA (Join Zoom, Open doc). Use `class="lbtn"` for secondary links (Asana task, Slack thread, email). All `href` values must be real URLs from the data — never placeholder `#` values in actual output. The example file uses `#` only because it is a sanitized demo.
+
+### localStorage key
+
+Use `brief:YYYY-MM-DD` as the key (matching the file date). The `TOTAL` constant in the script must equal the actual number of checkable items (`.item[data-id]` elements) in that specific brief.
+
+### Sensitive data rules
+
+The HTML file produced during a live brief run will contain real names, meeting titles, and links. That is correct for personal use. However:
+
+- **Never commit a real brief to the GitHub repo.** The `example/` folder in the repo is for sanitized demo files only.
+- The example file must use fictional names, companies, and placeholder `#` links.
+- No real email addresses, Slack user IDs, Asana GIDs, Zoom meeting IDs, or calendar event IDs may appear in any committed file.
+- Customer names in examples must be fictional (e.g., "Acme Financial", "Pinnacle Health", "Meridian Bank") — never real account names.
+
+### Delivering the file
+
+After generating the HTML, present it as a downloadable file artifact. Also offer to upload it to Google Drive if the user has a brief folder configured in the meeting-manager routing table.
+
