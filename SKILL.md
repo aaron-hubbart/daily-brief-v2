@@ -60,10 +60,11 @@ State the timing assumption briefly at the top of the brief (e.g., "Morning brie
 
 Run all data pulls in parallel where possible. Use the time windows below.
 
-### Outlook Calendar (Microsoft 365: outlook_calendar_search)
+### Outlook Calendar (Microsoft 365: outlook_calendar_search) — Source of truth for all meetings
 - Recap window: yesterday (or today so far if midday/evening)
 - Ahead window: today (morning) or tomorrow (evening)
 - Pull all events in the window: title, time, attendees, location/link
+- This is the authoritative meeting list. Do not add, remove, or infer meetings from Zoom or any other source.
 - Flag any conflicts, back-to-back blocks, or meetings with key accounts
 
 ### Outlook Email (Microsoft 365: outlook_email_search)
@@ -83,11 +84,12 @@ Run multiple targeted searches:
 
 Consolidate into a single Slack section. Surface only items that need attention or are informational — skip noise, bot messages, and automated notifications.
 
-### Zoom (Zoom for Claude: search_meetings + get_meeting_assets)
-- Search for meetings completed in the recap window
-- Pull AI summary and next steps for each completed meeting
-- If no summary is available, note the meeting occurred
-- Only surface meetings that produced meaningful content (skip 1:1 standups with no summary)
+### Zoom (Zoom for Claude: get_meeting_assets) — Supplementary AI summaries only
+- Do not use Zoom to discover or enumerate meetings. The M365 calendar is the source of truth for what meetings occurred.
+- For each meeting on the M365 calendar that has a Zoom link, attempt to fetch the AI summary and next steps via `get_meeting_assets` using the meeting ID from the calendar event.
+- If a summary is available, surface it under the relevant account or initiative section.
+- If no summary is available, do not note the absence — simply omit the Zoom enrichment for that meeting.
+- Never surface a Zoom meeting that does not have a corresponding M365 calendar event.
 
 ### Asana (Asana: get_my_tasks)
 - Pull incomplete tasks with due_on = today or overdue
@@ -116,7 +118,7 @@ After pulling all data sources, consolidate everything by **customer account or 
 Order subsections by priority: customer accounts with active signals first (in rough order of urgency), then internal initiatives, then a catch-all "General / Admin" for anything that doesn't fit elsewhere.
 
 For each account or initiative subsection, include only what's relevant:
-- Meetings that occurred (time, who attended, outcome or Zoom summary if available)
+- Meetings that occurred (time, who attended, outcome or Zoom AI summary if available)
 - Email threads needing attention or follow-up
 - Slack signals: DMs, mentions, or key channel activity
 - Overdue Asana tasks tied to that account
