@@ -2,6 +2,45 @@
 
 A Claude skill that generates a personalized daily briefing. Pulls from Outlook calendar, Outlook email, Slack (DMs, account channels, tiger team channels, direct mentions), Zoom meeting summaries, and Asana tasks. Produces a structured, easy-to-read brief organized by customer account and internal initiative, and saves a standalone interactive HTML file to Google Drive.
 
+## Prerequisites
+
+### Claude
+
+- Claude.ai account with access to Projects and Skills
+- Claude Desktop installed (required for meeting-manager deep links in the viewer)
+
+### MCP Connectors
+
+The following connectors must be enabled in your Claude workspace:
+
+| Connector | Used for |
+|-----------|----------|
+| Microsoft 365 | Outlook calendar, email, and availability lookup |
+| Slack | DMs, channel activity, and direct mentions |
+| Zoom | AI meeting summaries (supplementary to calendar) |
+| Asana | Task tracking and recurring activity board |
+| Google Drive | Saving brief HTML files and the meeting run log sheet |
+
+### Google Drive
+
+- A folder in Google Drive to save brief files — copy its ID into `BRIEF_OUTPUT_FOLDER_ID` in `SKILL.md`
+- A Google Sheet for tracking meeting-manager runs — copy its ID into `MEETING_RUN_LOG_SHEET_ID` in `SKILL.md`
+
+### Asana
+
+- A project for recurring task templates — copy its GID into `RECURRING_ACTIVITIES_PROJECT_GID` in `SKILL.md`
+- Recommended custom fields on that project: `Frequency`, `Day of Week`, `Week of Month`, `Day of Month`, `Month`, `Month of Quarter`, `Due Offset Days`, `Customer`, `Active`, `Snooze Until`, `Last Run`
+
+### Slack
+
+- Your Slack user ID (format: `UXXXXXXXXXX`) — set it in the Slack search section of `SKILL.md` so direct mentions are correctly detected
+
+### Viewer (optional)
+
+- Python 3.10+ — required to run the local brief viewer server
+- Windows: Task Scheduler access for auto-start via `install-startup.bat`
+- Mac: Terminal access to run `launch.command`
+
 ## What it does
 
 - **Recap** — summarizes yesterday's meetings, email threads, and Slack activity by account or initiative
@@ -24,12 +63,6 @@ The `viewer/` folder contains a standalone local viewer for browsing saved brief
 - `server.py` — Python stdlib local HTTP server (no dependencies)
 - `launch.bat` / `launch.command` — manual launchers for Windows and Mac
 - `install-startup.bat` / `uninstall-startup.bat` — Windows Task Scheduler auto-start
-
-### Requirements
-
-- Python 3.8+ on PATH (or locatable via `where python`)
-- Claude Desktop (for meeting-manager deep links)
-- Microsoft 365, Slack, Zoom, and Asana MCP connectors configured in Claude
 
 ## Configuration
 
