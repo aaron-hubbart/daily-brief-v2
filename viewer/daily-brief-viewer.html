@@ -127,7 +127,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 </div>
 
 <script>
-let briefs = [];
+// ── Configuration ── Set these to match your environment
+  // JIRA_BASE is set inside injectJiraButtons — update it there or via viewer-config.js
+  let briefs = [];
 
 function setStatus(msg, loading=true, error=false) {
   const bar = document.getElementById('status-bar');
@@ -300,7 +302,7 @@ function initBriefState(filename) {
 }
 
 function injectJiraButtons(container) {
-  const JIRA_BASE = 'https://jira.camunda.com/browse/';
+  const JIRA_BASE = window.JIRA_BASE || ''; // Set this in viewer-config.js or replace with your Jira URL e.g. https://yourcompany.atlassian.net/browse/
   const ISSUE_RE = /(?<![A-Z0-9])([A-Z][A-Z0-9]+-[0-9]+)(?![A-Z0-9-])/g;
 
   // Target action items — those without an .itime element

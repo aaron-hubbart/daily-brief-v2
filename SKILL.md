@@ -1,7 +1,7 @@
 ---
 name: daily-brief
 description: >
-  Generates a personalized daily briefing for Aaron Hubbart, Senior TAM at Camunda.
+  Generates a personalized daily briefing for the configured user.
   Pulls from all available data sources: Outlook calendar, Outlook email, Slack (DMs,
   account channels, tiger team channels, direct mentions), Zoom meeting summaries,
   and Asana tasks. Produces a structured, easy-to-read summary covering the current
@@ -70,12 +70,12 @@ Run all data pulls in parallel where possible. Use the time windows below.
 - Recap window: emails received since EOD yesterday (or past 24 hours)
 - Ahead window: not applicable — omit from forward section unless there's a scheduled send or thread requiring same-day action
 - Focus on: unread, flagged, or emails from key contacts
-- Key contacts: Rodrigo Scaldaferri, Micah De Boer, David Paroulek, Colin Teubner, and any contact at AcmeFin, Zebra Financial, Umbrella Financial, Initech Financial, Acme Health, Zebra Health
+- Key contacts: configure in the Admin Config block — list your AE, SA, and key customer contact domains
 - Summarize threads, not individual messages — group by sender/topic
 
 ### Slack (Slack: slack_search_public_and_private)
 Run multiple targeted searches:
-1. Direct mentions: `to:<@U0A0ZRB4JM8>` or `<@U0A0ZRB4JM8>`
+1. Direct mentions: search for your Slack user ID (e.g. `to:<@UXXXXXXXXXX>` or `<@UXXXXXXXXXX>`). Configure your Slack user ID in the Admin Config block.
 2. DMs: channel_types=im, recent messages
 3. Account channels: search for channels related to AcmeFin, Zebra Financial, Umbrella Financial, Initech Financial, Acme Health, Zebra Health
 4. Tiger team / AI-First CS: search for tiger team, AI-first, CS tiger
@@ -161,11 +161,9 @@ End with a brief **Open Time** note if there are meaningful unblocked blocks in 
 
 ## Account and People Context
 
-Aaron's primary accounts: Acme Financial, Zebra Financial, Umbrella Financial, Initech Financial, Acme Health, Zebra Health.
-Key Camunda colleagues: Rodrigo Scaldaferri (AE), Micah De Boer, David Paroulek (Senior SA), Colin Teubner.
-Tiger team: Norman, Rashid, Tanya, Liz (AI-First CS Tiger Team).
+Configure your primary accounts, key colleagues, and team members in the Admin Config block.
 
-Use this context to prioritize and flag items. A Slack DM from Rodrigo about AcmeFin matters more than a general #announcements post.
+Use this context to prioritize and flag items — a Slack DM from your AE about a strategic account matters more than a general announcement channel.
 
 ---
 

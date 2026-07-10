@@ -5,22 +5,47 @@ echo Daily Brief Viewer — Startup Installer
 echo ========================================
 echo.
 
-:: Hardcoded Python location (found via Get-ChildItem)
-set "PYTHON_DIR=C:\Users\AaronHubbart\AppData\Local\Programs\Python\Python312"
-set "PYTHONW_EXE=%PYTHON_DIR%\pythonw.exe"
-set "PYTHON_EXE=%PYTHON_DIR%\python.exe"
+:: Auto-detect Python location
+set "PYTHON_EXE="
+set "PYTHONW_EXE="
 
-:: Verify pythonw exists, fall back to python if not
-if not exist "%PYTHONW_EXE%" (
-    echo WARNING: pythonw.exe not found at %PYTHONW_EXE%
-    if exist "%PYTHON_EXE%" (
-        echo Falling back to python.exe
-        set "PYTHONW_EXE=%PYTHON_EXE%"
-    ) else (
-        echo ERROR: Neither python.exe nor pythonw.exe found in %PYTHON_DIR%
-        pause
-        exit /b 1
+:: Try common locations in order
+for /f "delims=" %%i in ('where python 2^>nul') do (
+    if not defined PYTHON_EXE set "PYTHON_EXE=%%i"
+)
+:: Try py launcher if python not on PATH
+if not defined PYTHON_EXE (
+    for /f "delims=" %%i in ('where py 2^>nul') do (
+        if not defined PYTHON_EXE set "PYTHON_EXE=%%i"
     )
+)
+:: Try common install locations
+if not defined PYTHON_EXE (
+    for %%d in (
+        "%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
+        "%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+        "%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
+        "%LOCALAPPDATA%\Programs\Python\Python310\python.exe"
+        "C:\Python313\python.exe"
+        "C:\Python312\python.exe"
+        "C:\Python311\python.exe"
+    ) do (
+        if not defined PYTHON_EXE if exist %%d set "PYTHON_EXE=%%~d"
+    )
+)
+if not defined PYTHON_EXE (
+    echo ERROR: Python not found. Install from https://python.org
+    pause
+    exit /b 1
+)
+echo Python found: %PYTHON_EXE%
+
+:: Derive pythonw.exe from same directory as python.exe
+for %%i in ("%PYTHON_EXE%") do set "PYTHON_DIR=%%~dpi"
+set "PYTHONW_EXE=%PYTHON_DIR%pythonw.exe"
+if not exist "%PYTHONW_EXE%" (
+    echo WARNING: pythonw.exe not found, falling back to python.exe
+    set "PYTHONW_EXE=%PYTHON_EXE%"
 )
 echo Using: %PYTHONW_EXE%
 
