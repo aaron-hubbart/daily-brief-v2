@@ -175,16 +175,11 @@ Next steps:
 • [item]
 ```
 
-**Slack channel mapping** (used to pre-populate the post destination):
+**Slack channel mapping** — read at runtime from the Meeting Manager Config.xlsx file (file ID stored in Claude memory as `meeting_manager_config_id`). The Accounts sheet contains a `Slack Channel ID` column. Load the file using the same routing table logic in the meeting-manager skill (Step 1 of routing-table.md). Index accounts by Account Name and all aliases. The channel ID for each account is used to pre-populate the post destination.
 
-| Account | Slack Channel ID |
-|---------|-----------------|
-| Acme Financial | C0XXXXXXX |
-| Zebra Financial | C0XXXXXXX |
-| Acme Health | C0XXXXXXX |
-| Globex System Services | C0XXXXXXX |
+Do not hardcode channel IDs here. Always read from the config file so additions and changes made to the xlsx are automatically reflected.
 
-Add new accounts to this table in `SKILL.md` as they are onboarded.
+Add new accounts to the Meeting Manager Config.xlsx Accounts sheet (including their Slack Channel ID) as they are onboarded.
 
 The HTML brief presents each account card with:
 - An editable text area pre-populated with the generated update

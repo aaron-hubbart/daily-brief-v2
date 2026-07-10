@@ -456,13 +456,57 @@ function injectClaudeButtons(container) {
 
 const UPDATE_TAG = '[TAM-UPDATE] #claude-brief-skill';
 const MANAGER_DM = 'D0A25TNDGJJ';
+const CONFIG_FILE_KEY = 'viewer:config-file-id';
+const DEFAULT_CONFIG_ID = '1AJ0piYaFMoWNnPm8unDawa41-xCgqCtN';
 
-const ACCOUNT_CHANNELS = {
-  'Acme Financial':      { id: 'C0XXXXXXX', name: '#acct-acme-financial' },
-  'Zebra Financial':       { id: 'C0XXXXXXX', name: '#acct-zebra-financial' },
-  'Acme Health':                { id: 'C0XXXXXXX', name: '#acct-acme-health' },
-  'Globex System Services':{ id: 'C0XXXXXXX', name: '#acct-globex-system-services' },
-};
+// ACCOUNT_CHANNELS is loaded dynamically from Meeting Manager Config.xlsx
+// Falls back to empty map if config file unavailable
+let ACCOUNT_CHANNELS = {};
+
+async function loadAccountChannels() {
+  const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if (!IS_LOCAL) return; // can't load without proxy
+
+  try {
+    const configId = localStorage.getItem(CONFIG_FILE_KEY) || DEFAULT_CONFIG_ID;
+    const res = await fetch('/api/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: 'You read a Google Drive xlsx file and return ONLY a JSON array of account objects. No prose, no fences. Each object: {"name":"Account Name","aliases":["alias1"],"slackChannelId":"CXXXXXXXX"}. Skip rows with no Slack Channel ID.',
+        messages: [{ role: 'user', content: 'Read the Accounts sheet of Google Drive file ID: ' + configId + '. Return a JSON array where each element has name (Account Name column), aliases (Aliases column, split by comma), and slackChannelId (Slack Channel ID column). Skip any row missing a Slack Channel ID.' }],
+        mcp_servers: [{ type: 'url', url: 'https://drivemcp.googleapis.com/mcp/v1', name: 'google-drive' }]
+      })
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+    const cleaned = text.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
+    const accounts = JSON.parse(cleaned);
+    ACCOUNT_CHANNELS = {};
+    accounts.forEach(a => {
+      if (a.name && a.slackChannelId) {
+        ACCOUNT_CHANNELS[a.name] = { id: a.slackChannelId, name: '#' + a.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') };
+      }
+    });
+    console.log('Loaded', Object.keys(ACCOUNT_CHANNELS).length, 'accounts from config file');
+  } catch(e) {
+    console.warn('Could not load account config:', e.message);
+    // Fall back to built-in defaults so the viewer still works
+    ACCOUNT_CHANNELS = {
+      'Acme Financial':       { id: 'C0XXXXXXX', name: '#acct-acme-financial' },
+      'Zebra Financial':        { id: 'C0XXXXXXX', name: '#acct-zebra-financial' },
+      'Umbrella Financial':           { id: 'C0XXXXXXX', name: '#acct-umbrella-financial' },
+      'Initech Financial':         { id: 'C0XXXXXXX', name: '#acct-initech-financial' },
+      'Acme Health':                 { id: 'C0XXXXXXX', name: '#acct-acme-health' },
+      'Zebra Health':          { id: 'C0XXXXXXX', name: '#acct-zebra-health' },
+      'Umbrella Clinical Research LLC': { id: 'C0XXXXXXX', name: '#acct-umbrella-clinical-research' },
+      'Globex System Services': { id: 'C0XXXXXXX', name: '#acct-globex-system-services' },
+    };
+  }
+}
 
 function updateStateKey(filename) {
   return 'viewer:updates:' + filename;
@@ -688,6 +732,13 @@ async function generateManagerUpdate(textarea, genBtn, filename) {
 }
 
 function injectUpdateSections(container, filename) {
+  // Load account channels from config file, then render
+  loadAccountChannels().then(() => {
+    _renderUpdateSections(container, filename);
+  });
+}
+
+function _renderUpdateSections(container, filename) {
   const state = loadUpdateState(filename);
 
   // ── Customer Updates ──────────────────────────────────────────
