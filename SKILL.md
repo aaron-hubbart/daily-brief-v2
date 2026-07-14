@@ -20,6 +20,17 @@ description: >
 
 # Daily Brief Skill
 
+## Admin Config
+
+Configure these in your local copy (not committed here, since they're account-specific):
+
+```
+BRIEF_OUTPUT_FOLDER_ID: <your Google Drive output folder ID>
+MEETING_RUN_LOG_SHEET_ID: <your meeting-manager run log sheet ID>
+RECURRING_ACTIVITIES_PROJECT_GID: <your Asana recurring-activities project GID>
+SKILL_SOURCE_SHA: <maintained automatically by the Skill Sync Check below>
+```
+
 ---
 
 ## Skill Sync Check (run this first, every time, before anything else)
@@ -28,7 +39,7 @@ This skill's canonical source of truth is this file on `main` in `aaron-hubbart/
 
 1. Fetch the current blob SHA for `SKILL.md` on `main` via the GitHub API and compare it against a `SKILL_SOURCE_SHA` marker tracked in the local copy's Admin Config block (this marker is local-only; it is not part of this repo file).
 2. **Match:** proceed with the brief normally.
-3. **Mismatch:** the repo has moved ahead of the loaded copy. Self-heal: fetch this file fresh from `main`, re-insert the local copy's `## Admin Config` block and `## HTML Output` section (both intentionally local-only — Admin Config holds real account/folder/sheet IDs, and this repo file keeps that block generic for public-repo hygiene), update the `SKILL_SOURCE_SHA` marker, overwrite the local copy, and note briefly in the brief output that the skill definition was auto-synced.
+3. **Mismatch:** the repo has moved ahead of the loaded copy. Self-heal: fetch this file fresh from `main`, re-insert the local copy's real values into the `## Admin Config` block (this repo file keeps that block as generic placeholders for public-repo hygiene — the structure is version-controlled, only the literal IDs are local), update the `SKILL_SOURCE_SHA` marker, overwrite the local copy, and note briefly in the brief output that the skill definition was auto-synced. Note: `## HTML Output` (including the file-naming convention) is fully version-controlled here as of this update — it is not local-only. It was previously dropped from this repo file as an unintentional side effect of PR #6, not a deliberate exclusion; that has been corrected.
 4. **Fetch fails:** skip silently and proceed with the current local copy. Never block the brief on this check.
 
 This makes drift self-correcting on every run, since the loaded copy is only ever read during a brief.
@@ -262,15 +273,80 @@ If a data source is unavailable (MCP auth issue, timeout), note it briefly at th
 
 If there is genuinely nothing to report in a section, omit it silently.
 
----
+## HTML Output
 
-## HTML Output — File Naming Convention
+Every brief run produces a standalone interactive HTML file in addition to the in-chat response. The file is self-contained (no external dependencies), works offline, and persists checkbox state in `localStorage` so it can be referenced throughout the day.
 
-Every brief run also produces a companion interactive HTML file. The full spec for that file — CSS design system, structure, badge types, and delivery details — is intentionally local-only (see the loaded skill copy's `## HTML Output` section) and is not duplicated here. The file naming convention itself is tracked in this repo so it can't drift out of sync with the local copy:
+### When to generate
 
-Name the file `Daily Brief_YYYY-MM-DD_hh-mm.html`, using the local date and 24-hour local time (zero-padded, hyphen-separated) at the moment the file is generated — e.g. `Daily Brief_2026-07-14_08-42.html`. Because the filename includes the run time, multiple runs on the same day naturally coexist as separate files; there is no overwrite step.
+Generate the HTML file on every brief run. Name the file: `Daily Brief_YYYY-MM-DD_hh-mm.html` using the local date and 24-hour local time (zero-padded, hyphen-separated) at the moment the file is generated — e.g. `Daily Brief_2026-07-14_08-42.html`.
 
-The `localStorage` key used for checkbox persistence in that file is scoped to the calendar date only (`brief:YYYY-MM-DD`), not the timestamp, so checkbox progress carries over across same-day runs even though each run produces a distinct file.
+### HTML structure
+
+The file has four sections, in order:
+
+1. **Header** — date, brief type (Morning / Midday / Evening), timezone label, progress counter ("N of N done"), progress bar
+2. **Schedule** — every meeting in the next 24 hours as a checkable item with time, title, attendees, and a Join link if a Zoom/Webex URL is present
+3. **Action Items** — every task that needs action today: overdue Asana tasks, email threads needing a reply, Slack items flagged for response, meeting manager runs needed. Each item is checkable, has a one-line subtitle, and optional link buttons.
+4. **FYI** — non-actionable signals worth knowing: post-meeting summaries generated, recurring tasks spawned, informational Slack threads, status summary highlights
+
+### CSS design system
+
+Use exactly the CSS from the existing example (reproduced below). Do not deviate from the design tokens, class names, or layout. The only dynamic changes are content and the `data-id` / `TOTAL` values in the script.
+
+```css
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#f5f4f1; --surface:#fff; --border:#e2e0d8; --border-strong:#c8c6bc;
+  --t1:#1a1916; --t2:#5a5850; --t3:#9a9890;
+  --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
+  --warn-bg:#fdf5e6; --warn-t:#7a5000;
+  --bad-bg:#fef1f0; --bad-t:#b02520;
+  --done:.35; --font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",monospace; --r:5px;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#18181b; --surface:#1e1e22; --border:#2c2c32; --border-strong:#3c3c44;
+  --t1:#e6e4de; --t2:#9a9890; --t3:#5a5850;
+  --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
+  --warn-bg:#28200a; --warn-t:#e8a020; --bad-bg:#280e0e; --bad-t:#e06868;
+}}
+```
+
+### Badge types
+
+| Class | Use |
+|-------|-----|
+| `bwarn` | Tentative, needs confirmation, time-sensitive |
+| `bbad` | Overdue, blocking, critical |
+| Custom inline style using `--accent-bg`/`--accent-t` | Informational label (e.g., "hiring", "prep run") |
+
+### Link buttons
+
+Use `class="lbtn primary"` for the primary CTA (Join Zoom, Open doc). Use `class="lbtn"` for secondary links (Asana task, Slack thread, email). All `href` values must be real URLs from the data — never placeholder `#` values in actual output. The example file uses `#` only because it is a sanitized demo.
+
+### localStorage key
+
+Use `brief:YYYY-MM-DD` as the key — the calendar date only, not the filename. Multiple runs in the same day now produce distinct timestamped files (see filename convention above), but they should still share checkbox progress, so the storage key intentionally does not include the time component. The `TOTAL` constant in the script must equal the actual number of checkable items (`.item[data-id]` elements) in that specific brief.
+
+### Sensitive data rules
+
+The HTML file produced during a live brief run will contain real names, meeting titles, and links. That is correct for personal use. However:
+
+- **Never commit a real brief to the GitHub repo.** The `example/` folder in the repo is for sanitized demo files only.
+- The example file must use fictional names, companies, and placeholder `#` links.
+- No real email addresses, Slack user IDs, Asana GIDs, Zoom meeting IDs, or calendar event IDs may appear in any committed file.
+- Customer names in examples must be fictional (e.g., "Acme Financial", "Pinnacle Health", "Meridian Bank") — never real account names.
+
+### Delivering the file
+
+Write the HTML to a local file first (needed anyway to present it as a downloadable artifact in chat), then upload that same content to Google Drive folder `BRIEF_OUTPUT_FOLDER_ID` (value configured in the local copy's Admin Config block, not committed here) using `Google Drive: create_file` with `contentMimeType: text/html` and `disableConversionToGoogleType: true`.
+
+Use the `textContent` parameter, not `base64Content`. This file is plain text — base64-encoding it first only inflates the payload by roughly a third and adds an unnecessary encode/read-back pass before the upload call, which measurably slows the run for no benefit. Pass the HTML directly as `textContent`.
+
+Name the file `Daily Brief_YYYY-MM-DD_hh-mm.html`. Because the filename includes the run time, multiple runs on the same day naturally coexist as separate files — there is no overwrite step, and no need for one.
+
+Also present the file as a downloadable artifact in chat so it is immediately accessible without opening Drive.
 
 ---
 
