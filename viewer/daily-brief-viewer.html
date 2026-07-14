@@ -326,8 +326,12 @@ function initBriefState(filename) {
   injectClaudeButtons(container);
   injectJiraButtons(container);
 
-  // Inject collapsible update sections after the brief content
-  injectUpdateSections(container, filename);
+  // NOTE: injectUpdateSections() (live Customer Updates / Manager Update generation
+  // via /api/claude) is intentionally disabled. Those two sections are now generated
+  // statically by the daily-brief skill and shipped inside the brief HTML itself.
+  // Re-enabling this call would either duplicate those sections or show them empty
+  // if the /api/claude backend isn't reliably wired up -- both observed in practice.
+  // injectUpdateSections(container, filename);
 }
 
 function injectJiraButtons(container) {
