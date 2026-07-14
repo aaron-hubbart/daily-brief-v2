@@ -63,6 +63,7 @@ Run all data pulls in parallel where possible. Use the time windows below.
 ### Outlook Calendar (Microsoft 365: outlook_calendar_search)
 - Recap window: yesterday (or today so far if midday/evening)
 - Ahead window: today (morning) or tomorrow (evening)
+- For the morning brief specifically, always pull the FULL current calendar day in a single query (midnight to midnight, local time) regardless of the current time — this includes meetings earlier in the day that have already started or finished by the time the brief runs. Do not scope the "today" pull to only meetings still upcoming relative to now; a morning brief run at 8am still needs to show a 7am meeting that already happened.
 - Pull all events in the window: title, time, attendees, location/link
 - Flag any conflicts, back-to-back blocks, or meetings with key accounts
 
@@ -111,9 +112,9 @@ Then two sections:
 
 ### Section 1: Yesterday / Today So Far
 
-After pulling all data sources, consolidate everything by **customer account or internal initiative** — not by source. Each subsection covers one account or initiative and synthesizes across calendar, email, Slack, and Zoom for that topic.
+After pulling all data sources, consolidate everything by **customer account or internal initiative** — not by source. Each subsection covers one account or initiative and synthesizes across calendar, email, Slack, and Zoom for that topic. This grouping is mandatory for both Section 1 and Section 2 — never output a source-by-source list (e.g. a "Calendar" section followed by a "Slack" section).
 
-Order subsections by priority: customer accounts with active signals first (in rough order of urgency), then internal initiatives, then a catch-all "General / Admin" for anything that doesn't fit elsewhere.
+Order subsections by priority: customer accounts with active signals first (in rough order of urgency), then internal initiatives, then a mandatory catch-all "General / Admin" bucket for anything that doesn't fit elsewhere (personal calendar blocks, admin tasks, notifications with no clear account/initiative tie). Every item pulled from a data source must land in exactly one bucket — nothing gets silently dropped for lack of a clean category.
 
 For each account or initiative subsection, include only what's relevant:
 - Meetings that occurred (time, who attended, outcome or Zoom summary if available)
