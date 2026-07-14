@@ -111,15 +111,17 @@ Run multiple targeted searches:
 Consolidate into a single Slack section. Surface only items that need attention or are informational — skip noise, bot messages, and automated notifications.
 
 ### Zoom (Zoom for Claude: search_meetings + get_meeting_assets)
-- Search for meetings completed in the recap window
-- Pull AI summary and next steps for each completed meeting
-- If no summary is available, note the meeting occurred
-- Only surface meetings that produced meaningful content (skip 1:1 standups with no summary)
+- Search for meetings completed in the recap window (last business day for the morning brief, today so far for midday/evening)
+- Pull AI summary, transcript availability, recording availability, and next steps for each completed meeting via `get_meeting_assets`
+- If no summary is available, note the meeting occurred and that recording/transcript status still needs checking
+- For the Yesterday's Meetings status list (Section 1, Part A — see Output Format), this is the primary source for "recording/transcript found or not"
+- Only surface meetings in the account/initiative recap (Part B) that produced meaningful content (skip 1:1 standups with no summary) — Part A still lists every meeting regardless of content, since its purpose is processing status, not narrative
 
-### Asana (Asana: get_my_tasks)
+### Asana (Asana: get_my_tasks / search_tasks)
 - Pull incomplete tasks with due_on = today or overdue
 - Group by: overdue, due today, due tomorrow (for evening brief)
 - Omit tasks with no due date unless they appear high priority from the name
+- For correlating action items to a specific call (Section 1, Part A): first check the Meeting Manager Run Log sheet (`MEETING_RUN_LOG_SHEET_ID`) for a row matching the meeting (by title and date). If no matching row exists there — which is expected right now, since post-meeting processing isn't yet writing to that log — fall back to searching the relevant account's Asana project for tasks created on or shortly after the meeting's date. Report whichever check found something; if neither does, say so plainly rather than guessing.
 
 ---
 
@@ -136,14 +138,33 @@ Then two sections:
 
 ---
 
-### Section 1: Yesterday / Today So Far
+### Section 1: Yesterday's Meetings, and Account/Initiative Recap
 
-After pulling all data sources, consolidate everything by **customer account or internal initiative** — not by source. Each subsection covers one account or initiative and synthesizes across calendar, email, Slack, and Zoom for that topic. This grouping is mandatory for both Section 1 and Section 2 — never output a source-by-source list (e.g. a "Calendar" section followed by a "Slack" section).
+This section has two parts. Part A is meeting-centric (one entry per meeting); Part B is the existing account/initiative-centric recap. Both appear every run — Part A is not a replacement for Part B.
+
+#### Part A: Yesterday's Meetings (call processing status)
+
+List every meeting from the last business day (yesterday, or the prior Friday if today is Monday) in chronological order — this is meeting-by-meeting, not grouped by account. Personal calendar blocks and solo admin reminders (no attendees) are excluded; anything with attendees counts as a meeting for this list.
+
+For each meeting, report:
+- Title, time, attendees
+- **Recording/transcript status** — checked via Zoom `get_meeting_assets`:
+  - Found: link directly to the meeting summary doc (`summary_doc_url`) and/or recording, and note whether a transcript is available
+  - Not found: flag it clearly (e.g. a `bwarn` badge reading "recording not found") — this is the trigger condition below
+- **Asana action-item status** — checked per the Asana data-source note above (run log sheet first, Asana project search as fallback):
+  - Found: note that items were logged, with a link to the task(s) or the account project
+  - Not found: say so plainly — "no action items logged yet"
+
+**If recording/transcript can't be found for a meeting:** don't silently note the gap and move on. Explicitly ask the user for a recording link or the full transcript text, so it can be run through the meeting-manager skill's post-meeting flow. Phrase this as a direct request in both the chat response and as a checkable item in the HTML (see HTML structure below) — e.g. "BFSI Industry Deep-Dive — no recording or transcript found. Reply with a link or paste the transcript to process this." Once the user supplies it, run the meeting-manager skill's post-meeting agent on it in the same conversation rather than waiting for the next brief.
+
+#### Part B: Account / Initiative Recap
+
+After pulling all data sources, consolidate everything by **customer account or internal initiative** — not by source. Each subsection covers one account or initiative and synthesizes across calendar, email, Slack, and Zoom for that topic. This grouping is mandatory — never output a source-by-source list (e.g. a "Calendar" section followed by a "Slack" section).
 
 Order subsections by priority: customer accounts with active signals first (in rough order of urgency), then internal initiatives, then a mandatory catch-all "General / Admin" bucket for anything that doesn't fit elsewhere (personal calendar blocks, admin tasks, notifications with no clear account/initiative tie). Every item pulled from a data source must land in exactly one bucket — nothing gets silently dropped for lack of a clean category.
 
 For each account or initiative subsection, include only what's relevant:
-- Meetings that occurred (time, who attended, outcome or Zoom summary if available)
+- Meetings that occurred (time, who attended, outcome or Zoom summary if available) — this can reference the same meetings as Part A, but focus here is narrative content, not processing status
 - Email threads needing attention or follow-up
 - Slack signals: DMs, mentions, or key channel activity
 - Overdue Asana tasks tied to that account
@@ -170,6 +191,8 @@ For each, include:
 - Upcoming meetings (time, attendees, prep needed)
 - Asana tasks due today or tomorrow tied to that account
 - Any flagged email or Slack threads requiring same-day action
+
+For any meeting today that qualifies for meeting-prep (see "Today" in HTML structure below — customer meetings and substantive internal meetings, i.e. anything with attendees beyond the user), note whether prep exists yet or was just generated as part of this run.
 
 End with a brief **Open Time** note if there are meaningful unblocked blocks in the day.
 
@@ -227,12 +250,13 @@ Generate the HTML file on every brief run. Name the file: `Daily Brief_YYYY-MM-D
 
 ### HTML structure
 
-The file has four sections, in order:
+The file has five sections, in order:
 
 1. **Header** — date, brief type (Morning / Midday / Evening), timezone label, progress counter ("N of N done"), progress bar
-2. **Schedule** — every meeting in the next 24 hours as a checkable item with time, title, attendees, and a Join link if a Zoom/Webex URL is present
-3. **Action Items** — every task that needs action today: overdue Asana tasks, email threads needing a reply, Slack items flagged for response, meeting manager runs needed. Each item is checkable and has a one-line subtitle. **Include a link button whenever a real URL exists for that item** — the Asana task permalink (`https://app.asana.com/0/0/{gid}/f`), the Slack message permalink (construct as `https://{workspace}.slack.com/archives/{channel_id}/p{ts_without_dot}` if not returned directly by the search/read call), the Zoom meeting summary doc URL, or a mailto/webLink for an email thread. This is not optional decoration — it's the difference between a checklist and something the user can actually act on with one click. Only omit the link button when no real URL exists for that item (never use a placeholder `#`).
-4. **FYI** — non-actionable signals worth knowing: post-meeting summaries generated, recurring tasks spawned, informational Slack threads, status summary highlights. **Include a link button whenever a real URL exists**, same standard as Action Items — the Zoom meeting summary doc or recording URL, the Slack thread/message permalink (construct as `https://{workspace}.slack.com/archives/{channel_id}/p{ts_without_dot}` if not returned directly), a calendar event's `webLink`, or an Asana task permalink for a spawned recurring task. Nothing actionable is expected here, but "worth knowing" should still be one click from "worth reading in full" — don't make the user go dig for the source. Only omit the link when no real URL exists for that item.
+2. **Yesterday's Meetings** — one checkable item per meeting from the last business day (Section 1, Part A). Each item shows title, time, attendees, a recording/transcript link if `get_meeting_assets` found one, and an Asana action-item status line (logged / not found, per the run-log-then-Asana-search check). If no recording/transcript was found, the item's subtitle asks directly for a link or transcript, and the item stays unchecked until that's resolved — this is a real to-do, not just informational, so it belongs here checkable rather than in FYI.
+3. **Today** (renamed from "Schedule" — every meeting for the full current day, past or future, per the calendar-pull rule above) — checkable item per meeting with time, title, attendees, a Join link if a Zoom/Webex/Teams URL is present, and a meeting-prep output link. A meeting qualifies for a prep link if it has attendees beyond the user (personal reminders and solo admin blocks don't). For an upcoming qualifying meeting: check whether meeting-prep already exists (via the meeting-manager skill's routing table / per-account Drive folder); if it does, link to it; if not, run the meeting-manager skill's pre-meeting flow for that meeting as part of this brief, then link to the newly generated doc. For a qualifying meeting that has already occurred today by the time the brief runs, don't run pre-meeting prep after the fact — treat it like a Part A entry instead (recording/transcript + Asana status), since "prep" for a meeting that's already over doesn't make sense.
+4. **Action Items** — every task that needs action today: overdue Asana tasks, email threads needing a reply, Slack items flagged for response, meeting manager runs needed. Each item is checkable and has a one-line subtitle. **Include a link button whenever a real URL exists for that item** — the Asana task permalink (`https://app.asana.com/0/0/{gid}/f`), the Slack message permalink (construct as `https://{workspace}.slack.com/archives/{channel_id}/p{ts_without_dot}` if not returned directly by the search/read call), the Zoom meeting summary doc URL, or a mailto/webLink for an email thread. This is not optional decoration — it's the difference between a checklist and something the user can actually act on with one click. Only omit the link button when no real URL exists for that item (never use a placeholder `#`).
+5. **FYI** — non-actionable signals worth knowing: post-meeting summaries generated, recurring tasks spawned, informational Slack threads, status summary highlights. **Include a link button whenever a real URL exists**, same standard as Action Items — the Zoom meeting summary doc or recording URL, the Slack thread/message permalink (construct as `https://{workspace}.slack.com/archives/{channel_id}/p{ts_without_dot}` if not returned directly), a calendar event's `webLink`, or an Asana task permalink for a spawned recurring task. Nothing actionable is expected here, but "worth knowing" should still be one click from "worth reading in full" — don't make the user go dig for the source. Only omit the link when no real URL exists for that item.
 
 ### CSS design system
 
