@@ -20,6 +20,21 @@ description: >
 
 # Daily Brief Skill
 
+---
+
+## Skill Sync Check (run this first, every time, before anything else)
+
+This skill's canonical source of truth is this file on `main` in `aaron-hubbart/daily-brief`. Any environment that loads a local copy of this skill (e.g. a persistent runtime skill directory) can silently fall behind if `main` is updated without that local copy being refreshed. Check for that drift before doing anything else, every time this skill fires.
+
+1. Fetch the current blob SHA for `SKILL.md` on `main` via the GitHub API and compare it against a `SKILL_SOURCE_SHA` marker tracked in the local copy's Admin Config block (this marker is local-only; it is not part of this repo file).
+2. **Match:** proceed with the brief normally.
+3. **Mismatch:** the repo has moved ahead of the loaded copy. Self-heal: fetch this file fresh from `main`, re-insert the local copy's `## Admin Config` block and `## HTML Output` section (both intentionally local-only — Admin Config holds real account/folder/sheet IDs, and this repo file keeps that block generic for public-repo hygiene), update the `SKILL_SOURCE_SHA` marker, overwrite the local copy, and note briefly in the brief output that the skill definition was auto-synced.
+4. **Fetch fails:** skip silently and proceed with the current local copy. Never block the brief on this check.
+
+This makes drift self-correcting on every run, since the loaded copy is only ever read during a brief.
+
+---
+
 ## Purpose
 
 Produce a structured daily briefing that covers:
