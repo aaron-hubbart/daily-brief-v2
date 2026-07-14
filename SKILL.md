@@ -311,7 +311,10 @@ Use exactly the CSS from the existing example (reproduced below). Do not deviate
   --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
   --warn-bg:#28200a; --warn-t:#e8a020; --bad-bg:#280e0e; --bad-t:#e06868;
 }}
+body { font-family: var(--font); background: var(--bg); color: var(--t1); padding: 24px 16px 60px; max-width: 1400px; margin: 0 auto; }
 ```
+
+This `body` rule (font, background, color, padding, max-width, centering) was previously undocumented here and left to per-run discretion, which is how it drifted — it now sets `max-width: 1400px` explicitly so every run is consistent.
 
 ### Badge types
 
