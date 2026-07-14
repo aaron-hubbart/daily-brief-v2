@@ -99,20 +99,7 @@ echo Startup task registered.
 :: Patch battery/power settings via XML
 echo Patching power settings...
 schtasks /query /tn "%TASK_NAME%" /xml > "%TEMP%\db_task.xml" 2>nul
-"%PYTHON_EXE%" -c "
-import sys
-try:
-    with open(r'%TEMP%\db_task.xml', 'r', encoding='utf-16') as f:
-        xml = f.read()
-    xml = xml.replace('<DisallowStartIfOnBatteries>true</DisallowStartIfOnBatteries>', '<DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>')
-    xml = xml.replace('<StopIfGoingOnBatteries>true</StopIfGoingOnBatteries>', '<StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>')
-    with open(r'%TEMP%\db_task_fixed.xml', 'w', encoding='utf-16') as f:
-        f.write(xml)
-    print('Power settings patched.')
-except Exception as e:
-    print('Could not patch power settings:', e)
-    sys.exit(1)
-" 2>&1
+"%PYTHON_EXE%" "%SCRIPT_DIR%\patch_task_xml.py" "%TEMP%\db_task.xml" "%TEMP%\db_task_fixed.xml" 2>&1
 
 if not errorlevel 1 (
     schtasks /delete /tn "%TASK_NAME%" /f >nul 2>&1
