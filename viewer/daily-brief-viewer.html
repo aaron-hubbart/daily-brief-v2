@@ -370,7 +370,7 @@ function injectJiraButtons(container) {
 }
 
 function parseBriefDateTime(briefName, timeStr) {
-  // Extract date from brief filename: Daily Brief_YYYY-MM-DD or Daily Brief_YYYY-MM-DD_HHmm
+  // Extract date from brief filename: Daily Brief_YYYY-MM-DD or Daily Brief_YYYY-MM-DD_hh-mm
   const dateMatch = briefName.match(/Daily Brief_([0-9]{4}-[0-9]{2}-[0-9]{2})(?:_([0-9]{4}))?/i);
   if (!dateMatch) return null;
   const [, datePart] = dateMatch;

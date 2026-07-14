@@ -31,13 +31,13 @@ def list_briefs():
 
 
 def make_label(name):
-    m = re.match(r'Daily Brief_(\d{4}-\d{2}-\d{2})(?:_(\d{4}))?', name, re.IGNORECASE)
+    m = re.match(r'Daily Brief_(\d{4}-\d{2}-\d{2})(?:_(\d{2})-(\d{2}))?', name, re.IGNORECASE)
     if not m:
         return name
     date_part = m.group(1)
-    time_part = m.group(2)
-    if time_part:
-        return date_part + ' ' + time_part[:2] + ':' + time_part[2:]
+    hour, minute = m.group(2), m.group(3)
+    if hour and minute:
+        return date_part + ' ' + hour + ':' + minute
     return date_part
 
 
