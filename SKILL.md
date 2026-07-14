@@ -166,7 +166,9 @@ End with a brief **Open Time** note if there are meaningful unblocked blocks in 
 
 ### Section 3: Customer Updates
 
-One collapsible card per active customer account, collapsed by default. The entire section is also collapsed by default.
+One collapsible card per customer account on your assigned list — every account listed in the Accounts sheet of `Meeting Manager Config.xlsx` (root of your Google Drive, file ID stored in Claude memory as `meeting_manager_config_id`), not just accounts with signals in the current pull. Read the account list fresh from the config file each time this section is generated — do not rely on a previously-known or hardcoded list, since accounts can be added or removed in the config independent of this skill. The entire section is also collapsed by default.
+
+If an account has no new activity in the update window, still generate its card — state plainly that there's nothing new to report since the last update rather than omitting the account. Order cards with active-signal accounts first, then quiet ones.
 
 For each account, generate a plain-text update summarizing recent activity suitable for posting to the account's internal Slack channel. The update should be factual, professional, and peer-level — written as a TAM status post, not a brief excerpt.
 
@@ -259,6 +261,16 @@ The Slack channel ID mapping for Customer Updates lives in Section 3 of the Outp
 If a data source is unavailable (MCP auth issue, timeout), note it briefly at the bottom of the brief under "Unavailable Sources" and proceed with what's available. Do not fail the whole brief because one source errored.
 
 If there is genuinely nothing to report in a section, omit it silently.
+
+---
+
+## HTML Output — File Naming Convention
+
+Every brief run also produces a companion interactive HTML file. The full spec for that file — CSS design system, structure, badge types, and delivery details — is intentionally local-only (see the loaded skill copy's `## HTML Output` section) and is not duplicated here. The file naming convention itself is tracked in this repo so it can't drift out of sync with the local copy:
+
+Name the file `Daily Brief_YYYY-MM-DD_hh-mm.html`, using the local date and 24-hour local time (zero-padded, hyphen-separated) at the moment the file is generated — e.g. `Daily Brief_2026-07-14_08-42.html`. Because the filename includes the run time, multiple runs on the same day naturally coexist as separate files; there is no overwrite step.
+
+The `localStorage` key used for checkbox persistence in that file is scoped to the calendar date only (`brief:YYYY-MM-DD`), not the timestamp, so checkbox progress carries over across same-day runs even though each run produces a distinct file.
 
 ---
 
