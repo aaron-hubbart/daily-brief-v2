@@ -20,6 +20,12 @@ description: >
 
 # Daily Brief Skill
 
+This file is the core: trigger, timing, and what to pull. Three things are deliberately kept in separate reference files in this same skill directory so they don't get read on every run when they don't apply:
+
+- `references/html-output.md` — full HTML structure/CSS/badge spec. Used every run, but pulled out so this core file stays short for the earlier decision-making steps.
+- `references/status-updates.md` — Section 3/4 (Customer Updates, Manager Update) generation. Gated: most runs should skip this entirely and reuse a cache (see Section 3/4 note below).
+- `references/post-meeting-patch.md` — the post-meeting patch flow. Only read when that specific, infrequent trigger fires.
+
 ## Admin Config
 
 Configure these in your local copy (not committed here, since they're account-specific):
@@ -28,21 +34,24 @@ Configure these in your local copy (not committed here, since they're account-sp
 BRIEF_OUTPUT_FOLDER_ID: <your Google Drive output folder ID>
 MEETING_RUN_LOG_SHEET_ID: <your meeting-manager run log sheet ID>
 RECURRING_ACTIVITIES_PROJECT_GID: <your Asana recurring-activities project GID>
+STATUS_UPDATE_CACHE_FILE_ID: <Drive file ID of the Section 3/4 daily cache JSON — see references/status-updates.md>
 SKILL_SOURCE_SHA: <maintained automatically by the Skill Sync Check below>
+SYNC_CHECK_LAST_RUN: <ISO timestamp of the last time the Skill Sync Check actually hit the GitHub API — maintained automatically>
 ```
 
 ---
 
 ## Skill Sync Check (run this first, every time, before anything else)
 
-This skill's canonical source of truth is this file on `main` in `aaron-hubbart/daily-brief`. Any environment that loads a local copy of this skill (e.g. a persistent runtime skill directory) can silently fall behind if `main` is updated without that local copy being refreshed. Check for that drift before doing anything else, every time this skill fires.
+This skill's canonical source of truth is this file on `main` in `aaron-hubbart/daily-brief`. Any environment that loads a local copy of this skill (e.g. a persistent runtime skill directory) can silently fall behind if `main` is updated without that local copy being refreshed. Check for that drift before doing anything else, every time this skill fires — but rate-limit the check itself, since hitting the GitHub API on every single brief run is pure overhead for a condition that's only ever true right after a PR merges.
 
-1. Fetch the current blob SHA for `SKILL.md` on `main` via the GitHub API and compare it against a `SKILL_SOURCE_SHA` marker tracked in the local copy's Admin Config block (this marker is local-only; it is not part of this repo file).
-2. **Match:** proceed with the brief normally.
-3. **Mismatch:** the repo has moved ahead of the loaded copy. Self-heal: fetch this file fresh from `main`, re-insert the local copy's real values into the `## Admin Config` block (this repo file keeps that block as generic placeholders for public-repo hygiene — the structure is version-controlled, only the literal IDs are local), update the `SKILL_SOURCE_SHA` marker, overwrite the local copy, and note briefly in the brief output that the skill definition was auto-synced. Note: `## HTML Output` (including the file-naming convention) is fully version-controlled here as of this update — it is not local-only. It was previously dropped from this repo file as an unintentional side effect of PR #6, not a deliberate exclusion; that has been corrected.
-4. **Fetch fails:** skip silently and proceed with the current local copy. Never block the brief on this check.
+1. **Rate-limit gate:** compare the current time to `SYNC_CHECK_LAST_RUN`. If less than 4 hours have passed, skip straight to step 2's "Match" behavior without calling the GitHub API at all. If 4+ hours have passed (or the marker is missing), proceed to the actual check and update `SYNC_CHECK_LAST_RUN` to now regardless of the check's outcome.
+2. **Check:** fetch the current blob SHA for `SKILL.md` on `main` via the GitHub API and compare it against the `SKILL_SOURCE_SHA` marker in this local copy's Admin Config block (that marker is local-only; it is not part of this repo file).
+3. **Match:** proceed with the brief normally.
+4. **Mismatch:** the repo has moved ahead of the loaded copy. Self-heal: fetch `SKILL.md` and the full `references/` directory fresh from `main`, re-insert the local copy's real values into the `## Admin Config` block (this repo file keeps that block as generic placeholders for public-repo hygiene — the structure is version-controlled, only the literal IDs are local), update the `SKILL_SOURCE_SHA` marker, overwrite the local copy, and note briefly in the brief output that the skill definition was auto-synced.
+5. **Fetch fails:** skip silently and proceed with the current local copy. Never block the brief on this check.
 
-This makes drift self-correcting on every run, since the loaded copy is only ever read during a brief.
+This makes drift self-correcting without paying for an API round trip on every single invocation.
 
 ---
 
@@ -101,18 +110,18 @@ Run all data pulls in parallel where possible. Use the time windows below.
 - Summarize threads, not individual messages — group by sender/topic
 
 ### Slack (Slack: slack_search_public_and_private)
-Run multiple targeted searches:
-1. Direct mentions: `to:<@U0A0ZRB4JM8>` or `<@U0A0ZRB4JM8>`
-2. DMs: channel_types=im, recent messages
-3. Account channels: search for channels related to AcmeFin, Zebra Financial, Umbrella Financial, Initech Financial, Acme Health, Zebra Health
-4. Tiger team / AI-First CS: search for tiger team, AI-first, CS tiger
-5. Time-scope all searches to the recap window
+Consolidate what used to be five separate searches into fewer calls:
+
+1. **Mentions + DMs in one call.** `to:<@U0A0ZRB4JM8>` against `channel_types=public_channel,private_channel,mpim,im` covers both direct mentions and DM activity in a single query instead of two.
+2. **Account channels in one call where possible.** Slack's search syntax accepts multiple `in:` modifiers in a single query (e.g. `in:<#C0XXXXXXX> in:<#C0XXXXXXX> in:<#C0XXXXXXX> in:<#C0XXXXXXX> in:<#C0XXXXXXX> in:<#C0XXXXXXX> in:<#C0XXXXXXX> in:<#C0XXXXXXX>` for AcmeFin, Zebra Financial, Umbrella Financial, Initech Financial, Acme Health, Zebra Health, Umbrella Clinical Research, and Globex System Services). I believe this returns results across all listed channels in one call rather than one call per account, but verify this against actual results the first few times — if it silently narrows to only the first channel or otherwise behaves unexpectedly, fall back to per-channel calls and note that in the run.
+3. **Tiger team / AI-First CS**: one query for tiger team / AI-first / CS tiger.
+4. Time-scope every query to the recap window via `after`/`before`.
 
 Consolidate into a single Slack section. Surface only items that need attention or are informational — skip noise, bot messages, and automated notifications.
 
 ### Zoom (Zoom for Claude: search_meetings + get_meeting_assets)
 - Search for meetings completed in the recap window (last business day for the morning brief, today so far for midday/evening)
-- Pull AI summary, transcript availability, recording availability, and next steps for each completed meeting via `get_meeting_assets`
+- Pull AI summary, transcript availability, recording availability, and next steps for each completed meeting via `get_meeting_assets`. This is a per-meeting call today (search_meetings, then one get_meeting_assets call per meeting) — if the Zoom MCP server later exposes a batched or multi-meeting assets lookup, switch to that; until then this N+1 pattern is accepted as a known cost on days with several completed meetings.
 - If no summary is available, note the meeting occurred and that recording/transcript status still needs checking
 - For the Yesterday's Meetings status list (Section 1, Part A — see Output Format), this is the primary source for "recording/transcript found or not"
 - Only surface meetings in the account/initiative recap (Part B) that produced meaningful content (skip 1:1 standups with no summary) — Part A still lists every meeting regardless of content, since its purpose is processing status, not narrative
@@ -122,6 +131,7 @@ Consolidate into a single Slack section. Surface only items that need attention 
 - Group by: overdue, due today, due tomorrow (for evening brief)
 - Omit tasks with no due date unless they appear high priority from the name
 - For correlating action items to a specific call (Section 1, Part A): first check the Meeting Manager Run Log sheet (`MEETING_RUN_LOG_SHEET_ID`) for a row matching the meeting (by title and date). If no matching row exists there — which is expected right now, since post-meeting processing isn't yet writing to that log — fall back to searching the relevant account's Asana project for tasks created on or shortly after the meeting's date. Report whichever check found something; if neither does, say so plainly rather than guessing.
+- When new action-item tasks need creating (see `references/html-output.md`, Action Items), batch them into one `Asana:create_tasks` call rather than creating one at a time — it accepts up to 50 tasks per call.
 
 ---
 
@@ -198,70 +208,11 @@ End with a brief **Open Time** note if there are meaningful unblocked blocks in 
 
 ---
 
-### Section 3: Customer Updates
+### Section 3: Customer Updates & Section 4: Manager/Leadership Update
 
-**Update, superseding the "viewer-owned" note that used to be here:** the viewer's live `/api/claude` generation was found to be unreliable in practice (empty sections reported in a real run on 2026-07-14) and has been disabled in `viewer/daily-brief-viewer.html` (`injectUpdateSections()` call commented out). This skill generates Sections 3 and 4 statically again, embedded in the brief HTML at generation time — do not leave them out. Since the viewer's dynamic injection is now disabled, there is no duplication risk in doing so.
+Both sections are gated by a daily cache to avoid re-synthesizing the same status updates on every brief run of the day. Full generation logic, format, and the cache rules live in `references/status-updates.md` — read that file when the gate says to actually generate, and skip it entirely on a cache hit.
 
-One collapsible card per customer account on your assigned list — every account listed in the Accounts sheet of `Meeting Manager Config.xlsx` (root of your Google Drive, file ID stored in Claude memory as `meeting_manager_config_id`), not just accounts with signals in the current pull. Read the account list fresh from the config file each time this section is generated — do not rely on a previously-known or hardcoded list, since accounts can be added or removed in the config independent of this skill. The entire section is also collapsed by default.
-
-If an account has no new activity in the update window, still generate its card — state plainly that there's nothing new to report since the last update rather than omitting the account. Order cards with active-signal accounts first, then quiet ones.
-
-For each account, generate a plain-text update summarizing recent activity suitable for posting to the account's internal Slack channel. The update should be factual, professional, and peer-level — written as a TAM status post, not a brief excerpt.
-
-**Finding the last update window:**
-1. Search the account's Slack channel for posts containing `[TAM-UPDATE] #claude-brief-skill`. Use `slack_search_public_and_private` with that query scoped to the channel.
-2. If a matching post exists within the last 7 days, use its timestamp as the start of the summary window.
-3. If no matching post exists, or the most recent one is older than 7 days, default to a 7-day lookback from today.
-
-**Update content:** Summarize what has happened across the account in that window — meetings, email threads, support tickets, Slack activity, decisions made, next steps. Do not copy verbatim from sources; synthesize into a coherent narrative.
-
-**Format of each update post:**
-```
-[TAM-UPDATE] #claude-brief-skill
-
-*[Account Name] — TAM Update*
-[Date range covered]
-
-[Narrative summary — 2–5 sentences or short bullets]
-
-Next steps:
-• [item]
-• [item]
-```
-
-**Slack channel mapping** — read at runtime from the Meeting Manager Config.xlsx file (file ID stored in Claude memory as `meeting_manager_config_id`). The Accounts sheet contains a `Slack Channel ID` column. Load the file using the same routing table logic in the meeting-manager skill (Step 1 of routing-table.md). Index accounts by Account Name and all aliases. The channel ID for each account is used to pre-populate the post destination.
-
-Do not hardcode channel IDs here. Always read from the config file so additions and changes made to the xlsx are automatically reflected.
-
-Add new accounts to the Meeting Manager Config.xlsx Accounts sheet (including their Slack Channel ID) as they are onboarded.
-
-Generate this directly into the HTML: an editable `<textarea>` pre-populated with the generated update, a read-only channel field, and a "Post to Slack" button (`https://slack.com/app_redirect?channel={channel_id}`). Since this is now static content rather than a live-editable session, also note the timestamp of the last found `[TAM-UPDATE] #claude-brief-skill` post (or "No previous update found") next to each account name.
-
----
-
-### Section 4: Manager/Leadership Update
-
-A single collapsed section (collapsed by default) containing one editable text area with a synthesized update across all active accounts and initiatives. Suitable for a quick verbal or written update to your manager. Generated statically, same as Section 3 — see the note at the top of Section 3 for why.
-
-**Format:**
-```
-[TAM-UPDATE] #claude-brief-skill
-
-*TAM Weekly Update — [Your Name]*
-[Date]
-
-[Account]: [1–2 sentence status]
-[Account]: [1–2 sentence status]
-...
-
-Key risks: [brief list]
-Focus this week: [brief list]
-```
-
-**Finding the last manager update:**
-Search the manager DM channel (`D0A25TNDGJJ`) for `[TAM-UPDATE] #claude-brief-skill`. Use the same 7-day lookback logic as customer updates.
-
-**Posting:** Generate a "Post to Manager" button in the HTML that opens `https://slack.com/app_redirect?channel=D0A25TNDGJJ`. Note the last manager update timestamp (or "No previous update found") the same way as customer updates.
+Quick summary of the gate: generate fresh on the first brief of the day or on an explicit request to regenerate; every other run that day reuses the cached content from `STATUS_UPDATE_CACHE_FILE_ID` as-is.
 
 ---
 
@@ -292,110 +243,14 @@ If a data source is unavailable (MCP auth issue, timeout), note it briefly at th
 
 If there is genuinely nothing to report in a section, omit it silently.
 
+
 ## HTML Output
 
-Every brief run produces a standalone interactive HTML file in addition to the in-chat response. The file is self-contained (no external dependencies), works offline, and persists checkbox state in `localStorage` so it can be referenced throughout the day.
+Every brief run produces a standalone interactive HTML file in addition to the in-chat response, per the full spec in `references/html-output.md`. Read that file when you reach HTML generation in a run — it covers structure, CSS, badges, link buttons, localStorage, sensitive data rules, and delivery.
 
-### When to generate
+## Post-Meeting Patch Runs
 
-Generate the HTML file on every brief run. Name the file: `Daily Brief_YYYY-MM-DD_hh-mm.html` using the local date and 24-hour local time (zero-padded, hyphen-separated) at the moment the file is generated — e.g. `Daily Brief_2026-07-14_08-42.html`.
-
-### HTML structure
-
-The file has eight sections, in order. This list is the canonical, version-controlled definition of the HTML file — if the in-chat Output Format section (Section 1/2 above) and this list ever seem to imply different HTML content, this list wins for what actually gets generated in the file.
-
-1. **Header** — date, brief type (Morning / Midday / Evening), timezone label, progress counter ("N of N done"), progress bar
-2. **Yesterday's Meetings** — one checkable item per meeting from the last business day (Section 1, Part A). Each item shows title, time, attendees, a recording/transcript link if `get_meeting_assets` found one, and an Asana action-item status line (logged / not found, per the run-log-then-Asana-search check). If no recording/transcript was found, the item's subtitle asks directly for a link or transcript, and the item stays unchecked until that's resolved — this is a real to-do, not just informational, so it belongs here checkable rather than in FYI. Use `data-id="ym-N"` (1-indexed).
-3. **Account / Initiative Recap** (Section 1, Part B) — this is its own HTML section, distinct from Yesterday's Meetings above, and must appear in every generated file; it is not optional narrative that only shows up in the chat response. One checkable item per account or internal initiative, ordered per the priority rule in Part B (active-signal accounts first, then internal initiatives, then the mandatory "General / Admin" catch-all). Item title is the account/initiative name; item subtitle is the synthesized narrative paragraph for that account (calendar + email + Slack + Zoom, consolidated — never a source-by-source list). Include a link button only when a specific source link is directly relevant to the recap (e.g. an email thread referenced in the narrative); most recap items have no badges and no links, since this section is about narrative content, not processing status or action tracking. Use `data-id="recap-N"` (1-indexed).
-4. **Today** (renamed from "Schedule" — every meeting for the full current day, past or future, per the calendar-pull rule above) — checkable item per meeting with time, title, attendees, a Join link if a Zoom/Webex/Teams URL is present, and a meeting-prep output link. Append " (occurred)" to the item title for any meeting whose end time has already passed at the moment the brief runs, so a same-day full-calendar list makes clear at a glance which entries are past vs. upcoming. A meeting qualifies for a prep link if it has attendees beyond the user (personal reminders and solo admin blocks don't). For an upcoming qualifying meeting: check whether meeting-prep already exists (via the meeting-manager skill's routing table / per-account Drive folder); if it does, link to it; if not, run the meeting-manager skill's pre-meeting flow for that meeting as part of this brief, then link to the newly generated doc. For a qualifying meeting that has already occurred today by the time the brief runs, don't run pre-meeting prep after the fact — treat it like a Part A entry instead (recording/transcript + Asana status), since "prep" for a meeting that's already over doesn't make sense. Use `data-id="today-N"` (1-indexed).
-5. **Action Items** — every task that needs action today: overdue Asana tasks, email threads needing a reply, Slack items flagged for response, meeting manager runs needed. Each item is checkable and has a one-line subtitle. **Include a link button whenever a real URL exists for that item** — the Asana task permalink (`https://app.asana.com/0/0/{gid}/f`), the Slack message permalink (construct as `https://{workspace}.slack.com/archives/{channel_id}/p{ts_without_dot}` if not returned directly by the search/read call), the Zoom meeting summary doc URL, or a mailto/webLink for an email thread. This is not optional decoration — it's the difference between a checklist and something the user can actually act on with one click. Only omit the link button when no real URL exists for that item (never use a placeholder `#`). Use `data-id="action-N"` (0-indexed, matching the existing example).
-
-**Every action item must resolve to a real Asana task, created automatically if one doesn't already exist.** Before generating this section, for each item, search Asana for an existing matching task (by text, scoped to the relevant account project if known). If none exists, create one via `Asana:create_tasks` — `assignee: "me"`, `due_on` today, `project_id` set to the account's Asana Project GID from `Meeting Manager Config.xlsx` when known, notes summarizing the context and any source link. If the account has no configured project GID (blank in the config sheet), omit `project_id` and let it land in My Tasks rather than blocking — don't treat a missing project mapping as a reason to skip creating the task. Always link the Asana permalink returned by the creation/search call — never a placeholder. This means there is no client-side "add to Asana" button anywhere in this skill; the task is guaranteed to exist by the time the person sees the brief.
-
-**For action items where meeting-manager applies** (post-meeting processing needed, most commonly triggered by a missing recording/transcript from Section 1 Part A), add a second link button using the same `claude://` deep-link pattern the viewer already uses for Today items: `href="claude://claude.ai/new?q=" + encodeURIComponent('/meeting-manager Run post-meeting notes for: ' + meetingTitle + ' (' + dateOrTime + ')')`. This opens Claude Desktop with the prompt pre-filled so the person can paste a recording link or transcript directly into that conversation. Only add this button when meeting-manager genuinely applies — most action items (a Slack thread to review, a ticket to check) don't map to any specific skill, and a button with nowhere useful to go is worse than no button. Note in the brief output that this button requires Claude Desktop registered as the `claude://` protocol handler; it won't do anything in a browser-only viewing context.
-6. **FYI** — non-actionable signals worth knowing: post-meeting summaries generated, recurring tasks spawned, informational Slack threads, status summary highlights. **Include a link button whenever a real URL exists**, same standard as Action Items — the Zoom meeting summary doc or recording URL, the Slack thread/message permalink (construct as `https://{workspace}.slack.com/archives/{channel_id}/p{ts_without_dot}` if not returned directly), a calendar event's `webLink`, or an Asana task permalink for a spawned recurring task. Nothing actionable is expected here, but "worth knowing" should still be one click from "worth reading in full" — don't make the user go dig for the source. Only omit the link when no real URL exists for that item. Use `data-id="fyi-N"` (1-indexed).
-7. **Customer Updates** — collapsed by default, one outer `<details>` labeled "Expand — N assigned accounts", containing one nested `<details class="acct-card">` per assigned account (Section 3). Each card's summary line shows the account name and a badge with the last-known-update timestamp (or "no previous update found"). Each card body has an editable textarea pre-populated with the generated update, a read-only channel field, and a "Post to Slack" button. These are `<details>` elements, not `.item` blocks — they have no checkbox and do not count toward `TOTAL`.
-8. **Manager / Leadership Update** — collapsed by default, single outer `<details>` (summary: "Expand — " plus the last-known-update badge) containing one editable textarea (Section 4), a "Post to Manager" button. Also a `<details>` element, not a `.item` block — no checkbox, not counted in `TOTAL`.
-
-### CSS design system
-
-Use exactly the CSS from the existing example (reproduced below). Do not deviate from the design tokens, class names, or layout. The only dynamic changes are content and the `data-id` / `TOTAL` values in the script.
-
-```css
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg:#f5f4f1; --surface:#fff; --border:#e2e0d8; --border-strong:#c8c6bc;
-  --t1:#1a1916; --t2:#5a5850; --t3:#9a9890;
-  --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
-  --warn-bg:#fdf5e6; --warn-t:#7a5000;
-  --bad-bg:#fef1f0; --bad-t:#b02520;
-  --done:.35; --font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-  --mono:ui-monospace,"SF Mono","Cascadia Code",monospace; --r:5px;
-}
-@media(prefers-color-scheme:dark){:root{
-  --bg:#18181b; --surface:#1e1e22; --border:#2c2c32; --border-strong:#3c3c44;
-  --t1:#e6e4de; --t2:#9a9890; --t3:#5a5850;
-  --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
-  --warn-bg:#28200a; --warn-t:#e8a020; --bad-bg:#280e0e; --bad-t:#e06868;
-}}
-body { font-family: var(--font); background: var(--bg); color: var(--t1); padding: 24px 16px 60px; max-width: 1400px; margin: 0 auto; }
-```
-
-This `body` rule (font, background, color, padding, max-width, centering) was previously undocumented here and left to per-run discretion, which is how it drifted — it now sets `max-width: 1400px` explicitly so every run is consistent.
-
-### Badge types
-
-| Class | Use |
-|-------|-----|
-| `bwarn` | Tentative, needs confirmation, time-sensitive |
-| `bbad` | Overdue, blocking, critical |
-| Custom inline style using `--accent-bg`/`--accent-t` | Informational label (e.g., "hiring", "prep run") |
-
-### Link buttons
-
-Use `class="lbtn primary"` for the primary CTA (Join Zoom, Open doc). Use `class="lbtn"` for secondary links (Asana task, Slack thread, email). All `href` values must be real URLs from the data — never placeholder `#` values in actual output. The example file uses `#` only because it is a sanitized demo.
-
-### localStorage key
-
-Use `brief:YYYY-MM-DD` as the key — the calendar date only, not the filename. Multiple runs in the same day now produce distinct timestamped files (see filename convention above), but they should still share checkbox progress, so the storage key intentionally does not include the time component. The `TOTAL` constant in the script must equal the actual number of checkable items (`.item[data-id]` elements) in that specific brief.
-
-### Sensitive data rules
-
-The HTML file produced during a live brief run will contain real names, meeting titles, and links. That is correct for personal use. However:
-
-- **Never commit a real brief to the GitHub repo.** The `example/` folder in the repo is for sanitized demo files only.
-- The example file must use fictional names, companies, and placeholder `#` links.
-- No real email addresses, Slack user IDs, Asana GIDs, Zoom meeting IDs, or calendar event IDs may appear in any committed file.
-- Customer names in examples must be fictional (e.g., "Acme Financial", "Pinnacle Health", "Meridian Bank") — never real account names.
-
-### Delivering the file
-
-Write the HTML to a local file first (needed anyway to present it as a downloadable artifact in chat), then upload that same content to Google Drive folder `BRIEF_OUTPUT_FOLDER_ID` (value configured in the local copy's Admin Config block, not committed here) using `Google Drive: create_file` with `contentMimeType: text/html` and `disableConversionToGoogleType: true`.
-
-Use the `textContent` parameter, not `base64Content`. This file is plain text — base64-encoding it first only inflates the payload by roughly a third and adds an unnecessary encode/read-back pass before the upload call, which measurably slows the run for no benefit. Pass the HTML directly as `textContent`.
-
-Name the file `Daily Brief_YYYY-MM-DD_hh-mm.html`. Because the filename includes the run time, multiple runs on the same day naturally coexist as separate files — there is no overwrite step, and no need for one.
-
-Also present the file as a downloadable artifact in chat so it is immediately accessible without opening Drive.
-
-### Post-Meeting Patch Runs
-
-When `meeting-manager`'s post-meeting agent finishes processing a meeting that appears in **today's most recent brief** as a Section 1 Part A item carrying the "not found — needs input" badge (recording/transcript/summary was missing at brief-generation time), it should patch that item instead of waiting for the next scheduled brief run.
-
-This is a lightweight update to the existing file, not a fresh brief:
-
-1. **Locate the source file.** List files in `BRIEF_OUTPUT_FOLDER_ID` matching `Daily Brief_<today's date>_*.html` and take the one with the latest `hh-mm` in the filename — the filename's own timestamp is the reliable ordering signal, not Drive's modified-time metadata.
-2. **Download and parse.** Pull the file content and find the `.item[data-id]` block whose title text matches the meeting (account/topic + time). Match on visible title text, not `data-id` — `data-id` values are only unique within a single file, not stable across regenerations or patch runs.
-3. **Patch that block only:**
-   - Remove the `bbad` "not found — needs input" badge.
-   - Replace the subtitle line with a one-line outcome describing what was processed (e.g. "Meeting processed — 3 action items logged to Asana").
-   - Swap the button row: drop the `claude://` "Post-meeting in Claude" deep link (no longer relevant), keep or update the Asana link to point at the real follow-up task(s), and add any other real link that now exists (Drive doc, Slack recap permalink). Never leave a placeholder `#`.
-   - Leave everything else untouched: other items, `data-id` values, the `TOTAL` count, the header, and all unrelated sections.
-4. **If no matching item is found** — brief already regenerated, meeting wasn't flagged, etc. — stop silently. Do not fabricate an item and do not error loudly; just note it once in the post-meeting completion summary.
-5. **Save as a new timestamped file, not an overwrite:** `Daily Brief_YYYY-MM-DD_hh-mm.html` using the current time, same folder. This follows the multi-run convention above rather than working around it — there is no Drive delete/update tool available for this to use, and none is needed, since the viewer already lets a person pick between same-day runs and checkbox state is keyed by date only (see localStorage key above), so nothing is lost by producing a new file instead of replacing the old one.
-6. **Don't reproduce brief content in chat.** The post-meeting completion summary gets one line noting the patch happened, plus the Drive link — same rule as a normal brief run.
-
-This lets a person who just ran post-meeting processing see the update by refreshing the local viewer and selecting the newest timestamp for today, without waiting for the next full brief.
+Not part of the normal brief trigger. When meeting-manager's post-meeting agent finishes processing a meeting flagged in today's brief as missing a recording/transcript, read `references/post-meeting-patch.md` and follow that flow to patch the existing file instead of waiting for the next scheduled run.
 
 ---
 
