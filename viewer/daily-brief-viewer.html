@@ -97,7 +97,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 .tl-dot{width:8px;height:8px;border-radius:50%;background:var(--border-strong);flex-shrink:0;cursor:pointer;transition:background .15s,transform .15s;position:relative;}
 .tl-dot:hover{transform:scale(1.4);background:var(--t3);}
 .tl-dot.active{background:var(--accent);transform:scale(1.3);}
-.tl-dot::after{content:attr(data-tip);position:absolute;bottom:11px;left:50%;transform:translateX(-50%);background:var(--t1);color:var(--bg);font-size:10px;padding:2px 6px;border-radius:3px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;z-index:20;}
+.tl-dot::after{content:attr(data-tip);position:absolute;top:14px;left:50%;transform:translateX(-50%);background:var(--t1);color:var(--bg);font-size:10px;padding:2px 6px;border-radius:3px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;z-index:20;}
 #timeline .tl-dot:first-child::after{left:0;transform:none;}
 #timeline .tl-dot:last-child::after{left:auto;right:0;transform:none;}
 .tl-dot:hover::after{opacity:1;}
@@ -281,15 +281,31 @@ function initBriefState(filename) {
     if (fill) fill.style.width = pct + '%';
   }
 
-  function toggle(id) {
+  function toggle(id, section) {
     state[id] = !state[id];
     saveBriefState(filename, state);
     applyState();
+    syncCheckedToServer(section, id, state[id]);
+  }
+
+  // Best-effort server sync — persists across devices and, for Action
+  // Items (item_key action-{asana_gid}), mirrors onto the linked Asana
+  // task's completed state. localStorage above is the UI's actual source
+  // of truth, so a failed or slow request here never blocks the toggle.
+  function syncCheckedToServer(section, itemKey, checked) {
+    if (!section) return;
+    fetch('api/items/' + encodeURIComponent(section) + '/' + encodeURIComponent(itemKey) + '/checked?date=' + encodeURIComponent(filename), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checked }),
+    }).catch(() => {});
   }
 
   // Clone each item to strip the brief's own handlers, then wire ours
   liveItems().forEach(el => {
     const id = el.dataset.id;
+    const sectionEl = el.closest('[data-section]');
+    const section = sectionEl ? sectionEl.dataset.section : null;
     const fresh = el.cloneNode(true);
     el.parentNode.replaceChild(fresh, el);
     const cb = fresh.querySelector('input[type=checkbox]');
@@ -300,7 +316,7 @@ function initBriefState(filename) {
     if (cb) {
       cb.addEventListener('change', e => {
         e.stopPropagation();
-        toggle(id);
+        toggle(id, section);
       });
     }
     fresh.addEventListener('click', e => {
@@ -310,7 +326,7 @@ function initBriefState(filename) {
         cb.checked = !cb.checked;
         cb.dispatchEvent(new Event('change', { bubbles: false }));
       } else {
-        toggle(id);
+        toggle(id, section);
       }
     });
   });

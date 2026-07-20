@@ -55,6 +55,17 @@ spec:
             # not worth a Secret for something this low-sensitivity.
             - name: ADMIN_EMAILS
               value: ""
+            # Secret — Asana Personal Access Token used to mirror Action
+            # Item checkbox toggles onto the linked Asana task's completed
+            # state. Leave the key out of daily-brief-secrets (or empty) to
+            # leave Asana sync disabled; checkbox state still persists to
+            # Postgres either way.
+            - name: ASANA_PAT
+              valueFrom:
+                secretKeyRef:
+                  name: daily-brief-secrets
+                  key: ASANA_PAT
+                  optional: true
             # Built from postgres-credentials via $(VAR) interpolation
             # (supported natively by Kubernetes for env vars defined earlier
             # in the same list) rather than duplicating the connection

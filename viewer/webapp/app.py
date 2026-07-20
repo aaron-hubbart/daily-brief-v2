@@ -31,9 +31,12 @@ scoped to their own row in Postgres by user_id — every query filters on the
 current session's verified identity, never anything client-supplied. See
 db.py and db/README.md for the storage model.
 """
+import json
 import os
 import re
 import secrets
+import urllib.error
+import urllib.request
 from functools import wraps
 from pathlib import Path
 
@@ -63,6 +66,41 @@ SECTIONS = [
     {'slug': 'customer-updates', 'label': 'Customer Updates', 'open_default': False},
     {'slug': 'manager-update', 'label': 'Manager / Leadership Update', 'open_default': False},
 ]
+
+
+ASANA_ACTION_ITEM_PREFIX = 'action-'
+
+
+def _sync_asana_completed(item_key: str, checked: bool):
+    """
+    Best-effort: mirrors a checkbox toggle on an Action Item to the
+    completed state of its linked Asana task. Returns (attempted, ok).
+    attempted is False when the item_key isn't an Asana-backed action item
+    or ASANA_PAT isn't configured, ok is False when it was attempted but
+    the Asana API call itself failed — either way the Postgres write this
+    accompanies has already succeeded and isn't rolled back.
+    """
+    if not item_key.startswith(ASANA_ACTION_ITEM_PREFIX):
+        return False, False
+    if not ASANA_PAT:
+        return False, False
+    gid = item_key[len(ASANA_ACTION_ITEM_PREFIX):]
+    if not gid.isdigit():
+        return False, False
+    req = urllib.request.Request(
+        f'https://app.asana.com/api/1.0/tasks/{gid}',
+        data=json.dumps({'data': {'completed': checked}}).encode('utf-8'),
+        method='PUT',
+        headers={
+            'Authorization': f'Bearer {ASANA_PAT}',
+            'Content-Type': 'application/json',
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10):
+            return True, True
+    except urllib.error.URLError:
+        return True, False
 
 
 def _count_label(slug, items):
@@ -108,6 +146,15 @@ ALLOWED_GROUPS = {g.strip() for g in _allowed_groups_raw.split(',') if g.strip()
 # panel. Case-insensitive since Azure AD UPNs aren't guaranteed one case.
 _admin_emails_raw = os.environ.get('ADMIN_EMAILS', '').strip()
 ADMIN_EMAILS = {e.strip().lower() for e in _admin_emails_raw.split(',') if e.strip()} if _admin_emails_raw else None
+
+# Optional, inactive unless set — a single Asana Personal Access Token used
+# to keep Action Items in sync with their linked Asana task's completed
+# state. Action item keys are minted as `action-{asana_gid}` (see
+# references/item-sync.md in the skill repo), so the GID needed for the
+# Asana API call comes straight out of the item_key with no extra lookup.
+# Leave unset and checkbox toggles on action items still persist to
+# Postgres, they just don't reach Asana.
+ASANA_PAT = os.environ.get('ASANA_PAT', '').strip() or None
 
 AZURE_AUTHORITY = f'https://login.microsoftonline.com/{AZURE_TENANT_ID}'
 GRAPH_SCOPES = []  # no Graph calls made — sign-in identity only, nothing to scope
@@ -410,6 +457,7 @@ def admin_config_status():
         'allowed_groups_active': ALLOWED_GROUPS is not None,
         'allowed_groups_count': len(ALLOWED_GROUPS) if ALLOWED_GROUPS else 0,
         'admin_emails_count': len(ADMIN_EMAILS) if ADMIN_EMAILS else 0,
+        'asana_pat_set': bool(ASANA_PAT),
     })
 
 
@@ -464,12 +512,15 @@ def serve_brief(date_str):
 @login_required
 def set_item_checked(section, item_key):
     """
-    Not called by the current viewer frontend yet — checkbox state today is
-    still purely client-side (localStorage, per browser/device), same as
-    the file-based model. This exists so that behavior can move server-side
-    later (checked state that survives across devices) without needing a
-    new endpoint at that point; wiring the frontend to actually call it is
-    a deliberate follow-up, not done in this pass.
+    Called by the viewer frontend on every checkbox toggle (see
+    daily-brief-viewer.html's toggle()) — checked state persists to
+    Postgres so it survives across devices, replacing the old
+    localStorage-only model. For Action Items specifically (item_key
+    formatted as action-{asana_gid}), this also mirrors the toggle onto
+    the linked Asana task's completed field via _sync_asana_completed;
+    checking the box completes the task, unchecking it reopens it. The
+    Asana call is best-effort and never blocks or rolls back the Postgres
+    write — see 'asana_synced' in the response for its outcome.
     """
     date_str = request.args.get('date', '')
     if not DATE_RE.match(date_str):
@@ -480,10 +531,15 @@ def set_item_checked(section, item_key):
     body = request.get_json(silent=True) or {}
     if 'checked' not in body:
         abort(400, 'checked (bool) is required')
-    found = db.set_item_checked(brief_day['id'], section, item_key, bool(body['checked']))
+    checked = bool(body['checked'])
+    found = db.set_item_checked(brief_day['id'], section, item_key, checked)
     if not found:
         abort(404)
-    return jsonify({'status': 'ok'})
+    attempted, ok = _sync_asana_completed(item_key, checked)
+    result = {'status': 'ok'}
+    if attempted:
+        result['asana_synced'] = ok
+    return jsonify(result)
 
 
 @app.route('/api/items/upsert', methods=['POST'])
