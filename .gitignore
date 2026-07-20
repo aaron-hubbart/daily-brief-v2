@@ -6,3 +6,4 @@ viewer/webapp/data/
 viewer/webapp/.env
 __pycache__/
 *.pyc
+secrets/*
