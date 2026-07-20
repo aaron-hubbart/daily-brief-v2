@@ -197,7 +197,7 @@ async function loadBriefList() {
   sel.disabled = true; btn.disabled = true;
   setStatus('Scanning for briefs…');
   try {
-    const res = await fetch('/api/briefs');
+    const res = await fetch('api/briefs');
     if (!res.ok) throw new Error('Server error ' + res.status);
     briefs = await res.json();
     document.getElementById('brief-count').textContent = briefs.length ? briefs.length + ' brief' + (briefs.length !== 1 ? 's' : '') : '';
@@ -870,7 +870,7 @@ async function selectBrief(idx) {
   document.getElementById('empty-msg').textContent = 'Loading…';
 
   try {
-    const res = await fetch('/brief/' + encodeURIComponent(brief.name));
+    const res = await fetch('brief/' + encodeURIComponent(brief.name));
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const html = await res.text();
 
