@@ -112,6 +112,16 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
     PREFERRED_URL_SCHEME='https',
+    # Both this app and the parent dashboard app live on dashboard.es-sandbox.com.
+    # Flask's cookie defaults (name "session", path "/") are identical for both,
+    # so without overriding them here, whichever app sets its cookie last wins —
+    # the other app's session gets silently clobbered. That produced a login
+    # loop: this app's session would be overwritten right after auth_callback
+    # set it, so login_required immediately treated the user as signed out
+    # again and bounced back to /login. Scoping both name and path to this
+    # app's mount point keeps the two cookies distinct.
+    SESSION_COOKIE_NAME='daily_brief_session',
+    SESSION_COOKIE_PATH='/daily-brief',
 )
 
 # Trust nginx's forwarded headers for scheme, host, and path prefix — required

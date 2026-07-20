@@ -18,7 +18,7 @@ This app gets its own namespace (`daily-brief`) and its own path (`/daily-brief`
 
 ## 2. Build and push the image
 
-```bash
+```powershell
 gcloud builds submit --config=viewer/webapp/cloudbuild.yaml .
 ```
 
@@ -26,22 +26,17 @@ Run from the repo root. `cloudbuild.yaml`'s `dir: viewer` step points the actual
 
 ## 3. Namespace and secrets
 
-```bash
+```powershell
 kubectl apply -f viewer/webapp/k8s/namespace.yaml
 
-kubectl create secret generic postgres-credentials \
-  --namespace daily-brief \
-  --from-literal=POSTGRES_USER="dailybrief" \
-  --from-literal=POSTGRES_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')" \
-  --from-literal=POSTGRES_DB="dailybrief"
+$postgresPassword = python3 -c "import secrets; print(secrets.token_urlsafe(24))"
+kubectl create secret generic postgres-credentials --namespace daily-brief --from-literal=POSTGRES_USER=dailybrief --from-literal=POSTGRES_PASSWORD=$postgresPassword --from-literal=POSTGRES_DB=dailybrief
 
-kubectl create secret generic daily-brief-secrets \
-  --namespace daily-brief \
-  --from-literal=FLASK_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')" \
-  --from-literal=AZURE_CLIENT_ID="<from the app registration>" \
-  --from-literal=AZURE_CLIENT_SECRET="<from the app registration>" \
-  --from-literal=AZURE_TENANT_ID="<Camunda's tenant ID>"
+$flaskSecretKey = python3 -c "import secrets; print(secrets.token_hex(32))"
+kubectl create secret generic daily-brief-secrets --namespace daily-brief --from-literal=FLASK_SECRET_KEY=$flaskSecretKey --from-literal=AZURE_CLIENT_ID="<from the app registration>" --from-literal=AZURE_CLIENT_SECRET="<from the app registration>" --from-literal=AZURE_TENANT_ID="<Camunda's tenant ID>"
 ```
+
+Generating the password/key into a variable first, then using it in a one-line command, sidesteps PowerShell's line-continuation backtick entirely — one less thing to get wrong from a copy-paste. You can `echo $postgresPassword` first to sanity-check it before running the `kubectl create secret` line if you want to see it.
 
 Never `kubectl apply -f k8s/*.template.yaml` directly — those are references for which keys exist, not something to fill in and apply.
 
@@ -51,10 +46,8 @@ There's no `UPLOAD_TOKENS` secret anymore — each person's API token now lives 
 
 ## 4. Postgres
 
-```bash
-kubectl create configmap postgres-schema \
-  --namespace daily-brief \
-  --from-file=viewer/webapp/db/schema.sql
+```powershell
+kubectl create configmap postgres-schema --namespace daily-brief --from-file=viewer/webapp/db/schema.sql
 
 kubectl apply -f viewer/webapp/k8s/postgres-statefulset.yaml
 kubectl apply -f viewer/webapp/k8s/postgres-service.yaml
@@ -66,9 +59,8 @@ The `postgres-schema` ConfigMap is mounted at `/docker-entrypoint-initdb.d/` —
 
 **If Postgres is already running from a previous deploy** (true as of the `api_token` column being added — anyone who stood this up before that change needs this): apply the migration by hand once, against the running database:
 
-```bash
-kubectl exec -i -n daily-brief postgres-0 -- \
-  psql -U dailybrief -d dailybrief < viewer/webapp/db/migrations/001_add_api_token.sql
+```powershell
+Get-Content -Raw viewer/webapp/db/migrations/001_add_api_token.sql | kubectl exec -i -n daily-brief postgres-0 -- psql -U dailybrief -d dailybrief
 ```
 
 Safe to run more than once. Existing users don't need a separate backfill step — `db.get_or_create_user` assigns each of them a token automatically the next time they sign in (see step 8).
@@ -76,7 +68,7 @@ Safe to run more than once. Existing users don't need a separate backfill step �
 
 ## 5. The app
 
-```bash
+```powershell
 kubectl apply -f viewer/webapp/k8s/deployment.yaml
 kubectl apply -f viewer/webapp/k8s/service.yaml
 kubectl apply -f viewer/webapp/k8s/proxy-headers-configmap.yaml
@@ -85,14 +77,14 @@ kubectl apply -f viewer/webapp/k8s/ingress.yaml
 
 ## 6. The archival CronJob
 
-```bash
+```powershell
 kubectl apply -f viewer/webapp/k8s/cronjob.yaml
 ```
 
 Runs `archive_briefs.py` daily (09:00 UTC by default — edit the `schedule` in `cronjob.yaml` if you want a different time). See `db/README.md` for exactly what it does: brief days older than 14 days get marked `archived` (no longer shown to the end user, but still in the DB); brief days older than 30 days get permanently deleted. Both checks run every time the job fires, independent of each other.
 
 To confirm it's wired up correctly without waiting for the schedule:
-```bash
+```powershell
 kubectl create job --from=cronjob/daily-brief-archive daily-brief-archive-manual-test -n daily-brief
 kubectl -n daily-brief logs job/daily-brief-archive-manual-test
 kubectl -n daily-brief delete job daily-brief-archive-manual-test
@@ -100,7 +92,7 @@ kubectl -n daily-brief delete job daily-brief-archive-manual-test
 
 ## 7. Verify
 
-```bash
+```powershell
 kubectl -n daily-brief get pods,svc,ingress,statefulset
 kubectl -n daily-brief get certificate          # watch cert-manager issue the TLS cert; wait for Ready: True
 kubectl -n daily-brief logs deploy/daily-brief-viewer --tail=50
@@ -127,7 +119,7 @@ Signing in and having reports show up are still two separate things — a person
 
 ## Updating the deployed image later
 
-```bash
+```powershell
 gcloud builds submit --config=viewer/webapp/cloudbuild.yaml .
 kubectl -n daily-brief rollout restart deployment/daily-brief-viewer
 ```
@@ -136,20 +128,30 @@ The image tag is `:latest`, so a plain re-apply of `deployment.yaml` won't pick 
 
 ## Local development (without Kubernetes)
 
-Needs a local Postgres in addition to `.env.example` → `.env`:
+Needs a local Postgres in addition to `.env.example` → `.env`. On Windows this means either a native PostgreSQL install (the official installer puts `psql`/`createdb` on PATH) or a Postgres container (`docker run` / Podman) with the port published to `localhost`.
 
-```bash
-# one-time local Postgres setup (adjust to your OS's package manager)
+```powershell
+# one-time local Postgres setup
 createdb dailybrief
 psql dailybrief -f viewer/webapp/db/schema.sql
 
 cd viewer/webapp
-python3 -m venv venv && venv/bin/pip install -r requirements.txt
-set -a; source .env; set +a
-venv/bin/python app.py
+python3 -m venv venv
+venv\Scripts\pip install -r requirements.txt
+
+# Load .env into this session's environment variables — PowerShell has no
+# direct equivalent of bash's "source .env", so this parses key=value lines
+# and sets each one for the current process only.
+Get-Content .env | ForEach-Object {
+    if ($_ -match '^\s*([^#=]+)=(.*)$') {
+        [System.Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), 'Process')
+    }
+}
+
+venv\Scripts\python app.py
 ```
 
-This runs the Flask dev server directly (not gunicorn, not a container) for quick local iteration. It still does the real MSAL/Azure AD flow, so `AZURE_REDIRECT_URI` needs to point at wherever you're actually running it (e.g. `http://localhost:8000/auth/callback`, registered as an additional Redirect URI on the app registration for local testing). Run `archive_briefs.py` the same way (`venv/bin/python archive_briefs.py`) to test the archival logic locally.
+This runs the Flask dev server directly (not gunicorn, not a container) for quick local iteration. It still does the real MSAL/Azure AD flow, so `AZURE_REDIRECT_URI` needs to point at wherever you're actually running it (e.g. `http://localhost:8000/auth/callback`, registered as an additional Redirect URI on the app registration for local testing). Run `archive_briefs.py` the same way (`venv\Scripts\python archive_briefs.py`) to test the archival logic locally — the `.env` values loaded above stay set for the rest of that PowerShell session, so you don't need to reload them between the two.
 
 ## What this doesn't do yet
 
