@@ -36,7 +36,7 @@ Configure these in your local copy (not committed here, since they're account-sp
 
 ```
 DAILY_BRIEF_API_BASE_URL: <base URL of your hosted daily-brief webapp, e.g. https://dashboard.es-sandbox.com/daily-brief>
-DAILY_BRIEF_API_TOKEN: <your bearer token, retrieved from DAILY_BRIEF_API_BASE_URL/api/token while signed in>
+DAILY_BRIEF_API_TOKEN_FILE_ID: <Drive file ID of a JSON file {"email": "...", "token": "..."} saved from DAILY_BRIEF_API_BASE_URL/api/token — read the token from this file at runtime, never store the raw token value in this block>
 MEETING_RUN_LOG_SHEET_ID: <your meeting-manager run log sheet ID>
 RECURRING_ACTIVITIES_PROJECT_GID: <your Asana recurring-activities project GID>
 STATUS_UPDATE_CACHE_FILE_ID: <Drive file ID of the Section 3/4 daily cache JSON — see references/status-updates.md>

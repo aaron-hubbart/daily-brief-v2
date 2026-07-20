@@ -32,8 +32,8 @@ The following connectors must be enabled in your Claude workspace:
 ### Daily Brief webapp
 
 - The hosted webapp (`viewer/webapp/`) must be deployed and reachable — see `viewer/webapp/DEPLOYMENT.md`
-- Sign in once at `DAILY_BRIEF_API_BASE_URL` with your `@camunda.com` account, then retrieve your token from `DAILY_BRIEF_API_BASE_URL/api/token` and copy both into your local `SKILL.md` Admin Config
-- If the token is ever rotated (`/api/token/rotate`), update `DAILY_BRIEF_API_TOKEN` in your local `SKILL.md` — the old token stops working immediately
+- Sign in once at `DAILY_BRIEF_API_BASE_URL` with your `@camunda.com` account, then retrieve your token from `DAILY_BRIEF_API_BASE_URL/api/token`, save that JSON response to a file in Drive, and copy `DAILY_BRIEF_API_BASE_URL` and the Drive file's ID into your local `SKILL.md` Admin Config as `DAILY_BRIEF_API_TOKEN_FILE_ID` — the skill reads the token from that file at runtime rather than storing it as a literal value
+- If the token is ever rotated (`/api/token/rotate`), save the new JSON to a Drive file (a new one or overwriting the same file) and update `DAILY_BRIEF_API_TOKEN_FILE_ID` if the ID changed — the old token stops working immediately
 
 ### Google Drive
 
@@ -101,7 +101,7 @@ Set these values in the `## Admin Config` block at the top of your local `SKILL.
 | Key | Description |
 |-----|-------------|
 | `DAILY_BRIEF_API_BASE_URL` | Base URL of your deployed daily-brief webapp, e.g. `https://dashboard.es-sandbox.com/daily-brief` |
-| `DAILY_BRIEF_API_TOKEN` | Your bearer token, retrieved from `DAILY_BRIEF_API_BASE_URL/api/token` while signed in |
+| `DAILY_BRIEF_API_TOKEN_FILE_ID` | Drive file ID of a JSON file `{"email": ..., "token": ...}` saved from `DAILY_BRIEF_API_BASE_URL/api/token` — the skill reads the token from this file at runtime rather than storing it directly |
 | `MEETING_RUN_LOG_SHEET_ID` | Google Sheet ID tracking meeting-manager runs |
 | `RECURRING_ACTIVITIES_PROJECT_GID` | Asana project GID for the recurring task board |
 | `STATUS_UPDATE_CACHE_FILE_ID` | Drive file ID of the Section 3/4 per-account daily cache — see `references/status-updates.md` |
