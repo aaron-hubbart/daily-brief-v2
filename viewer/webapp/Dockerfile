@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # duplicating it.
 COPY daily-brief-viewer.html ./
 COPY webapp/app.py ./
-COPY webapp/gunicorn.k8s.conf.py ./gunicorn.conf.py
+COPY webapp/gunicorn.conf.py ./
 
 # data/ is where per-user brief files land — mounted from a PVC in
 # Kubernetes (see k8s/*.yaml), not baked into the image. Create it here only

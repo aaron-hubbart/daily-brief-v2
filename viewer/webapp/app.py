@@ -1,10 +1,8 @@
 """
-Daily Brief Viewer — hosted app (VM / nginx deployment).
+Daily Brief Viewer — hosted app (Kubernetes deployment).
 
-Auth model: this deployment is NOT behind Azure App Service, so there's no
-platform-level Easy Auth injecting a verified identity via headers. This app
-does the OAuth 2.0 authorization code flow itself, using MSAL against
-Camunda's existing Azure AD tenant and app registration:
+Auth model: this app does the OAuth 2.0 authorization code flow itself,
+using MSAL against Camunda's existing Azure AD tenant and app registration:
 
   1. /login redirects to Azure AD's authorize endpoint.
   2. Azure AD redirects back to /auth/callback with an authorization code.
@@ -23,14 +21,14 @@ additional allowlist right now; ALLOWED_GROUPS below is a marked, inactive
 extension point for later if this needs to narrow to a specific group.
 
 Path-prefix aware: this app is deployed alongside an existing app on the
-same host, reachable at a sub-path behind nginx (e.g.
-dashboard.es-sandbox.com/daily-brief/) rather than at a domain root. See
-nginx.conf.example and DEPLOYMENT.md for the reverse-proxy config this
-depends on (X-Forwarded-Prefix, X-Forwarded-Proto).
+same host, reachable at a sub-path (e.g. dashboard.es-sandbox.com/daily-brief/)
+via an nginx-ingress Ingress rather than at a domain root. See
+k8s/ingress.yaml and DEPLOYMENT.md for the reverse-proxy config this depends
+on (X-Forwarded-Prefix, X-Forwarded-Proto).
 
-Per-user data isolation is unchanged from the App Service version: each
-signed-in user gets their own data/{slug}/ folder, derived from their
-verified identity, never from anything client-supplied.
+Per-user data isolation: each signed-in user gets their own data/{slug}/
+folder, derived from their verified session identity, never from anything
+client-supplied.
 """
 import json
 import os
