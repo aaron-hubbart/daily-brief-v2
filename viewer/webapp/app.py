@@ -26,9 +26,10 @@ via an nginx-ingress Ingress rather than at a domain root. See
 k8s/ingress.yaml and DEPLOYMENT.md for the reverse-proxy config this depends
 on (X-Forwarded-Prefix, X-Forwarded-Proto).
 
-Per-user data isolation: each signed-in user gets their own data/{slug}/
-folder, derived from their verified session identity, never from anything
-client-supplied.
+Per-user data isolation: each signed-in user's brief days and items are
+scoped to their own row in Postgres by user_id — every query filters on the
+current session's verified identity, never anything client-supplied. See
+db.py and db/README.md for the storage model.
 """
 import json
 import os
@@ -38,8 +39,10 @@ from functools import wraps
 from pathlib import Path
 
 import msal
-from flask import Flask, Response, abort, jsonify, redirect, request, send_from_directory, session, url_for
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+import db
 
 APP_DIR = Path(__file__).resolve().parent
 # In the VM deployment, app.py lives at viewer/webapp/app.py and the shared
@@ -47,9 +50,28 @@ APP_DIR = Path(__file__).resolve().parent
 # flattens both into /app/ directly (see Dockerfile), so this is overridable
 # rather than hardcoded to the VM's directory nesting.
 VIEWER_HTML_DIR = Path(os.environ.get('VIEWER_HTML_DIR', str(APP_DIR.parent)))
-DATA_ROOT = APP_DIR / 'data'      # data/{user-slug}/Daily Brief_*.html
 
-BRIEF_RE = re.compile(r'^Daily Brief_\d{4}-\d{2}-\d{2}', re.IGNORECASE)
+DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+# Fixed section slugs/labels/open-by-default, in the order they render.
+# Matches the daily-brief skill's existing section conventions.
+SECTIONS = [
+    {'slug': 'yesterday-meetings', 'label': "Yesterday's Meetings", 'open_default': True},
+    {'slug': 'account-recap', 'label': 'Account / Initiative Recap', 'open_default': True},
+    {'slug': 'today', 'label': 'Today', 'open_default': True},
+    {'slug': 'action-items', 'label': 'Action Items', 'open_default': True},
+    {'slug': 'fyi', 'label': 'FYI', 'open_default': True},
+    {'slug': 'customer-updates', 'label': 'Customer Updates', 'open_default': False},
+    {'slug': 'manager-update', 'label': 'Manager / Leadership Update', 'open_default': False},
+]
+
+
+def _count_label(slug, items):
+    if slug == 'customer-updates':
+        return f'Expand — {len(items)} assigned accounts'
+    if slug == 'manager-update':
+        return 'Expand'
+    return f'{len(items)} items'
 
 # ── Required configuration — fail loudly at startup rather than running insecurely ──
 
@@ -66,6 +88,8 @@ FLASK_SECRET_KEY = _require_env('FLASK_SECRET_KEY')
 AZURE_TENANT_ID = _require_env('AZURE_TENANT_ID')
 AZURE_CLIENT_ID = _require_env('AZURE_CLIENT_ID')
 AZURE_CLIENT_SECRET = _require_env('AZURE_CLIENT_SECRET')
+# postgresql://user:password@host:5432/dbname — see DEPLOYMENT.md / db/README.md
+_require_env('DATABASE_URL')
 # Full callback URL Azure AD redirects back to, e.g.
 # https://dashboard.es-sandbox.com/daily-brief/auth/callback — must exactly
 # match a Redirect URI registered on the app registration in the Portal.
@@ -100,6 +124,7 @@ app.config.update(
 # for url_for() and the OAuth redirect_uri to come out correct when this app
 # is mounted at a sub-path behind a reverse proxy rather than at a domain root.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+app.teardown_appcontext(db.close_conn)
 
 
 def _msal_app():
@@ -120,7 +145,7 @@ def current_user():
     None if there's no session or it's missing required fields — never
     trusts anything from the request itself for identity."""
     u = session.get('user')
-    if not u or not u.get('email') or not u.get('oid'):
+    if not u or not u.get('email') or not u.get('oid') or not u.get('id'):
         return None
     return u
 
@@ -146,37 +171,19 @@ def login_required(view):
     return wrapped
 
 
-def user_data_dir(user) -> Path:
-    d = DATA_ROOT / user['slug']
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
-def make_label(name: str) -> str:
-    m = re.match(r'Daily Brief_(\d{4}-\d{2}-\d{2})(?:_(\d{2})-(\d{2}))?', name, re.IGNORECASE)
-    if not m:
-        return name
-    date_part = m.group(1)
-    hour, minute = m.group(2), m.group(3)
-    if hour and minute:
-        return date_part + ' ' + hour + ':' + minute
-    return date_part
-
-
-def list_briefs(user) -> list:
-    d = user_data_dir(user)
-    files = []
-    for name in os.listdir(d):
-        if BRIEF_RE.match(name) and name.lower().endswith('.html'):
-            path = d / name
-            files.append({
-                'name': name,
-                'label': make_label(name),
-                'size': path.stat().st_size,
-                'mtime': path.stat().st_mtime,
-            })
-    files.sort(key=lambda f: f['name'], reverse=True)
-    return files
+def ensure_upload_context():
+    """Shared bearer-token check for the skill-facing item endpoints.
+    Returns the resolved user_id, creating the user row if this is the
+    first time anything has touched this person's data (e.g. the skill
+    upserts items before they've ever signed in through the browser)."""
+    auth = request.headers.get('Authorization', '')
+    if not auth.startswith('Bearer '):
+        abort(401)
+    token = auth[len('Bearer '):].strip()
+    email = _UPLOAD_TOKENS.get(token)
+    if not email:
+        abort(403)
+    return db.get_or_create_user(email, slugify_user(email))
 
 
 # ── Auth routes ──────────────────────────────────────────────────────────
@@ -232,11 +239,16 @@ def auth_callback():
     if not email:
         abort(401, 'Sign-in succeeded but no usable email/UPN claim was present.')
 
+    slug = slugify_user(email)
     session['user'] = {
         'email': email,
         'name': claims.get('name', email),
         'oid': claims.get('oid'),
-        'slug': slugify_user(email),
+        'slug': slug,
+        # Resolved once at login and cached in the session — every later
+        # request in this session reuses it rather than re-querying users
+        # on every page load.
+        'id': db.get_or_create_user(email, slug),
     }
 
     dest = session.pop('post_login_redirect', None) or url_for('index')
@@ -274,56 +286,156 @@ def whoami():
 @app.route('/api/briefs')
 @login_required
 def api_briefs():
-    return jsonify(list_briefs(request.brief_user))
+    days = db.list_active_briefs(request.brief_user['id'])
+    # 'name' and 'label' are what the existing viewer JS actually reads
+    # (see daily-brief-viewer.html) — everything else from the old
+    # file-listing response (size, mtime) was never used by the frontend,
+    # so it's fine that a DB row doesn't have a natural equivalent for them.
+    return jsonify([
+        {'name': d['brief_date'].isoformat(), 'label': d['brief_date'].isoformat()}
+        for d in days
+    ])
 
 
-@app.route('/brief/<path:name>')
+@app.route('/brief/<date_str>')
 @login_required
-def serve_brief(name):
-    if not BRIEF_RE.match(name) or '/' in name or '\\' in name or '..' in name:
+def serve_brief(date_str):
+    if not DATE_RE.match(date_str):
         abort(400)
-    fpath = user_data_dir(request.brief_user) / name
-    if not fpath.is_file():
+    brief_day = db.get_brief_day(request.brief_user['id'], date_str)
+    if not brief_day:
         abort(404)
-    return Response(fpath.read_text(encoding='utf-8'), mimetype='text/html; charset=utf-8')
+
+    items = db.get_items_for_day(brief_day['id'])
+    items_by_section = {}
+    checkable_count = 0
+    for item in items:
+        items_by_section.setdefault(item['section'], []).append(item)
+        if item['item_type'] in ('checkable', 'fyi') and item['checked'] is not None:
+            checkable_count += 1
+
+    sections = []
+    for s in SECTIONS:
+        section_items = items_by_section.get(s['slug'], [])
+        sections.append({**s, 'count_label': _count_label(s['slug'], section_items)})
+
+    return render_template(
+        'brief_fragment.html',
+        brief_date=date_str,
+        brief_date_label=brief_day['brief_date'].strftime('%A, %B %-d'),
+        brief_type=brief_day['brief_type'],
+        checkable_count=checkable_count,
+        sections=sections,
+        items_by_section=items_by_section,
+    )
 
 
-@app.route('/api/upload', methods=['POST'])
-def api_upload():
+@app.route('/api/items/<section>/<item_key>/checked', methods=['PATCH'])
+@login_required
+def set_item_checked(section, item_key):
     """
-    Called by the daily-brief skill (or the Post-Meeting Patch / Section
-    Refresh flows) to deliver a generated report directly, in addition to —
-    not instead of — uploading to Google Drive. Intentionally NOT behind
-    @login_required: the skill has no browser session to complete an
-    interactive Azure AD sign-in with. Guarded instead by its own bearer
-    token, scoped to exactly one user's folder.
+    Not called by the current viewer frontend yet — checkbox state today is
+    still purely client-side (localStorage, per browser/device), same as
+    the file-based model. This exists so that behavior can move server-side
+    later (checked state that survives across devices) without needing a
+    new endpoint at that point; wiring the frontend to actually call it is
+    a deliberate follow-up, not done in this pass.
     """
-    auth = request.headers.get('Authorization', '')
-    if not auth.startswith('Bearer '):
-        abort(401)
-    token = auth[len('Bearer '):].strip()
-    slug = _UPLOAD_TOKENS.get(token)
-    if not slug:
-        abort(403)
-
+    date_str = request.args.get('date', '')
+    if not DATE_RE.match(date_str):
+        abort(400, 'date query param (YYYY-MM-DD) is required')
+    brief_day = db.get_brief_day(request.brief_user['id'], date_str)
+    if not brief_day:
+        abort(404)
     body = request.get_json(silent=True) or {}
-    name = body.get('filename', '')
-    html = body.get('html', '')
-    if not BRIEF_RE.match(name) or not name.lower().endswith('.html') or '/' in name or '\\' in name or '..' in name:
-        abort(400, 'filename must match "Daily Brief_YYYY-MM-DD..." with no path components')
-    if not html:
-        abort(400, 'html body is required')
+    if 'checked' not in body:
+        abort(400, 'checked (bool) is required')
+    found = db.set_item_checked(brief_day['id'], section, item_key, bool(body['checked']))
+    if not found:
+        abort(404)
+    return jsonify({'status': 'ok'})
 
-    d = DATA_ROOT / slug
-    d.mkdir(parents=True, exist_ok=True)
-    (d / name).write_text(html, encoding='utf-8')
-    return jsonify({'status': 'ok', 'saved': name}), 201
+
+@app.route('/api/items/upsert', methods=['POST'])
+def api_items_upsert():
+    """
+    Called by the daily-brief skill to create or refresh one item. This is
+    the single operation for both "generate a brand-new day's brief" (call
+    once per item) and "refresh one thing later" (call again for just that
+    item_key) — the old file-based model needed a whole separate patch flow
+    (references/section-refresh.md in the skill repo) for the second case;
+    an upsert doesn't need that distinction.
+
+    Not behind @login_required: the skill runs headless and has no browser
+    session for an interactive Azure AD sign-in. Guarded by its own bearer
+    token instead, scoped to exactly one user.
+
+    Body: {brief_date, brief_type?, section, item_key, item_type?, title?,
+           subtitle?, badge?, links?, content?, checked?, display_order?}
+    """
+    user_id = ensure_upload_context()
+    body = request.get_json(silent=True) or {}
+
+    brief_date = body.get('brief_date', '')
+    if not DATE_RE.match(brief_date):
+        abort(400, 'brief_date must be YYYY-MM-DD')
+    if not body.get('section') or not body.get('item_key'):
+        abort(400, 'section and item_key are required')
+
+    brief_day_id = db.upsert_brief_day(user_id, brief_date, body.get('brief_type'))
+    db.upsert_item(brief_day_id, body)
+    return jsonify({'status': 'ok'}), 201
+
+
+@app.route('/api/items/batch-upsert', methods=['POST'])
+def api_items_batch_upsert():
+    """
+    Same as /api/items/upsert but for a whole day's worth of items in one
+    call — what a full brief-generation run should use, rather than one
+    HTTP round trip per item. Body: {brief_date, brief_type?, items: [...]}
+    where each entry in items is the same shape as the single-upsert body
+    (minus brief_date/brief_type, which apply to the whole batch).
+    """
+    user_id = ensure_upload_context()
+    body = request.get_json(silent=True) or {}
+
+    brief_date = body.get('brief_date', '')
+    if not DATE_RE.match(brief_date):
+        abort(400, 'brief_date must be YYYY-MM-DD')
+    items = body.get('items')
+    if not isinstance(items, list) or not items:
+        abort(400, 'items must be a non-empty array')
+    for item in items:
+        if not item.get('section') or not item.get('item_key'):
+            abort(400, 'every item needs section and item_key')
+
+    brief_day_id = db.upsert_brief_day(user_id, brief_date, body.get('brief_type'))
+    for item in items:
+        db.upsert_item(brief_day_id, item)
+    return jsonify({'status': 'ok', 'count': len(items)}), 201
 
 
 @app.route('/healthz')
 def healthz():
-    # Unauthenticated on purpose — nginx / uptime monitors need a path that
-    # doesn't require a sign-in.
+    # Unauthenticated on purpose — process-liveness only, deliberately does
+    # NOT check the database. A transient Postgres blip shouldn't cause
+    # Kubernetes to kill and restart this pod; restarting doesn't fix a DB
+    # problem, it just adds a second failure on top of the first. Use
+    # /readyz (below) for anything that should depend on DB connectivity.
+    return 'ok', 200
+
+
+@app.route('/readyz')
+def readyz():
+    # Readiness should depend on the DB — if Postgres is unreachable this
+    # pod can't actually serve a real request, and Kubernetes should stop
+    # routing traffic to it (via the Service) until it's back, without
+    # killing/restarting the pod itself (that's what /healthz is for).
+    try:
+        with db.cursor() as cur:
+            cur.execute('SELECT 1')
+    except Exception as e:
+        return f'db unavailable: {e}', 503
     return 'ok', 200
 
 

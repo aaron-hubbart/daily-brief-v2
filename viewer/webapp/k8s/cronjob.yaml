@@ -1,0 +1,59 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: daily-brief-archive
+  namespace: daily-brief
+spec:
+  # 09:00 UTC daily — adjust to taste; nothing about this job is
+  # time-sensitive beyond "runs once a day." Early UTC morning is US
+  # nighttime, so it runs when nobody's likely to be actively using the
+  # viewer, though nothing here would actually break if a request landed
+  # mid-run (the two SQL statements each commit atomically).
+  schedule: "0 9 * * *"
+  jobTemplate:
+    spec:
+      # Bound retries and a deadline so a stuck run doesn't pile up forever
+      # if something's wrong (e.g. DB unreachable) — it'll just try again
+      # tomorrow on schedule rather than retrying indefinitely today.
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: archive-briefs
+              image: gcr.io/tam-aaron-hubbart/daily-brief-viewer:latest
+              command: ["python3", "archive_briefs.py"]
+              env:
+                - name: POSTGRES_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: POSTGRES_USER
+                - name: POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: POSTGRES_PASSWORD
+                - name: POSTGRES_DB
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: POSTGRES_DB
+                - name: DATABASE_URL
+                  value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+                # Override either of these (also as plain env values here)
+                # to change the archive/delete windows without a code change.
+                # - name: ARCHIVE_AFTER_DAYS
+                #   value: "14"
+                # - name: DELETE_AFTER_DAYS
+                #   value: "30"
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3

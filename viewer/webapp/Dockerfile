@@ -16,16 +16,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 # and is shared with the local single-user server.py — copy it in rather than
 # duplicating it.
 COPY daily-brief-viewer.html ./
-COPY webapp/app.py ./
-COPY webapp/gunicorn.conf.py ./
+COPY webapp/app.py webapp/db.py webapp/archive_briefs.py webapp/gunicorn.conf.py ./
+COPY webapp/templates/ ./templates/
 
-# data/ is where per-user brief files land — mounted from a PVC in
-# Kubernetes (see k8s/*.yaml), not baked into the image. Create it here only
-# so local `docker run` without a volume still works for a quick smoke test.
-RUN mkdir -p /app/data && chown -R appuser:appuser /app
+RUN chown -R appuser:appuser /app
 
 USER appuser
 
 ENV VIEWER_HTML_DIR=/app
 EXPOSE 8000
+# The CronJob (k8s/cronjob.yaml) overrides this command to run
+# archive_briefs.py instead — same image, same dependencies (psycopg2),
+# no separate image to build and keep in sync for the archival job.
 ENTRYPOINT ["gunicorn", "-c", "gunicorn.conf.py", "app:app"]

@@ -7,12 +7,6 @@ metadata:
     app: daily-brief-viewer
 spec:
   replicas: 1
-  # The data PVC below is ReadWriteOnce — a RollingUpdate could try to
-  # schedule the new pod before the old one releases the volume, and fail
-  # to mount. Recreate avoids that at the cost of a few seconds of downtime
-  # per deploy, which is fine for a single-replica personal-scale app.
-  strategy:
-    type: Recreate
   selector:
     matchLabels:
       app: daily-brief-viewer
@@ -21,18 +15,11 @@ spec:
       labels:
         app: daily-brief-viewer
     spec:
-      volumes:
-        - name: daily-brief-data
-          persistentVolumeClaim:
-            claimName: daily-brief-data
       containers:
         - name: daily-brief-viewer
           image: gcr.io/tam-aaron-hubbart/daily-brief-viewer:latest
           ports:
             - containerPort: 8000
-          volumeMounts:
-            - name: daily-brief-data
-              mountPath: /app/data
           env:
             - name: FLASK_SECRET_KEY
               valueFrom:
@@ -66,6 +53,28 @@ spec:
             # on the app registration in the Azure Portal.
             - name: AZURE_REDIRECT_URI
               value: "https://dashboard.es-sandbox.com/daily-brief/auth/callback"
+            # Built from postgres-credentials via $(VAR) interpolation
+            # (supported natively by Kubernetes for env vars defined earlier
+            # in the same list) rather than duplicating the connection
+            # string as a second secret that could drift out of sync with
+            # the StatefulSet's own credentials.
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_DB
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
           resources:
             requests:
               cpu: 50m
@@ -75,7 +84,7 @@ spec:
               memory: 128Mi
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /readyz
               port: 8000
             initialDelaySeconds: 5
             periodSeconds: 10
