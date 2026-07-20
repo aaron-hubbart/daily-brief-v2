@@ -11,12 +11,11 @@ metadata:
     # routes are defined at root (/login, /healthz, etc.), not under a
     # prefix. $2 is the part of the path after /daily-brief.
     nginx.ingress.kubernetes.io/rewrite-target: /$2
-    # ProxyFix in app.py reads this to know the external prefix when
-    # generating redirect/callback URLs (url_for, the OAuth redirect_uri) —
-    # without it, the app would build correct-looking URLs that are missing
-    # /daily-brief and would 404 through this same Ingress.
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      proxy_set_header X-Forwarded-Prefix /daily-brief;
+    # Sets X-Forwarded-Prefix without using configuration-snippet (blocked on
+    # this cluster — snippet annotations are disabled cluster-wide). This is
+    # the supported non-snippet mechanism: a ConfigMap of header name/value
+    # pairs, referenced by namespace/name. See proxy-headers-configmap.yaml.
+    nginx.ingress.kubernetes.io/proxy-set-headers: "daily-brief/daily-brief-proxy-headers"
 spec:
   ingressClassName: nginx
   tls:

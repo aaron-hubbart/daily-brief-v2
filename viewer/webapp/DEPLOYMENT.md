@@ -46,6 +46,7 @@ Never `kubectl apply -f k8s/secret.template.yaml` directly — it's a reference 
 kubectl apply -f viewer/webapp/k8s/pvc.yaml
 kubectl apply -f viewer/webapp/k8s/deployment.yaml
 kubectl apply -f viewer/webapp/k8s/service.yaml
+kubectl apply -f viewer/webapp/k8s/proxy-headers-configmap.yaml
 kubectl apply -f viewer/webapp/k8s/ingress.yaml
 ```
 
