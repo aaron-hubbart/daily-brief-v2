@@ -2,15 +2,36 @@
 
 Read this file only when the generation gate below says to actually generate or regenerate. On runs where the gate says "reuse cache," skip this file entirely and pull the cached content straight from `STATUS_UPDATE_CACHE_FILE_ID` — do not re-run the searches or synthesis described here. This is the single biggest cost item in the whole skill (a fresh per-account Slack search plus full narrative synthesis for every account, every run), so the gate exists specifically to stop that from happening on every "brief me" of the day.
 
-## Generation gate (check this first, every run)
+## Cache schema
 
-1. Read `STATUS_UPDATE_CACHE_FILE_ID` (a small JSON file in Drive, ID stored in the local Admin Config block). It holds `{ "generated_date": "YYYY-MM-DD", "customer_updates": {...}, "manager_update": "..." }`.
-2. **If `generated_date` is today's date:** reuse the cached `customer_updates` and `manager_update` content verbatim for Sections 3/4 in this run's HTML. Do not re-search Slack, do not re-synthesize, do not call any data source for this purpose. Note in the card badges that this is the cached version from earlier today (the existing "last-known-update timestamp" badge already covers this — just make sure it reflects when the cache was written, not the current run time).
-3. **If `generated_date` is not today, or the file doesn't exist yet:** generate fresh per the process below, then write the result back to `STATUS_UPDATE_CACHE_FILE_ID` with today's date before finishing the run.
-4. **If the user explicitly asks for a refresh** ("regenerate my status update," "there's been a big change with AcmeFin, redo the customer update," etc.) in this or a prior message this session: regenerate regardless of the cached date, and overwrite the cache file with the new content and today's date. A request to regenerate one account's update still requires reading the cache first — leave every other account's cached text untouched and only replace the one account's entry.
-5. **If the cache file read fails** (Drive error, file missing and can't be created): fall back to generating fresh for this run, same as a cache miss, and note in the brief that the cache couldn't be read.
+`STATUS_UPDATE_CACHE_FILE_ID` is a small JSON file in Drive holding per-entry state, not one global flag — this is what makes a single-account refresh possible without touching the other seven:
+
+```json
+{
+  "customer_updates": {
+    "Acme Financial": { "content": "...", "generated_at": "2026-07-20T13:05:00Z", "window_start": "2026-07-13T00:00:00Z" },
+    "Zebra Financial": { "content": "...", "generated_at": "2026-07-20T13:05:00Z", "window_start": "..." }
+  },
+  "manager_update": { "content": "...", "generated_at": "2026-07-20T13:05:00Z" }
+}
+```
+
+Key by Account Name exactly as it appears in `Meeting Manager Config.xlsx`, so entries line up with the account list read at generation time.
+
+## Generation gate (check this first, every run that reaches Section 3/4)
+
+Evaluate this **per account** (and separately for the manager update), not once for the whole section — a full brief run can end up reusing six cached accounts and regenerating two, all in the same pass.
+
+1. Read `STATUS_UPDATE_CACHE_FILE_ID`.
+2. **For each account:** if `customer_updates[account].generated_at` falls on today's local date, reuse that `content` verbatim — no Slack search, no synthesis. If it's missing or dated before today, generate fresh per the process below, then write the new `content` and `generated_at` (now) back into that account's entry only. Leave every other account's entry in the file untouched.
+3. **Manager update:** same rule against `manager_update.generated_at`.
+4. **Explicit refresh request** ("refresh the AcmeFin update," "regenerate manager update," or a click on a card's Refresh button — see `references/section-refresh.md`) forces regeneration for that one named entry regardless of its `generated_at` date, and overwrites only that entry.
+5. **Cache read fails** (Drive error, file missing and can't be created): treat every entry as a miss for this run — generate fresh for all of them, and note in the brief that the cache couldn't be read. Don't block the brief on this.
+6. **New account not yet in the cache file:** treat as a miss, generate, add its entry.
 
 This gate only affects Sections 3/4. Sections 1, 2, and the HTML's other sections (Yesterday's Meetings, Today, Action Items, FYI) still run in full on every brief, regardless of cache state.
+
+A card's Refresh button (see `references/section-refresh.md`) is the normal path for an out-of-band update once the daily gate has already run once — it patches a single card into the latest existing file rather than triggering a full brief.
 
 ---
 
@@ -49,7 +70,7 @@ Do not hardcode channel IDs here. Always read from the config file so additions 
 
 Add new accounts to the Meeting Manager Config.xlsx Accounts sheet (including their Slack Channel ID) as they are onboarded.
 
-Generate this directly into the HTML: an editable `<textarea>` pre-populated with the generated update, a read-only channel field, and a "Post to Slack" button (`https://slack.com/app_redirect?channel={channel_id}`). Also note the timestamp of the last found `[TAM-UPDATE] #claude-brief-skill` post (or "No previous update found") next to each account name.
+Generate this directly into the HTML: an editable `<textarea>` pre-populated with the generated update, a read-only channel field, a "Post to Slack" button (`https://slack.com/app_redirect?channel={channel_id}`), and a "Refresh" button — markup and `data-id` requirements for the card are in `references/html-output.md`. Also note the timestamp of the last found `[TAM-UPDATE] #claude-brief-skill` post (or "No previous update found") next to each account name; when the card's content came from cache, that timestamp is the cache entry's `generated_at`, not the current run time.
 
 ---
 
@@ -75,4 +96,4 @@ Focus this week: [brief list]
 **Finding the last manager update:**
 Search the manager DM channel (`D0A25TNDGJJ`) for `[TAM-UPDATE] #claude-brief-skill`. Use the same 7-day lookback logic as customer updates.
 
-**Posting:** Generate a "Post to Manager" button in the HTML that opens `https://slack.com/app_redirect?channel=D0A25TNDGJJ`. Note the last manager update timestamp (or "No previous update found") the same way as customer updates.
+**Posting:** Generate a "Post to Manager" button in the HTML that opens `https://slack.com/app_redirect?channel=D0A25TNDGJJ`, plus a "Refresh" button (same markup pattern as Customer Updates — see `references/html-output.md`). Note the last manager update timestamp (or "No previous update found") the same way as customer updates; when served from cache, that's `manager_update.generated_at`, not the current run time.

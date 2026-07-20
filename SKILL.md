@@ -12,7 +12,10 @@ description: >
   "what happened today", "end of day summary", "start of day", "eod brief", "sod brief",
   "what do I have today", "what's on my plate", "run my brief", "give me my brief".
   Also trigger when the user says something like "brief" with no other context, or
-  asks to be caught up on the day, communications, or schedule.
+  asks to be caught up on the day, communications, or schedule. Also trigger on
+  "refresh the [account] update", "regenerate manager update", "redo the [account]
+  card", or a message starting with "/daily-brief Refresh" — these patch a single
+  Customer Update or Manager Update card rather than running a full brief.
 
   Do NOT require the user to specify morning vs. evening — infer from context or current
   time. Always run the brief without asking for confirmation first.
@@ -23,8 +26,9 @@ description: >
 This file is the core: trigger, timing, and what to pull. Three things are deliberately kept in separate reference files in this same skill directory so they don't get read on every run when they don't apply:
 
 - `references/html-output.md` — full HTML structure/CSS/badge spec. Used every run, but pulled out so this core file stays short for the earlier decision-making steps.
-- `references/status-updates.md` — Section 3/4 (Customer Updates, Manager Update) generation. Gated: most runs should skip this entirely and reuse a cache (see Section 3/4 note below).
+- `references/status-updates.md` — Section 3/4 (Customer Updates, Manager Update) generation. Gated per-account: most runs should reuse most or all of the cache (see Section 3/4 note below).
 - `references/post-meeting-patch.md` — the post-meeting patch flow. Only read when that specific, infrequent trigger fires.
+- `references/section-refresh.md` — patches a single Customer Update or Manager Update card into the latest file when its Refresh button is clicked. Only read when that trigger fires.
 
 ## Admin Config
 
@@ -210,9 +214,9 @@ End with a brief **Open Time** note if there are meaningful unblocked blocks in 
 
 ### Section 3: Customer Updates & Section 4: Manager/Leadership Update
 
-Both sections are gated by a daily cache to avoid re-synthesizing the same status updates on every brief run of the day. Full generation logic, format, and the cache rules live in `references/status-updates.md` — read that file when the gate says to actually generate, and skip it entirely on a cache hit.
+Both sections are gated by a per-account daily cache to avoid re-synthesizing the same status updates on every brief run of the day. Full generation logic, the cache schema, and the gate live in `references/status-updates.md` — read that file for any account or the manager entry that the gate says needs generating, and skip it entirely for entries the gate says to reuse.
 
-Quick summary of the gate: generate fresh on the first brief of the day or on an explicit request to regenerate; every other run that day reuses the cached content from `STATUS_UPDATE_CACHE_FILE_ID` as-is.
+Quick summary of the gate: each account (and the manager update) generates fresh the first time it's needed that day, then every later run that day reuses its cached content — evaluated per entry, so a run can reuse six accounts and regenerate two in the same pass. Each card also has a Refresh button (see `references/html-output.md`) that forces an immediate, single-card regeneration outside the normal brief flow — see `references/section-refresh.md` for that flow.
 
 ---
 
@@ -251,6 +255,10 @@ Every brief run produces a standalone interactive HTML file in addition to the i
 ## Post-Meeting Patch Runs
 
 Not part of the normal brief trigger. When meeting-manager's post-meeting agent finishes processing a meeting flagged in today's brief as missing a recording/transcript, read `references/post-meeting-patch.md` and follow that flow to patch the existing file instead of waiting for the next scheduled run.
+
+## Section Refresh Runs
+
+Not part of the normal brief trigger. When a Customer Update or Manager Update card's Refresh button is clicked (or the user asks directly to refresh/regenerate one), read `references/section-refresh.md` and follow that flow to patch just that one card into the latest file.
 
 ---
 
