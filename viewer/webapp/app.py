@@ -130,7 +130,16 @@ def login_required(view):
     def wrapped(*args, **kwargs):
         user = current_user()
         if not user:
-            session['post_login_redirect'] = request.path
+            # request.path alone is the path AFTER nginx has already
+            # stripped the /daily-brief prefix (that's the whole point of
+            # the Ingress rewrite-target) — it's just "/" for the viewer's
+            # root, with no prefix on it. request.script_root is where
+            # ProxyFix put that prefix back, from X-Forwarded-Prefix. Unlike
+            # url_for(), a plain redirect(dest) does NOT automatically
+            # prepend script_root to a literal string — skipping this here
+            # sent people back to the domain root after sign-in instead of
+            # back under /daily-brief.
+            session['post_login_redirect'] = request.script_root + request.path
             return redirect(url_for('login'))
         request.brief_user = user
         return view(*args, **kwargs)
