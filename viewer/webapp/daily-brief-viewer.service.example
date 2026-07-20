@@ -1,0 +1,16 @@
+[Unit]
+Description=Daily Brief Viewer (hosted, multi-user)
+After=network.target
+
+[Service]
+Type=simple
+# Adjust these three paths for your actual deployment location and user.
+User=daily-brief
+WorkingDirectory=/opt/daily-brief/viewer/webapp
+EnvironmentFile=/opt/daily-brief/viewer/webapp/.env
+ExecStart=/opt/daily-brief/viewer/webapp/venv/bin/gunicorn -c gunicorn.conf.py app:app
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

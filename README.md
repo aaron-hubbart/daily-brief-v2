@@ -80,12 +80,13 @@ If you're upgrading from an older copy of this viewer where brief files sat dire
 
 ## Hosted deployment (optional)
 
-`viewer/webapp/` is a separate, hosted alternative to the local single-user viewer above — a small Flask app meant to run behind Azure App Service's built-in Authentication (Easy Auth) with Azure AD / Entra ID, so more than one person can sign in and each only sees their own briefs. It doesn't replace `viewer/server.py`; it's for when you want the viewer reachable at a real URL (this repo was built with `dashboard.es-sandbox.com` in mind) instead of only on the machine running the local server.
+`viewer/webapp/` is a separate, hosted, multi-user alternative to the local single-user viewer above — a small Flask app that does its own Azure AD (Entra ID) sign-in against Camunda's tenant, so more than one person can sign in and each only ever sees their own briefs. It doesn't replace `viewer/server.py`; it's built to run alongside an existing app on the same host, reachable at a sub-path of `dashboard.es-sandbox.com` (e.g. `/daily-brief/`) behind nginx.
 
-- `viewer/webapp/app.py` — reads the identity App Service already verified (no token handling in-app), isolates each user's brief files under `data/{user-slug}/`, and exposes a separate bearer-token-authenticated `/api/upload` endpoint for the skill to push reports directly (since the skill runs headless and can't complete an interactive sign-in).
-- `viewer/webapp/AZURE_SETUP.md` — step-by-step Azure Portal setup: app registration, App Service, Easy Auth, custom domain, and the app settings this needs (`FLASK_SECRET_KEY`, `UPLOAD_TOKENS`).
+- `viewer/webapp/app.py` — MSAL-based OAuth 2.0 authorization code flow against Camunda's Azure AD tenant; identity lives in a signed session cookie, never a raw token. Isolates each signed-in user's brief files under `data/{user-slug}/`. Exposes a separate bearer-token-authenticated `/api/upload` endpoint for the skill to push reports directly (the skill runs headless and can't complete an interactive sign-in).
+- `viewer/webapp/DEPLOYMENT.md` — full walkthrough: finishing the app registration, server setup, systemd, and the nginx sub-path config to add alongside your existing site.
+- `viewer/webapp/.env.example`, `gunicorn.conf.py`, `nginx.conf.example`, `daily-brief-viewer.service.example` — copy and fill in for your actual paths/values; none of the real ones are committed.
 
-See that doc for the full walkthrough and for what's still a manual/follow-up step (wiring the skill's delivery step to actually call `/api/upload`, and true multi-tenant support for the underlying automation, not just the viewer login).
+See `DEPLOYMENT.md` for what's still a manual/follow-up step (wiring the skill's delivery step to actually call `/api/upload`, and true multi-tenant support for the underlying automation, not just the viewer login).
 
 ## Configuration
 

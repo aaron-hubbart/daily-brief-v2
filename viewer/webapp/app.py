@@ -1,40 +1,47 @@
 """
-Daily Brief Viewer — hosted app.
+Daily Brief Viewer — hosted app (VM / nginx deployment).
 
-Design note: this app does NOT talk to Azure AD directly and does not handle
-tokens for the human-facing side. It's built to run behind Azure App
-Service's built-in Authentication ("Easy Auth") pointed at Azure AD / Entra
-ID. App Service does the OAuth dance, verifies the sign-in, and injects the
-signed-in user's identity as request headers before the request ever reaches
-this app. That's a much smaller, more auditable surface than hand-rolling
-MSAL token exchange here — see ../AZURE_SETUP.md for how to configure that
-in the Azure Portal.
+Auth model: this deployment is NOT behind Azure App Service, so there's no
+platform-level Easy Auth injecting a verified identity via headers. This app
+does the OAuth 2.0 authorization code flow itself, using MSAL against
+Camunda's existing Azure AD tenant and app registration:
 
-If you deploy this somewhere other than App Service (a plain VM, a
-container host without Easy Auth in front of it), current_user() below is
-the one function you need to replace with real Azure AD token validation —
-everything else (routing, per-user data isolation) stays the same.
+  1. /login redirects to Azure AD's authorize endpoint.
+  2. Azure AD redirects back to /auth/callback with an authorization code.
+  3. This app exchanges that code for tokens server-side (MSAL handles the
+     exchange and signature/issuer/audience validation).
+  4. Only the minimal identity claims we need (name, email, oid, tenant id)
+     go into a signed Flask session cookie — never the access token itself,
+     since this app doesn't call Graph or any other API on the user's
+     behalf. There's nothing to refresh and nothing sensitive to leak if a
+     cookie were ever exposed beyond the session identity itself.
 
-Per-user data isolation: each signed-in user gets their own subfolder under
-data/, named by a slug derived from their principal name (email). One user
-can never see another user's briefs — every route re-derives the folder
-from the current request's identity, never from a client-supplied value.
+Any user in the configured tenant can sign in — Azure AD enforces the
+tenant boundary because the app registration is single-tenant and MSAL is
+configured with a tenant-specific authority (not "common"). There's no
+additional allowlist right now; ALLOWED_GROUPS below is a marked, inactive
+extension point for later if this needs to narrow to a specific group.
 
-Getting reports onto the server: the daily-brief skill runs headless inside
-a Claude conversation, so it can't go through an interactive Azure AD sign-in
-to deliver a report — Easy Auth is for the human viewing side only. Instead,
-/api/upload takes a separate bearer token per user (see UPLOAD_TOKENS below)
-that the skill sends with each generated brief. This is a second, narrower
-auth mechanism by design: a long-lived machine credential for one write-only
-endpoint, not a substitute for the Azure AD login that guards everything else.
+Path-prefix aware: this app is deployed alongside an existing app on the
+same host, reachable at a sub-path behind nginx (e.g.
+dashboard.es-sandbox.com/daily-brief/) rather than at a domain root. See
+nginx.conf.example and DEPLOYMENT.md for the reverse-proxy config this
+depends on (X-Forwarded-Prefix, X-Forwarded-Proto).
+
+Per-user data isolation is unchanged from the App Service version: each
+signed-in user gets their own data/{slug}/ folder, derived from their
+verified identity, never from anything client-supplied.
 """
 import json
 import os
 import re
+import secrets
 from functools import wraps
 from pathlib import Path
 
-from flask import Flask, Response, abort, jsonify, redirect, request, send_from_directory
+import msal
+from flask import Flask, Response, abort, jsonify, redirect, request, send_from_directory, session, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 APP_DIR = Path(__file__).resolve().parent
 VIEWER_HTML_DIR = APP_DIR.parent  # viewer/daily-brief-viewer.html — reused as-is
@@ -42,28 +49,63 @@ DATA_ROOT = APP_DIR / 'data'      # data/{user-slug}/Daily Brief_*.html
 
 BRIEF_RE = re.compile(r'^Daily Brief_\d{4}-\d{2}-\d{2}', re.IGNORECASE)
 
-app = Flask(__name__)
+# ── Required configuration — fail loudly at startup rather than running insecurely ──
 
-# Fail loudly at startup rather than silently running with an insecure default.
-_secret = os.environ.get('FLASK_SECRET_KEY')
-if not _secret:
-    raise RuntimeError(
-        'FLASK_SECRET_KEY is not set. Generate one (e.g. python -c "import secrets; '
-        'print(secrets.token_hex(32))") and set it as an App Service application '
-        'setting before deploying — never hardcode it here.'
-    )
-app.secret_key = _secret
+def _require_env(name):
+    val = os.environ.get(name)
+    if not val:
+        raise RuntimeError(
+            f'{name} is not set. See DEPLOYMENT.md for the full list of required '
+            'environment variables and where each one comes from.'
+        )
+    return val
 
-# Maps a per-user upload token to that user's data-folder slug, e.g.:
-#   {"a1b2c3...": "aaron-hubbart"}
-# Set as the UPLOAD_TOKENS app setting (a JSON string) in the Azure Portal —
-# generate each token the same way as FLASK_SECRET_KEY, one per person who
-# needs to push reports in. Rotate by changing the app setting; no redeploy
-# needed since it's read at process start.
+FLASK_SECRET_KEY = _require_env('FLASK_SECRET_KEY')
+AZURE_TENANT_ID = _require_env('AZURE_TENANT_ID')
+AZURE_CLIENT_ID = _require_env('AZURE_CLIENT_ID')
+AZURE_CLIENT_SECRET = _require_env('AZURE_CLIENT_SECRET')
+# Full callback URL Azure AD redirects back to, e.g.
+# https://dashboard.es-sandbox.com/daily-brief/auth/callback — must exactly
+# match a Redirect URI registered on the app registration in the Portal.
+AZURE_REDIRECT_URI = _require_env('AZURE_REDIRECT_URI')
+
+# Optional, inactive by default — comma-separated Azure AD group object IDs.
+# If set, sign-in additionally requires the user's token to include one of
+# these group IDs in its `groups` claim (requires enabling group claims on
+# the app registration's token configuration). Leave unset for "any Camunda
+# tenant user," which is what this test rollout uses.
+_allowed_groups_raw = os.environ.get('ALLOWED_GROUPS', '').strip()
+ALLOWED_GROUPS = {g.strip() for g in _allowed_groups_raw.split(',') if g.strip()} if _allowed_groups_raw else None
+
+AZURE_AUTHORITY = f'https://login.microsoftonline.com/{AZURE_TENANT_ID}'
+GRAPH_SCOPES = []  # no Graph calls made — sign-in identity only, nothing to scope
+
 try:
     _UPLOAD_TOKENS = json.loads(os.environ.get('UPLOAD_TOKENS', '{}'))
 except json.JSONDecodeError:
     _UPLOAD_TOKENS = {}
+
+app = Flask(__name__)
+app.secret_key = FLASK_SECRET_KEY
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    PREFERRED_URL_SCHEME='https',
+)
+
+# Trust nginx's forwarded headers for scheme, host, and path prefix — required
+# for url_for() and the OAuth redirect_uri to come out correct when this app
+# is mounted at a sub-path behind a reverse proxy rather than at a domain root.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+
+def _msal_app():
+    return msal.ConfidentialClientApplication(
+        AZURE_CLIENT_ID,
+        authority=AZURE_AUTHORITY,
+        client_credential=AZURE_CLIENT_SECRET,
+    )
 
 
 def slugify_user(principal_name: str) -> str:
@@ -72,18 +114,13 @@ def slugify_user(principal_name: str) -> str:
 
 
 def current_user():
-    """
-    Reads the identity App Service Easy Auth already verified. Returns None
-    if the headers are absent, which — with "Require authentication" turned
-    on for this app in the Azure Portal — should only happen if Easy Auth
-    itself isn't configured in front of this app (a deploy-time misconfig,
-    not something a request can forge its way around).
-    """
-    principal_name = request.headers.get('X-MS-CLIENT-PRINCIPAL-NAME')
-    principal_id = request.headers.get('X-MS-CLIENT-PRINCIPAL-ID')
-    if not principal_name or not principal_id:
+    """Reads the identity stored in the session by /auth/callback. Returns
+    None if there's no session or it's missing required fields — never
+    trusts anything from the request itself for identity."""
+    u = session.get('user')
+    if not u or not u.get('email') or not u.get('oid'):
         return None
-    return {'name': principal_name, 'id': principal_id, 'slug': slugify_user(principal_name)}
+    return u
 
 
 def login_required(view):
@@ -91,9 +128,8 @@ def login_required(view):
     def wrapped(*args, **kwargs):
         user = current_user()
         if not user:
-            # Defensive fallback only — Easy Auth should intercept this before
-            # it ever reaches the app when "Require authentication" is on.
-            return redirect('/.auth/login/aad?post_login_redirect_uri=' + request.path)
+            session['post_login_redirect'] = request.path
+            return redirect(url_for('login'))
         request.brief_user = user
         return view(*args, **kwargs)
     return wrapped
@@ -132,6 +168,85 @@ def list_briefs(user) -> list:
     return files
 
 
+# ── Auth routes ──────────────────────────────────────────────────────────
+
+@app.route('/login')
+def login():
+    state = secrets.token_urlsafe(24)
+    session['oauth_state'] = state
+    auth_url = _msal_app().get_authorization_request_url(
+        GRAPH_SCOPES,
+        state=state,
+        redirect_uri=AZURE_REDIRECT_URI,
+    )
+    return redirect(auth_url)
+
+
+@app.route('/auth/callback')
+def auth_callback():
+    expected_state = session.pop('oauth_state', None)
+    if not expected_state or request.args.get('state') != expected_state:
+        abort(400, 'Invalid or missing OAuth state — possible CSRF, or an expired sign-in attempt. Try signing in again.')
+
+    if 'error' in request.args:
+        abort(401, request.args.get('error_description', 'Sign-in failed.'))
+
+    code = request.args.get('code')
+    if not code:
+        abort(400, 'No authorization code returned.')
+
+    result = _msal_app().acquire_token_by_authorization_code(
+        code,
+        scopes=GRAPH_SCOPES,
+        redirect_uri=AZURE_REDIRECT_URI,
+    )
+    if 'error' in result:
+        abort(401, result.get('error_description', 'Token exchange failed.'))
+
+    claims = result.get('id_token_claims', {})
+
+    # Defense in depth: MSAL's tenant-specific authority already scopes token
+    # acquisition to this tenant, but verify the tid claim explicitly too —
+    # cheap, and catches any future authority/config mismatch immediately
+    # rather than silently trusting a token from the wrong tenant.
+    if claims.get('tid') != AZURE_TENANT_ID:
+        abort(403, 'Token issued by an unexpected tenant.')
+
+    if ALLOWED_GROUPS is not None:
+        user_groups = set(claims.get('groups', []))
+        if not user_groups & ALLOWED_GROUPS:
+            abort(403, 'Your account is not in an allowed group for this app.')
+
+    email = claims.get('preferred_username') or claims.get('email') or claims.get('upn')
+    if not email:
+        abort(401, 'Sign-in succeeded but no usable email/UPN claim was present.')
+
+    session['user'] = {
+        'email': email,
+        'name': claims.get('name', email),
+        'oid': claims.get('oid'),
+        'slug': slugify_user(email),
+    }
+
+    dest = session.pop('post_login_redirect', None) or url_for('index')
+    return redirect(dest)
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    # Also end the Azure AD session itself, not just this app's session —
+    # otherwise a fresh /login silently re-signs the person in without a
+    # prompt, which is surprising after clicking "logout."
+    logout_url = (
+        f'{AZURE_AUTHORITY}/oauth2/v2.0/logout'
+        f'?post_logout_redirect_uri={url_for("index", _external=True)}'
+    )
+    return redirect(logout_url)
+
+
+# ── App routes ────────────────────────────────────────────────────────────
+
 @app.route('/')
 @app.route('/index.html')
 @login_required
@@ -142,7 +257,7 @@ def index():
 @app.route('/api/whoami')
 @login_required
 def whoami():
-    return jsonify({'name': request.brief_user['name']})
+    return jsonify({'name': request.brief_user['name'], 'email': request.brief_user['email']})
 
 
 @app.route('/api/briefs')
@@ -154,9 +269,6 @@ def api_briefs():
 @app.route('/brief/<path:name>')
 @login_required
 def serve_brief(name):
-    # Same defense-in-depth check as the local server.py: reject anything that
-    # isn't a bare filename matching the expected pattern before it ever
-    # touches the filesystem.
     if not BRIEF_RE.match(name) or '/' in name or '\\' in name or '..' in name:
         abort(400)
     fpath = user_data_dir(request.brief_user) / name
@@ -169,12 +281,11 @@ def serve_brief(name):
 def api_upload():
     """
     Called by the daily-brief skill (or the Post-Meeting Patch / Section
-    Refresh flows) to deliver a generated report directly, as an addition to
-    — not a replacement for — uploading to Google Drive. This route is
-    intentionally NOT behind @login_required / Easy Auth: the skill has no
-    browser session to complete an interactive Azure AD sign-in with. It's
-    guarded instead by its own bearer token, scoped to exactly one user's
-    folder and nothing else.
+    Refresh flows) to deliver a generated report directly, in addition to —
+    not instead of — uploading to Google Drive. Intentionally NOT behind
+    @login_required: the skill has no browser session to complete an
+    interactive Azure AD sign-in with. Guarded instead by its own bearer
+    token, scoped to exactly one user's folder.
     """
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
@@ -198,19 +309,14 @@ def api_upload():
     return jsonify({'status': 'ok', 'saved': name}), 201
 
 
-@app.route('/logout')
-def logout():
-    return redirect('/.auth/logout?post_logout_redirect_uri=/')
-
-
 @app.route('/healthz')
 def healthz():
-    # Unauthenticated on purpose — App Service health checks and uptime
-    # monitors need a path that doesn't require a sign-in.
+    # Unauthenticated on purpose — nginx / uptime monitors need a path that
+    # doesn't require a sign-in.
     return 'ok', 200
 
 
 if __name__ == '__main__':
-    # Local dev only. In production, App Service runs this via gunicorn
-    # (see startup.sh) with Easy Auth sitting in front of it.
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8000)), debug=False)
+    # Local dev only. In production this runs under gunicorn behind nginx —
+    # see DEPLOYMENT.md and gunicorn.conf.py.
+    app.run(host='127.0.0.1', port=int(os.environ.get('PORT', 8000)), debug=False)
