@@ -1,13 +1,10 @@
 import { z } from "zod";
+import { currentToken } from "./requestContext.js";
 
 const API_BASE_URL = process.env.DAILY_BRIEF_API_BASE_URL;
-const API_TOKEN = process.env.DAILY_BRIEF_API_TOKEN;
 
 if (!API_BASE_URL) {
   throw new Error("DAILY_BRIEF_API_BASE_URL environment variable is required");
-}
-if (!API_TOKEN) {
-  throw new Error("DAILY_BRIEF_API_TOKEN environment variable is required");
 }
 
 export class DailyBriefApiError extends Error {
@@ -30,7 +27,7 @@ async function request<T>(path: string, body: unknown): Promise<T> {
     const res = await fetch(url, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${API_TOKEN}`,
+        Authorization: `Bearer ${currentToken()}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(body),

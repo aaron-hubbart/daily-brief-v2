@@ -23,18 +23,20 @@ server directly, not the sandbox. That's what unblocks syncing brief items to
 npm install
 npm run build
 $env:DAILY_BRIEF_API_BASE_URL = "https://dashboard.es-sandbox.com/daily-brief"
-$env:DAILY_BRIEF_API_TOKEN = "<token from the Drive JSON file>"
-$env:MCP_SHARED_SECRET = "<any long random string, optional but recommended>"
 npm start
 ```
 
-Test with the MCP inspector:
+Test with the MCP inspector, supplying your own daily-brief API token (from
+`$DAILY_BRIEF_API_BASE_URL/api/token`, after signing in) as the connector's
+bearer token — the server no longer has a token or secret of its own to test
+without:
 
 ```powershell
 npx @modelcontextprotocol/inspector
 ```
 
-Point it at `http://localhost:3000/mcp`.
+Point it at `http://localhost:3000/mcp` and set the Authorization header to
+`Bearer <your own token>` in the inspector's connection settings.
 
 ## Build and push the container image
 
@@ -77,12 +79,10 @@ pinning to `latest` in a cluster makes rollbacks harder to reason about.
 
 ## Deploy to Kubernetes
 
-1. Fill in the secret values (don't commit the filled-in file):
+1. Create the secret (just the base URL now — no per-user token or shared secret lives on this server):
    ```powershell
    kubectl create secret generic daily-brief-mcp-secrets `
      --from-literal=DAILY_BRIEF_API_BASE_URL=https://dashboard.es-sandbox.com/daily-brief `
-     --from-literal=DAILY_BRIEF_API_TOKEN=<token> `
-     --from-literal=MCP_SHARED_SECRET=<random string> `
      -n daily-brief --dry-run=client -o yaml | kubectl apply -f -
    ```
 2. Update `image:` in `k8s/deployment.yaml` to your registry path, e.g.
@@ -105,27 +105,46 @@ pinning to `latest` in a cluster makes rollbacks harder to reason about.
 - Anthropic's outbound traffic to your server originates from `160.79.104.0/21`
   (per the Claude Platform docs — verify this is still current, ranges can expand).
   The ingress manifest here allowlists that range as defense in depth; it is not
-  a substitute for TLS and the shared-secret check.
+  a substitute for TLS and per-user tokens.
 - TLS is required. The ingress manifest assumes cert-manager with a
   `letsencrypt-prod` ClusterIssuer already configured in-cluster.
 
 ## Auth model
 
-This uses the `static_headers` auth type (currently in beta) rather than full
-OAuth: your organization's Claude admin pastes `MCP_SHARED_SECRET` as a fixed
-`Authorization: Bearer <secret>` header when adding the connector, and Claude
-sends it on every request. The server checks it in `src/index.ts`.
+Per-user passthrough — this server holds no secret or token of its own. Each
+person adds this connector under their own Claude account (Settings >
+Connectors, `static_headers` auth type) and supplies their own personal
+daily-brief API token as the fixed `Authorization: Bearer <token>` header,
+the same token they'd get from `$DAILY_BRIEF_API_BASE_URL/api/token` after
+signing in with their own Azure AD account.
 
-If `static_headers` isn't available on your plan, or you want per-user consent
-instead of one shared secret across the org, you'll need to implement the OAuth
-2.0 flow described at docs.claude.com/docs/connectors/building/authentication
-(Dynamic Client Registration or a Client ID Metadata Document) instead of the
-shared-secret check here. That's a larger lift — worth doing only if more than
-one person will use this connector.
+`src/index.ts` requires that *some* bearer token is present on every `/mcp`
+request, then forwards that exact value straight through to the webapp API
+for that request (`src/requestContext.ts` threads it via `AsyncLocalStorage`
+so concurrent requests from different people never cross). The webapp's
+existing per-user token check (`db.get_user_by_token` in `viewer/webapp/db.py`)
+is the real auth boundary — this server doesn't duplicate or second-guess it.
+A wrong or expired token surfaces back to the person as the same
+`Error: daily-brief API returned 401` the tool descriptions already document;
+the fix is the same as always — sign in at `/api/token` and update the
+connector's header with the fresh value.
+
+This deliberately replaces the earlier single-`MCP_SHARED_SECRET` model, where
+everyone shared one server-wide credential and every sync landed under
+whichever one webapp account that credential's token belonged to. A leaked
+token now only exposes the one person it belongs to.
+
+If your org later needs to skip the manual "paste your token as a header"
+step entirely (full OAuth consent, so adding the connector prompts an actual
+Microsoft sign-in instead), that's the documented next step at
+docs.claude.com/docs/connectors/building/authentication — a larger lift,
+reusing the same Azure AD app registration the webapp already authenticates
+against, not attempted in this pass.
 
 ## Adding the connector in Claude
 
-Settings > Connectors > Add custom connector, paste
-`https://mcp.REPLACE_WITH_YOUR_DOMAIN.com/mcp`, and supply `MCP_SHARED_SECRET`
-as the request header credential when prompted (or as the OAuth client secret,
-if you went the OAuth route instead).
+Each person: Settings > Connectors > Add custom connector, paste
+`https://mcp.REPLACE_WITH_YOUR_DOMAIN.com/mcp`, and supply their OWN
+daily-brief API token (from `$DAILY_BRIEF_API_BASE_URL/api/token`, after
+signing in) as the request header credential — never someone else's token,
+and never a token shared across the team.

@@ -8,6 +8,7 @@ import {
   batchUpsertItems,
   DailyBriefApiError
 } from "./dailyBriefClient.js";
+import { requestContext } from "./requestContext.js";
 
 const server = new McpServer({
   name: "daily-brief-mcp-server",
@@ -152,15 +153,21 @@ function formatError(err: unknown): string {
 
 // --- HTTP transport + auth ----------------------------------------------------
 //
-// Auth model: this server expects Claude to attach a fixed bearer token on every
-// request (the "static_headers" auth type — see docs.claude.com/docs/connectors/
-// building/authentication). The check below is a defense-in-depth measure in case
-// the server URL leaks; it is NOT a substitute for keeping the URL and token private,
-// and it is NOT full OAuth. If your org needs per-user auth/consent instead of one
-// shared secret, implement the OAuth flow described in that same doc rather than
-// relying on this shared-secret check.
-
-const CONNECTOR_SHARED_SECRET = process.env.MCP_SHARED_SECRET;
+// Auth model: per-user passthrough, not a shared secret. Each person adds this
+// connector in their own Claude account and supplies their OWN daily-brief API
+// token (from $DAILY_BRIEF_API_BASE_URL/api/token, after signing in with their
+// own Azure AD account) as the connector's static header credential. This
+// server holds no secret of its own — it only requires that *some* bearer
+// token is present, then forwards that exact value to the webapp API for
+// every call in this request (see requestContext.ts / dailyBriefClient.ts).
+// The webapp's existing per-user token check (db.get_user_by_token) is the
+// real auth boundary; this server is a thin pass-through in front of it.
+//
+// This intentionally replaces the old single MCP_SHARED_SECRET model, where
+// every user shared one server-wide credential and all synced items landed
+// under whichever single webapp account that credential's DAILY_BRIEF_API_TOKEN
+// belonged to. A leaked token now only exposes the one person it belongs to,
+// not everyone using this connector.
 
 const app = express();
 app.use(express.json());
@@ -170,21 +177,24 @@ app.get("/healthz", (_req: Request, res: Response) => {
 });
 
 app.post("/mcp", async (req: Request, res: Response) => {
-  if (CONNECTOR_SHARED_SECRET) {
-    const authHeader = req.header("authorization") ?? "";
-    if (authHeader !== `Bearer ${CONNECTOR_SHARED_SECRET}`) {
-      res.status(401).json({ error: "unauthorized" });
-      return;
-    }
+  const authHeader = req.header("authorization") ?? "";
+  const match = authHeader.match(/^Bearer (.+)$/);
+  if (!match) {
+    res.status(401).json({ error: "Missing bearer token. Add your own daily-brief API token as this connector's Authorization header — see README.md." });
+    return;
   }
+  const token = match[1];
 
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true
   });
   res.on("close", () => transport.close());
-  await server.connect(transport);
-  await transport.handleRequest(req, res, req.body);
+
+  await requestContext.run({ token }, async () => {
+    await server.connect(transport);
+    await transport.handleRequest(req, res, req.body);
+  });
 });
 
 const port = parseInt(process.env.PORT || "3000", 10);
