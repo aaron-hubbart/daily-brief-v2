@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brief · {{ brief_date }}</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#f5f4f1; --surface:#fff; --surface2:#f0efe9; --border:#e2e0d8; --border-strong:#c8c6bc;
+  --t1:#1a1916; --t2:#5a5850; --t3:#9a9890;
+  --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
+  --warn-bg:#fdf5e6; --warn-t:#7a5000;
+  --bad-bg:#fef1f0; --bad-t:#b02520;
+  --done:.35; --font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",monospace; --r:5px;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#18181b; --surface:#1e1e22; --surface2:#26262c; --border:#2c2c32; --border-strong:#3c3c44;
+  --t1:#e6e4de; --t2:#9a9890; --t3:#5a5850;
+  --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
+  --warn-bg:#28200a; --warn-t:#e8a020; --bad-bg:#280e0e; --bad-t:#e06868;
+}}
+html{font-size:14px;}
+body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5;-webkit-font-smoothing:antialiased;padding:24px 16px 60px;max-width:1400px;margin:0 auto;}
+.wrap{max-width:560px;margin:0 auto;}
+.head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1.5px solid var(--border-strong);}
+.head h1{font-size:19px;font-weight:600;letter-spacing:-.025em;}
+.head .sub{font-size:12px;color:var(--t3);margin-top:1px;}
+.prog-label{font-size:11px;font-weight:500;color:var(--t3);margin-bottom:5px;text-align:right;}
+.prog-track{width:110px;height:3px;background:var(--border);border-radius:99px;overflow:hidden;margin-left:auto;}
+.prog-fill{height:100%;background:var(--accent);border-radius:99px;transition:width .2s;width:0%;}
+details.sec{border:1px solid var(--border);border-radius:var(--r);margin-bottom:14px;overflow:hidden;}
+details.sec>summary.sec-summary{list-style:none;cursor:pointer;padding:10px 14px;background:var(--surface2);display:flex;align-items:center;justify-content:space-between;user-select:none;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);}
+details.sec>summary.sec-summary::-webkit-details-marker{display:none;}
+details.sec>summary.sec-summary::before{content:'▸';margin-right:8px;font-size:9px;display:inline-block;transition:transform .15s;}
+details.sec[open]>summary.sec-summary::before{transform:rotate(90deg);}
+details.sec>.sec-body{padding:4px 14px 10px;}
+.item{display:flex;align-items:flex-start;gap:8px;padding:9px 0;border-bottom:.5px solid var(--border);cursor:pointer;transition:opacity .15s;-webkit-user-select:none;user-select:none;}
+.item:last-child{border-bottom:none;}
+.item.done{opacity:var(--done);}
+.item.done .ititle,.item.done .isub{text-decoration:line-through;}
+.icb{padding-top:1px;flex-shrink:0;}
+.icb input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--accent);}
+.itime{font-size:11px;color:var(--t3);font-family:var(--mono);width:60px;flex-shrink:0;padding-top:2px;}
+.ibody{flex:1;min-width:0;}
+.ititle{font-size:13px;font-weight:500;color:var(--t1);line-height:1.35;display:flex;flex-wrap:wrap;align-items:center;gap:4px;}
+.isub{font-size:11.5px;color:var(--t2);margin-top:3px;line-height:1.45;}
+.ilinks{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
+.badge{font-size:9.5px;font-weight:700;letter-spacing:.03em;padding:1px 5px;border-radius:3px;line-height:1.6;flex-shrink:0;}
+.bwarn{background:var(--warn-bg);color:var(--warn-t);}
+.bbad{background:var(--bad-bg);color:var(--bad-t);}
+.lbtn{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:500;padding:3px 8px;border-radius:var(--r);text-decoration:none;border:.5px solid var(--border-strong);color:var(--t2);background:var(--surface);cursor:pointer;white-space:nowrap;transition:filter .1s;}
+.lbtn:hover{filter:brightness(.95);}
+.lbtn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
+.fyi-item{display:flex;gap:10px;padding:8px 0;border-bottom:.5px solid var(--border);}
+.fyi-item:last-child{border-bottom:none;}
+.fyi-dot{width:4px;height:4px;border-radius:50%;background:var(--t3);flex-shrink:0;margin-top:7px;}
+.fyi-lbl{font-size:11px;font-weight:600;color:var(--t2);margin-bottom:2px;}
+.fyi-txt{font-size:12px;color:var(--t2);line-height:1.45;}
+.acct-card{border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden;}
+.acct-card>summary{list-style:none;cursor:pointer;padding:8px 12px;background:var(--surface2);display:flex;align-items:center;justify-content:space-between;user-select:none;}
+.acct-card>summary::-webkit-details-marker{display:none;}
+.acct-card-name{font-size:12px;font-weight:600;color:var(--t1);}
+.acct-card-meta{font-size:10px;color:var(--t3);}
+.acct-card-body{padding:10px 12px;}
+.update-textarea{width:100%;min-height:110px;padding:8px;font-family:var(--font);font-size:11.5px;color:var(--t1);background:var(--surface);border:1px solid var(--border);border-radius:4px;resize:vertical;line-height:1.5;margin-bottom:8px;}
+.update-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.channel-input{flex:1;min-width:120px;height:28px;padding:0 8px;font-family:var(--font);font-size:11px;color:var(--t2);background:var(--surface2);border:1px solid var(--border-strong);border-radius:4px;}
+.post-btn{height:28px;padding:0 12px;font-family:var(--font);font-size:11px;font-weight:500;color:#fff;background:#4a1fa8;border:none;border-radius:4px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;}
+.footer{margin-top:1.5rem;padding-top:1rem;border-top:.5px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+.foot-note{font-size:11px;color:var(--t3);}
+.reset-btn{font-size:11px;color:var(--t3);background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--border-strong);padding:0;}
+.reset-btn:hover{color:var(--t2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head" data-section="header">
+    <div>
+      <h1>{{ brief_date_label }}</h1>
+      <div class="sub">{{ brief_type|default('Brief', true)|capitalize }}{% if brief_type %} brief{% endif %}</div>
+    </div>
+    <div>
+      <div class="prog-label" id="prog-label">0 of {{ checkable_count }} done</div>
+      <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+    </div>
+  </div>
+
+  {% for section in sections %}
+  {% set section_items = items_by_section.get(section.slug, []) %}
+  {% if section_items %}
+  <details class="sec" data-section="{{ section.slug }}" {% if section.open_default %}open{% endif %}>
+    <summary class="sec-summary">
+      <span class="sec-label">{{ section.label }}</span>
+      <span class="sec-count">{{ section.count_label }}</span>
+    </summary>
+    <div class="sec-body">
+      {% if section.slug == 'fyi' %}
+        {% for item in section_items %}
+        <div class="fyi-item" data-id="{{ item.item_key }}">
+          <div class="fyi-dot"></div>
+          <div>
+            <div class="fyi-lbl">{{ item.title }}</div>
+            <div class="fyi-txt">{{ item.subtitle }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      {% elif section.slug == 'customer-updates' %}
+        {% for item in section_items %}
+        <details class="acct-card" data-id="{{ item.item_key }}">
+          <summary>
+            <span class="acct-card-name">{{ item.title }}</span>
+            <span class="acct-card-meta">{{ item.content.get('last_posted_label', 'No previous update found') }}</span>
+          </summary>
+          <div class="acct-card-body">
+            <textarea class="update-textarea">{{ item.content.get('textarea', '') }}</textarea>
+            <div class="update-row">
+              <input class="channel-input" type="text" value="{{ item.content.get('channel_id', '') }}" readonly>
+              <a class="post-btn" href="https://slack.com/app_redirect?channel={{ item.content.get('channel_id', '') }}" target="_blank">Post to Slack</a>
+              <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh customer update for ' + item.title)|urlencode }}" target="_blank">Refresh</a>
+            </div>
+          </div>
+        </details>
+        {% endfor %}
+      {% elif section.slug == 'manager-update' %}
+        {% for item in section_items %}
+        <textarea class="update-textarea">{{ item.content.get('textarea', '') }}</textarea>
+        <div class="update-row">
+          <a class="post-btn" href="{{ item.content.get('post_url', '#') }}" target="_blank">Post to Manager</a>
+          <a class="lbtn" href="claude://claude.ai/new?q=%2Fdaily-brief%20Refresh%20manager%20update" target="_blank">Refresh</a>
+        </div>
+        {% endfor %}
+      {% else %}
+        {% for item in section_items %}
+        <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}">
+          <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
+          {% if item.content.get('time') %}<div class="itime">{{ item.content.get('time') }}</div>{% endif %}
+          <div class="ibody">
+            <div class="ititle">{{ item.title }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
+            {% if item.subtitle %}<div class="isub">{{ item.subtitle }}</div>{% endif %}
+            {% if item.links %}
+            <div class="ilinks">
+              {% for link in item.links %}
+              <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url }}" target="_blank">{{ link.label }}</a>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </details>
+  {% endif %}
+  {% endfor %}
+
+  <div class="footer">
+    <span class="foot-note" id="saved-note"></span>
+    <button class="reset-btn">Reset all</button>
+  </div>
+
+</div>
+</body>
+</html>

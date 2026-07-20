@@ -80,14 +80,16 @@ If you're upgrading from an older copy of this viewer where brief files sat dire
 
 ## Hosted deployment (optional)
 
-`viewer/webapp/` is a separate, hosted, multi-user alternative to the local single-user viewer above — a small Flask app that does its own Azure AD (Entra ID) sign-in against Camunda's tenant, so more than one person can sign in and each only ever sees their own briefs. It doesn't replace `viewer/server.py`. Deployed as a container on Kubernetes (GKE), mirroring the existing `dashboard.es-sandbox.com` app's pattern (Cloud Build → GCR, nginx-ingress, cert-manager), reachable at a sub-path of that same host (`/daily-brief/`) alongside it.
+`viewer/webapp/` is a separate, hosted, multi-user alternative to the local single-user viewer above — a small Flask app that does its own Azure AD (Entra ID) sign-in against Camunda's tenant, so more than one person can sign in and each only ever sees their own briefs. It doesn't replace `viewer/server.py`. Deployed as a container on Kubernetes (GKE), mirroring the existing `dashboard.es-sandbox.com` app's pattern (Cloud Build → GCR, nginx-ingress, cert-manager), reachable at a sub-path of that same host (`/daily-brief/`) alongside it. Storage is Postgres (self-hosted in-cluster) rather than files — see `db/README.md` for the schema.
 
-- `viewer/webapp/app.py` — MSAL-based OAuth 2.0 authorization code flow against Camunda's Azure AD tenant; identity lives in a signed session cookie, never a raw token. Isolates each signed-in user's brief files under `data/{user-slug}/`. Exposes a separate bearer-token-authenticated `/api/upload` endpoint for the skill to push reports directly (the skill runs headless and can't complete an interactive sign-in).
-- `viewer/webapp/Dockerfile`, `cloudbuild.yaml`, `k8s/` — the container image and Kubernetes manifests (namespace, PVC, Deployment, Service, Ingress, secret template).
-- `viewer/webapp/DEPLOYMENT.md` — the full walkthrough: finishing the app registration, building and pushing the image, applying the manifests, verification, and rolling out to test users. Also covers running it locally without Kubernetes for quick iteration.
-- `viewer/webapp/.env.example` — for local development only; the real deployment gets its config from a Kubernetes Secret instead (see `DEPLOYMENT.md`).
+- `viewer/webapp/app.py` — MSAL-based OAuth 2.0 authorization code flow against Camunda's Azure AD tenant; identity lives in a signed session cookie, never a raw token. Brief content is rendered dynamically per request from Postgres rows (`db.py`, `templates/brief_fragment.html`), scoped to the signed-in user. Exposes `/api/items/upsert` and `/api/items/batch-upsert`, bearer-token-authenticated, for the skill to create or refresh individual items directly (the skill runs headless and can't complete an interactive sign-in).
+- `viewer/webapp/db/schema.sql` + `db/README.md` — one row per user, one row per brief-day, one row per item (section/item_key), so a single item can be refreshed with one upsert instead of patching a whole file.
+- `viewer/webapp/archive_briefs.py` — daily archival: brief-days older than 14 days get soft-deleted (marked archived, hidden from the user, still in the DB); older than 30 days get hard-deleted. Run via `k8s/cronjob.yaml`.
+- `viewer/webapp/Dockerfile`, `cloudbuild.yaml`, `k8s/` — the container image and Kubernetes manifests (namespace, Postgres StatefulSet + Service, app Deployment, Service, Ingress, CronJob, secret templates).
+- `viewer/webapp/DEPLOYMENT.md` — the full walkthrough: finishing the app registration, building and pushing the image, standing up Postgres, applying the manifests, verification, and rolling out to test users. Also covers running it locally without Kubernetes for quick iteration.
+- `viewer/webapp/.env.example` — for local development only; the real deployment gets its config from Kubernetes Secrets instead (see `DEPLOYMENT.md`).
 
-See `DEPLOYMENT.md` for what's still a manual/follow-up step (wiring the skill's delivery step to actually call `/api/upload`, and true multi-tenant support for the underlying automation, not just the viewer login).
+See `DEPLOYMENT.md` for what's still a manual/follow-up step (wiring the skill's generation logic to actually call the item-upsert endpoints, checked-state sync from the frontend, and true multi-tenant support for the underlying automation, not just the viewer login).
 
 ## Configuration
 
