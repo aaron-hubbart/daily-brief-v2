@@ -29,9 +29,9 @@ Evaluate this **per account** (and separately for the manager update), not once 
 5. **Cache read fails** (Drive error, file missing and can't be created): treat every entry as a miss for this run — generate fresh for all of them, and note in the brief that the cache couldn't be read. Don't block the brief on this.
 6. **New account not yet in the cache file:** treat as a miss, generate, add its entry.
 
-This gate only affects Sections 3/4. Sections 1, 2, and the HTML's other sections (Yesterday's Meetings, Today, Action Items, FYI) still run in full on every brief, regardless of cache state.
+This gate only affects Sections 3/4. Sections 1, 2, and the other synced sections (Yesterday's Meetings, Today, Action Items, FYI) still run in full on every brief, regardless of cache state.
 
-A card's Refresh button (see `references/section-refresh.md`) is the normal path for an out-of-band update once the daily gate has already run once — it patches a single card into the latest existing file rather than triggering a full brief.
+A card's Refresh button (see `references/section-refresh.md`) is the normal path for an out-of-band update once the daily gate has already run once — it patches a single card via a single-item upsert rather than triggering a full brief.
 
 ---
 
@@ -70,7 +70,7 @@ Do not hardcode channel IDs here. Always read from the config file so additions 
 
 Add new accounts to the Meeting Manager Config.xlsx Accounts sheet (including their Slack Channel ID) as they are onboarded.
 
-Generate this directly into the HTML: an editable `<textarea>` pre-populated with the generated update, a read-only channel field, a "Post to Slack" button (`https://slack.com/app_redirect?channel={channel_id}`), and a "Refresh" button — markup and `data-id` requirements for the card are in `references/html-output.md`. Also note the timestamp of the last found `[TAM-UPDATE] #claude-brief-skill` post (or "No previous update found") next to each account name; when the card's content came from cache, that timestamp is the cache entry's `generated_at`, not the current run time.
+Generate this as a `card` item (`section: customer-updates`, `item_key: cust-update-{slug}`) with `content: {"textarea": "<generated update>", "channel_id": "<from config>", "last_posted_at": "<timestamp or omitted>"}` — full item shape and the upsert call are in `references/item-sync.md`. Also note the timestamp of the last found `[TAM-UPDATE] #claude-brief-skill` post (or omit `last_posted_at` if none found) next to each account name; when the card's content came from cache, that timestamp is the cache entry's `generated_at`, not the current run time.
 
 ---
 
@@ -96,4 +96,4 @@ Focus this week: [brief list]
 **Finding the last manager update:**
 Search the manager DM channel (`D0A25TNDGJJ`) for `[TAM-UPDATE] #claude-brief-skill`. Use the same 7-day lookback logic as customer updates.
 
-**Posting:** Generate a "Post to Manager" button in the HTML that opens `https://slack.com/app_redirect?channel=D0A25TNDGJJ`, plus a "Refresh" button (same markup pattern as Customer Updates — see `references/html-output.md`). Note the last manager update timestamp (or "No previous update found") the same way as customer updates; when served from cache, that's `manager_update.generated_at`, not the current run time.
+**Posting:** Generate this as a `text-block` item (`section: manager-update`, `item_key: mgr-update`) with `content: {"textarea": "<generated update>"}` — full item shape and the upsert call are in `references/item-sync.md`. The webapp renders the "Post to Manager" button (`https://slack.com/app_redirect?channel=D0A25TNDGJJ`) directly from this item; nothing else to generate for it. Note the last manager update timestamp the same way as customer updates — omit if none found; when served from cache, that's `manager_update.generated_at`, not the current run time.

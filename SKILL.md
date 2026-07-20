@@ -25,17 +25,18 @@ description: >
 
 This file is the core: trigger, timing, and what to pull. Three things are deliberately kept in separate reference files in this same skill directory so they don't get read on every run when they don't apply:
 
-- `references/html-output.md` — full HTML structure/CSS/badge spec. Used every run, but pulled out so this core file stays short for the earlier decision-making steps.
+- `references/item-sync.md` — item shape, section/item_key conventions, and the API calls that sync a run's content into the hosted viewer's Postgres store. Used every run, but pulled out so this core file stays short for the earlier decision-making steps.
 - `references/status-updates.md` — Section 3/4 (Customer Updates, Manager Update) generation. Gated per-account: most runs should reuse most or all of the cache (see Section 3/4 note below).
 - `references/post-meeting-patch.md` — the post-meeting patch flow. Only read when that specific, infrequent trigger fires.
-- `references/section-refresh.md` — patches a single Customer Update or Manager Update card into the latest file when its Refresh button is clicked. Only read when that trigger fires.
+- `references/section-refresh.md` — patches a single Customer Update or Manager Update card when its Refresh button is clicked. Only read when that trigger fires.
 
 ## Admin Config
 
 Configure these in your local copy (not committed here, since they're account-specific):
 
 ```
-BRIEF_OUTPUT_FOLDER_ID: <your Google Drive output folder ID>
+DAILY_BRIEF_API_BASE_URL: <base URL of your hosted daily-brief webapp, e.g. https://dashboard.es-sandbox.com/daily-brief>
+DAILY_BRIEF_API_TOKEN: <your bearer token, retrieved from DAILY_BRIEF_API_BASE_URL/api/token while signed in>
 MEETING_RUN_LOG_SHEET_ID: <your meeting-manager run log sheet ID>
 RECURRING_ACTIVITIES_PROJECT_GID: <your Asana recurring-activities project GID>
 STATUS_UPDATE_CACHE_FILE_ID: <Drive file ID of the Section 3/4 daily cache JSON — see references/status-updates.md>
@@ -135,7 +136,7 @@ Consolidate into a single Slack section. Surface only items that need attention 
 - Group by: overdue, due today, due tomorrow (for evening brief)
 - Omit tasks with no due date unless they appear high priority from the name
 - For correlating action items to a specific call (Section 1, Part A): first check the Meeting Manager Run Log sheet (`MEETING_RUN_LOG_SHEET_ID`) for a row matching the meeting (by title and date). If no matching row exists there — which is expected right now, since post-meeting processing isn't yet writing to that log — fall back to searching the relevant account's Asana project for tasks created on or shortly after the meeting's date. Report whichever check found something; if neither does, say so plainly rather than guessing.
-- When new action-item tasks need creating (see `references/html-output.md`, Action Items), batch them into one `Asana:create_tasks` call rather than creating one at a time — it accepts up to 50 tasks per call.
+- When new action-item tasks need creating (see `references/item-sync.md`, Action Items), batch them into one `Asana:create_tasks` call rather than creating one at a time — it accepts up to 50 tasks per call.
 
 ---
 
@@ -216,7 +217,7 @@ End with a brief **Open Time** note if there are meaningful unblocked blocks in 
 
 Both sections are gated by a per-account daily cache to avoid re-synthesizing the same status updates on every brief run of the day. Full generation logic, the cache schema, and the gate live in `references/status-updates.md` — read that file for any account or the manager entry that the gate says needs generating, and skip it entirely for entries the gate says to reuse.
 
-Quick summary of the gate: each account (and the manager update) generates fresh the first time it's needed that day, then every later run that day reuses its cached content — evaluated per entry, so a run can reuse six accounts and regenerate two in the same pass. Each card also has a Refresh button (see `references/html-output.md`) that forces an immediate, single-card regeneration outside the normal brief flow — see `references/section-refresh.md` for that flow.
+Quick summary of the gate: each account (and the manager update) generates fresh the first time it's needed that day, then every later run that day reuses its cached content — evaluated per entry, so a run can reuse six accounts and regenerate two in the same pass. Each card also has a Refresh button (see `references/item-sync.md`) that forces an immediate, single-card regeneration outside the normal brief flow — see `references/section-refresh.md` for that flow.
 
 ---
 
@@ -248,17 +249,17 @@ If a data source is unavailable (MCP auth issue, timeout), note it briefly at th
 If there is genuinely nothing to report in a section, omit it silently.
 
 
-## HTML Output
+## Data Sync
 
-Every brief run produces a standalone interactive HTML file in addition to the in-chat response, per the full spec in `references/html-output.md`. Read that file when you reach HTML generation in a run — it covers structure, CSS, badges, link buttons, localStorage, sensitive data rules, and delivery.
+Every brief run syncs its content into the hosted viewer's Postgres store, in addition to the in-chat response, per the full spec in `references/item-sync.md`. Read that file when you reach the sync step in a run — it covers section/item_key conventions, badge/link/content shape, and the API calls that create or refresh items.
 
 ## Post-Meeting Patch Runs
 
-Not part of the normal brief trigger. When meeting-manager's post-meeting agent finishes processing a meeting flagged in today's brief as missing a recording/transcript, read `references/post-meeting-patch.md` and follow that flow to patch the existing file instead of waiting for the next scheduled run.
+Not part of the normal brief trigger. When meeting-manager's post-meeting agent finishes processing a meeting flagged in today's brief as missing a recording/transcript, read `references/post-meeting-patch.md` and follow that flow to patch that one item via the API instead of waiting for the next scheduled run.
 
 ## Section Refresh Runs
 
-Not part of the normal brief trigger. When a Customer Update or Manager Update card's Refresh button is clicked (or the user asks directly to refresh/regenerate one), read `references/section-refresh.md` and follow that flow to patch just that one card into the latest file.
+Not part of the normal brief trigger. When a Customer Update or Manager Update card's Refresh button is clicked (or the user asks directly to refresh/regenerate one), read `references/section-refresh.md` and follow that flow to patch just that one card via the API.
 
 ---
 
