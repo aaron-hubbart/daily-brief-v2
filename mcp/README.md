@@ -64,18 +64,29 @@ gcloud artifacts repositories create daily-brief `
   --description="daily-brief MCP server images"
 ```
 
-Build and push:
+Build and push (defaults already match the values above, so no `--substitutions` needed for a quick build):
+
+```powershell
+gcloud builds submit --config=cloudbuild.yaml .
+```
+
+This pushes `:latest` to
+`us-central1-docker.pkg.dev/<your-project-id>/daily-brief/daily-brief-mcp-server`.
+For a pinned, rollback-able tag instead of relying on `:latest` — worth doing
+once this is more than a single-person test — pass `_TAG` explicitly with a
+short git SHA computed locally:
 
 ```powershell
 gcloud builds submit --config=cloudbuild.yaml `
-  --substitutions=_REGION=us-central1,_REPO=daily-brief,_IMAGE=daily-brief-mcp-server `
+  --substitutions=_TAG=$(git rev-parse --short HEAD) `
   .
 ```
 
-This pushes both `:latest` and `:$SHORT_SHA` tags to
-`us-central1-docker.pkg.dev/<your-project-id>/daily-brief/daily-brief-mcp-server`.
-Use the `$SHORT_SHA` tag in `k8s/deployment.yaml` for anything beyond local testing —
-pinning to `latest` in a cluster makes rollbacks harder to reason about.
+Note this is `_TAG`, not Cloud Build's built-in `$SHORT_SHA` — that only
+auto-populates for builds triggered from a connected Git source repo, not a
+plain local-directory `gcloud builds submit` like this one, so it silently
+resolves to empty and produces an invalid image tag if you try to use it
+directly (see the comment in `cloudbuild.yaml`).
 
 ## Deploy to Kubernetes
 
@@ -86,7 +97,7 @@ pinning to `latest` in a cluster makes rollbacks harder to reason about.
      -n daily-brief --dry-run=client -o yaml | kubectl apply -f -
    ```
 2. Update `image:` in `k8s/deployment.yaml` to your registry path, e.g.
-   `us-central1-docker.pkg.dev/<project-id>/daily-brief/daily-brief-mcp-server:<SHORT_SHA>`
+   `us-central1-docker.pkg.dev/<project-id>/daily-brief/daily-brief-mcp-server:<the _TAG value you built with, or :latest if you didn't pass one>`
    if you built via Cloud Build. On GKE with the default node service account (or
    Workload Identity) granted `artifactregistry.reader`, no `imagePullSecrets` are
    needed. Off GKE, you'll need to create one from a service account key.

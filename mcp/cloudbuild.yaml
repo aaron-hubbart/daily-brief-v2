@@ -1,7 +1,21 @@
 # Build with:
+#   gcloud builds submit --config=cloudbuild.yaml .
+#
+# To pin an immutable tag instead of relying on :latest (recommended once this
+# is more than a single-person test), pass _TAG explicitly, e.g. a short git
+# SHA computed locally:
 #   gcloud builds submit --config=cloudbuild.yaml `
-#     --substitutions=_REGION=us-central1,_REPO=daily-brief,_IMAGE=daily-brief-mcp-server `
+#     --substitutions=_TAG=$(git rev-parse --short HEAD) `
 #     .
+#
+# _TAG (not $SHORT_SHA) is used for this because $SHORT_SHA and the other
+# built-in Cloud Build substitutions (COMMIT_SHA, BRANCH_NAME, etc.) only
+# auto-populate when a build is triggered from a connected Git source repo —
+# a plain `gcloud builds submit` of a local directory has no git context, so
+# $SHORT_SHA silently resolves to empty and produces an invalid "image:" tag
+# with nothing after the colon. Custom substitutions must start with an
+# underscore and can't override the reserved built-in names, so _TAG is a
+# separate variable rather than an attempt to set $SHORT_SHA directly.
 #
 # Cloud Build's build steps always run as containers in Google's managed environment —
 # there's no Podman option server-side. Kaniko is the closest match to Podman's philosophy
@@ -20,7 +34,7 @@ steps:
     args:
       - '--dockerfile=Containerfile'
       - '--context=dir:///workspace'
-      - '--destination=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$SHORT_SHA'
+      - '--destination=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${_TAG}'
       - '--destination=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest'
       - '--cache=true'
       - '--cache-ttl=168h'
@@ -29,6 +43,12 @@ substitutions:
   _REGION: us-central1
   _REPO: daily-brief
   _IMAGE: daily-brief-mcp-server
+  # Defaults to "latest" so a plain `gcloud builds submit --config=cloudbuild.yaml .`
+  # (no --substitutions needed) always works — this just means the immutable-tag
+  # destination and the :latest destination end up identical unless _TAG is
+  # overridden. Pass a real _TAG (see header comment) once you want rollback-able,
+  # independently addressable builds.
+  _TAG: latest
 
 options:
   logging: CLOUD_LOGGING_ONLY
