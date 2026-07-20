@@ -31,7 +31,6 @@ scoped to their own row in Postgres by user_id — every query filters on the
 current session's verified identity, never anything client-supplied. See
 db.py and db/README.md for the storage model.
 """
-import json
 import os
 import re
 import secrets
@@ -106,11 +105,6 @@ ALLOWED_GROUPS = {g.strip() for g in _allowed_groups_raw.split(',') if g.strip()
 AZURE_AUTHORITY = f'https://login.microsoftonline.com/{AZURE_TENANT_ID}'
 GRAPH_SCOPES = []  # no Graph calls made — sign-in identity only, nothing to scope
 
-try:
-    _UPLOAD_TOKENS = json.loads(os.environ.get('UPLOAD_TOKENS', '{}'))
-except json.JSONDecodeError:
-    _UPLOAD_TOKENS = {}
-
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
 app.config.update(
@@ -173,17 +167,17 @@ def login_required(view):
 
 def ensure_upload_context():
     """Shared bearer-token check for the skill-facing item endpoints.
-    Returns the resolved user_id, creating the user row if this is the
-    first time anything has touched this person's data (e.g. the skill
-    upserts items before they've ever signed in through the browser)."""
+    Returns the resolved user_id. Tokens are auto-assigned per user at
+    first sign-in (db.get_or_create_user) — there's no admin-managed token
+    list to keep in sync anymore."""
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
         abort(401)
     token = auth[len('Bearer '):].strip()
-    email = _UPLOAD_TOKENS.get(token)
-    if not email:
+    user = db.get_user_by_token(token)
+    if not user:
         abort(403)
-    return db.get_or_create_user(email, slugify_user(email))
+    return user['id']
 
 
 # ── Auth routes ──────────────────────────────────────────────────────────
@@ -240,6 +234,9 @@ def auth_callback():
         abort(401, 'Sign-in succeeded but no usable email/UPN claim was present.')
 
     slug = slugify_user(email)
+    # This is what makes new-user setup automatic — first sign-in creates
+    # the row and assigns an api_token in the same call, no admin step.
+    user_row = db.get_or_create_user(email, slug)
     session['user'] = {
         'email': email,
         'name': claims.get('name', email),
@@ -248,7 +245,7 @@ def auth_callback():
         # Resolved once at login and cached in the session — every later
         # request in this session reuses it rather than re-querying users
         # on every page load.
-        'id': db.get_or_create_user(email, slug),
+        'id': user_row['id'],
     }
 
     dest = session.pop('post_login_redirect', None) or url_for('index')
@@ -281,6 +278,31 @@ def index():
 @login_required
 def whoami():
     return jsonify({'name': request.brief_user['name'], 'email': request.brief_user['email']})
+
+
+@app.route('/api/token')
+@login_required
+def api_token():
+    """
+    Lets a signed-in person retrieve their own api_token — this is the
+    self-service half of automatic setup. There's no admin step between
+    "person signs in for the first time" and "person has a token they can
+    put in their own daily-brief skill's Admin Config": db.get_or_create_user
+    already assigned one at sign-in time (see /auth/callback); this just
+    surfaces it.
+    """
+    token = db.get_user_token(request.brief_user['id'])
+    return jsonify({'token': token, 'email': request.brief_user['email']})
+
+
+@app.route('/api/token/rotate', methods=['POST'])
+@login_required
+def api_token_rotate():
+    """Invalidates the current token and issues a new one — for when a
+    token leaks or someone just wants a fresh one. The old value stops
+    working immediately; whatever skill config used it needs updating."""
+    new_token = db.rotate_user_token(request.brief_user['id'])
+    return jsonify({'token': new_token})
 
 
 @app.route('/api/briefs')

@@ -11,8 +11,15 @@ CREATE TABLE IF NOT EXISTS users (
     id          SERIAL PRIMARY KEY,
     email       TEXT NOT NULL UNIQUE,
     slug        TEXT NOT NULL UNIQUE,
+    -- Bearer token the daily-brief skill authenticates with when calling
+    -- /api/items/upsert and /api/items/batch-upsert. Assigned automatically
+    -- the first time this user signs in through the browser (see
+    -- get_or_create_user in db.py) -- nobody has to hand-provision this.
+    api_token   TEXT UNIQUE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_users_api_token ON users (api_token);
 
 -- One row per user per calendar date. This is the "day" the requirement
 -- describes -- multiple runs/refreshes during the day update items within
