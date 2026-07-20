@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "daily-brief": {
+      "type": "http",
+      "url": "${DAILY_BRIEF_MCP_URL:-https://mcp.dashboard.es-sandbox.com/mcp}",
+      "headers": {
+        "Authorization": "Bearer ${DAILY_BRIEF_MCP_TOKEN}"
+      }
+    }
+  }
+}

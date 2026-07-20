@@ -1,0 +1,8 @@
+{
+  "name": "daily-brief-mcp",
+  "version": "1.0.0",
+  "description": "Remote MCP connector for the daily-brief item-sync API (upsert / batch-upsert), wrapping the daily-brief-mcp-server GKE deployment.",
+  "author": {
+    "name": "Aaron Hubbart"
+  }
+}
