@@ -156,6 +156,12 @@ ADMIN_EMAILS = {e.strip().lower() for e in _admin_emails_raw.split(',') if e.str
 # Postgres, they just don't reach Asana.
 ASANA_PAT = os.environ.get('ASANA_PAT', '').strip() or None
 
+# Optional, display-only — the daily-brief-mcp-server connector's public
+# URL (e.g. https://mcp.dashboard.es-sandbox.com/mcp), shown verbatim in
+# the in-app setup walkthrough so people don't have to go find it
+# themselves. Not used for anything security-relevant by this app itself.
+MCP_CONNECTOR_URL = os.environ.get('MCP_CONNECTOR_URL', '').strip() or None
+
 AZURE_AUTHORITY = f'https://login.microsoftonline.com/{AZURE_TENANT_ID}'
 GRAPH_SCOPES = []  # no Graph calls made — sign-in identity only, nothing to scope
 
@@ -384,7 +390,39 @@ def index():
 @app.route('/api/whoami')
 @login_required
 def whoami():
-    return jsonify({'name': request.brief_user['name'], 'email': request.brief_user['email']})
+    user = db.get_user_by_id(request.brief_user['id'])
+    return jsonify({
+        'name': request.brief_user['name'],
+        'email': request.brief_user['email'],
+        'onboarding_completed': bool(user and user['onboarding_completed_at']),
+    })
+
+
+@app.route('/api/onboarding/complete', methods=['POST'])
+@login_required
+def api_onboarding_complete():
+    """Called once the person finishes (or dismisses) the in-app setup
+    walkthrough, so it doesn't auto-open again on their next sign-in.
+    They can still reopen it manually any time from the Account panel."""
+    db.mark_onboarding_complete(request.brief_user['id'])
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/client-config')
+@login_required
+def api_client_config():
+    """Values the setup walkthrough and Account panel need to render
+    correct copy-paste instructions, computed server-side rather than
+    guessed from window.location (this app is deployed at a sub-path, and
+    the MCP connector lives on an entirely different subdomain that the
+    browser has no way to derive on its own)."""
+    return jsonify({
+        # request.script_root is where ForcePrefixMiddleware put the
+        # /daily-brief prefix back (see its docstring) — same value this
+        # deployment's DAILY_BRIEF_API_BASE_URL is set to.
+        'api_base_url': request.host_url.rstrip('/') + request.script_root,
+        'mcp_connector_url': MCP_CONNECTOR_URL,
+    })
 
 
 @app.route('/api/token')

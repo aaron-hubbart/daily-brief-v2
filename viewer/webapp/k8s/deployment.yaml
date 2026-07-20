@@ -66,6 +66,10 @@ spec:
                   name: daily-brief-secrets
                   key: ASANA_PAT
                   optional: true
+            # Plain value, not a secret — just the connector's public URL,
+            # shown verbatim in the in-app setup walkthrough.
+            - name: MCP_CONNECTOR_URL
+              value: "https://mcp.dashboard.es-sandbox.com/mcp"
             # Built from postgres-credentials via $(VAR) interpolation
             # (supported natively by Kubernetes for env vars defined earlier
             # in the same list) rather than duplicating the connection

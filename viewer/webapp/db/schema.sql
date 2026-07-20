@@ -16,7 +16,10 @@ CREATE TABLE IF NOT EXISTS users (
     -- the first time this user signs in through the browser (see
     -- get_or_create_user in db.py) -- nobody has to hand-provision this.
     api_token   TEXT UNIQUE,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- Set once the person has clicked through the in-app setup walkthrough
+    -- (or dismissed it). NULL means "show it automatically on next login."
+    onboarding_completed_at TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_api_token ON users (api_token);

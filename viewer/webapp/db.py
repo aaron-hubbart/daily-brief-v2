@@ -64,7 +64,7 @@ def get_or_create_user(email: str, slug: str) -> dict:
             """
             INSERT INTO users (email, slug) VALUES (%s, %s)
             ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
-            RETURNING id, api_token
+            RETURNING id, api_token, onboarding_completed_at
             """,
             (email, slug),
         )
@@ -102,8 +102,22 @@ def get_user_token(user_id: int) -> str:
 
 def get_user_by_id(user_id: int):
     with cursor() as cur:
-        cur.execute("SELECT id, email, slug, api_token, created_at FROM users WHERE id = %s", (user_id,))
+        cur.execute(
+            "SELECT id, email, slug, api_token, created_at, onboarding_completed_at FROM users WHERE id = %s",
+            (user_id,),
+        )
         return cur.fetchone()
+
+
+def mark_onboarding_complete(user_id: int) -> None:
+    """Idempotent — only sets the timestamp the first time; re-completing
+    (e.g. clicking through the walkthrough again from the Account panel)
+    doesn't reset it to a later time."""
+    with cursor(commit=True) as cur:
+        cur.execute(
+            "UPDATE users SET onboarding_completed_at = COALESCE(onboarding_completed_at, now()) WHERE id = %s",
+            (user_id,),
+        )
 
 
 def list_users_with_stats() -> list:

@@ -28,12 +28,14 @@ The following connectors must be enabled in your Claude workspace:
 | Zoom | AI meeting summaries (supplementary to calendar) |
 | Asana | Task tracking and recurring activity board |
 | Google Drive | The meeting run log sheet and the status-update cache |
+| daily-brief-mcp-server (custom connector) | Syncs brief items to the hosted webapp — Claude's sandboxed bash tool can't reach that domain directly, so this is a separate network path. Add it yourself (Settings > Connectors > Add custom connector) with your own token from `DAILY_BRIEF_API_BASE_URL/api/token` as the static `Authorization: Bearer` header. See `mcp/README.md`. |
 
 ### Daily Brief webapp
 
 - The hosted webapp (`viewer/webapp/`) must be deployed and reachable — see `viewer/webapp/DEPLOYMENT.md`
-- Sign in once at `DAILY_BRIEF_API_BASE_URL` with your `@camunda.com` account, then retrieve your token from `DAILY_BRIEF_API_BASE_URL/api/token`, save that JSON response to a file in Drive, and copy `DAILY_BRIEF_API_BASE_URL` and the Drive file's ID into your local `SKILL.md` Admin Config as `DAILY_BRIEF_API_TOKEN_FILE_ID` — the skill reads the token from that file at runtime rather than storing it as a literal value
-- If the token is ever rotated (`/api/token/rotate`), save the new JSON to a Drive file (a new one or overwriting the same file) and update `DAILY_BRIEF_API_TOKEN_FILE_ID` if the ID changed — the old token stops working immediately
+- Sign in once at `DAILY_BRIEF_API_BASE_URL` with your `@camunda.com` account, then retrieve your token from `DAILY_BRIEF_API_BASE_URL/api/token`
+- Add the daily-brief-mcp-server custom connector in Claude (Settings > Connectors > Add custom connector), with that token as the static `Authorization: Bearer` header — this is what actually syncs items, not a value stored in `SKILL.md`. See `mcp/README.md`.
+- If the token is ever rotated (`/api/token/rotate`), update the connector's header with the new value immediately — the old token stops working right away
 
 ### Google Drive
 
@@ -92,7 +94,7 @@ The `viewer/` folder (excluding `viewer/webapp/`, covered below) contains a stan
 - `viewer/webapp/DEPLOYMENT.md` — the full walkthrough: finishing the app registration, building and pushing the image, standing up Postgres, applying the manifests, verification, and rolling out to test users. Also covers running it locally without Kubernetes for quick iteration.
 - `viewer/webapp/.env.example` — for local development only; the real deployment gets its config from Kubernetes Secrets instead (see `DEPLOYMENT.md`).
 
-The skill's generation logic now calls the item-upsert endpoints directly (`references/item-sync.md`). See `DEPLOYMENT.md` for what's still a manual/follow-up step: checked-state sync from the frontend (checkbox state is still client-side/localStorage only — see the note in `app.py`'s `set_item_checked`), and true multi-tenant support for the underlying automation, not just the viewer login.
+The skill's generation logic syncs items via the daily-brief-mcp-server MCP connector (`references/item-sync.md`), not a direct call from the skill itself. See `DEPLOYMENT.md` for what's still a manual/follow-up step: true multi-tenant support for the underlying automation (each person still needs their own Claude project and data-source connections), not just the viewer login.
 
 ## Configuration
 
@@ -100,8 +102,7 @@ Set these values in the `## Admin Config` block at the top of your local `SKILL.
 
 | Key | Description |
 |-----|-------------|
-| `DAILY_BRIEF_API_BASE_URL` | Base URL of your deployed daily-brief webapp, e.g. `https://dashboard.es-sandbox.com/daily-brief` |
-| `DAILY_BRIEF_API_TOKEN_FILE_ID` | Drive file ID of a JSON file `{"email": ..., "token": ...}` saved from `DAILY_BRIEF_API_BASE_URL/api/token` — the skill reads the token from this file at runtime rather than storing it directly |
+| `DAILY_BRIEF_API_BASE_URL` | Base URL of your deployed daily-brief webapp, e.g. `https://dashboard.es-sandbox.com/daily-brief` — reference only; item sync itself goes through the daily-brief-mcp-server connector, not a call from here |
 | `MEETING_RUN_LOG_SHEET_ID` | Google Sheet ID tracking meeting-manager runs |
 | `RECURRING_ACTIVITIES_PROJECT_GID` | Asana project GID for the recurring task board |
 | `STATUS_UPDATE_CACHE_FILE_ID` | Drive file ID of the Section 3/4 per-account daily cache — see `references/status-updates.md` |

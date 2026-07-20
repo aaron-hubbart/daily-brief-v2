@@ -65,6 +65,14 @@ Get-Content -Raw viewer/webapp/db/migrations/001_add_api_token.sql | kubectl exe
 
 Safe to run more than once. Existing users don't need a separate backfill step — `db.get_or_create_user` assigns each of them a token automatically the next time they sign in (see step 8).
 
+Same deal for the `onboarding_completed_at` column added for the setup walkthrough — anyone upgrading from before that needs this too, also safe to run more than once:
+
+```powershell
+Get-Content -Raw viewer/webapp/db/migrations/002_add_onboarding_completed.sql | kubectl exec -i -n daily-brief postgres-0 -- psql -U dailybrief -d dailybrief
+```
+
+Existing users get `NULL` (walkthrough shows automatically next time they sign in) rather than a backfilled "completed" — a harmless one-time modal for people who already know the ropes, and they can dismiss it in a couple clicks.
+
 
 ## 5. The app
 
@@ -156,10 +164,12 @@ This runs the Flask dev server directly (not gunicorn, not a container) for quic
 ## What this doesn't do yet
 
 - **The skill now calls `/api/items/upsert` and `/api/items/batch-upsert`.** These replace what would have been `/api/upload` in the old file-based design — the skill calls `batch-upsert` once per full brief generation, and `upsert` again later for a single item's refresh (no separate "patch a file" flow needed anymore, unlike the old `references/section-refresh.md` approach). See `references/item-sync.md`, `references/post-meeting-patch.md`, and `references/section-refresh.md` in the skill repo for the wiring.
-- **Checked-state sync.** `/api/items/<section>/<item_key>/checked` exists and works (tested), but the viewer's frontend still only tracks checked state in browser localStorage, same as the old file-based model. Wiring the frontend to call this endpoint (so checked state follows you across devices) is a deliberate follow-up, not done in this pass.
+- **Checked-state sync.** Done. Checkbox toggles call `/api/items/<section>/<item_key>/checked`, which persists across devices and, for Action Items, mirrors onto the linked Asana task's completed state when `ASANA_PAT` is set (see the section above).
 - **Multi-tenant automation.** This gets each test user a login and isolated data. It does not make the daily-brief *skill* itself multi-user — each person who wants their own automated briefs still needs their own Claude project and their own Drive/Slack/Asana connections. This is the viewer/hosting/storage layer only.
 - **Group-based restriction.** `ALLOWED_GROUPS` is present in `app.py` but inactive, since this test rollout is open to any Camunda tenant user.
 - **Admin panel.** `/admin` lists every signed-in user (sign-up date, active brief count, last-active date) and can rotate any user's token — useful for unblocking a stuck sync without asking them to self-diagnose a 401/403. Gated by `ADMIN_EMAILS` (comma-separated, case-insensitive) in `deployment.yaml`; empty/unset 404s the panel for everyone. Not a secret value, so it's a plain env var rather than a Kubernetes Secret — edit `deployment.yaml` directly and `kubectl -n daily-brief rollout restart deployment/daily-brief-viewer` to pick up a change.
 - **Asana checkbox sync.** Checking or unchecking an Action Item in the viewer PATCHes `/api/items/action-items/{item_key}/checked`, which both persists to Postgres and, when `ASANA_PAT` is set (see `k8s/secret.template.yaml`), PUTs the same completed state to the linked Asana task (item_key is `action-{asana_gid}`, so no lookup is needed). Unset `ASANA_PAT` and the checkbox still persists across devices, it just doesn't reach Asana. Check `asana_pat_set` on the admin panel's deployment status to confirm it's wired up without exposing the token value itself.
+- **In-app setup walkthrough.** First sign-in (`onboarding_completed_at IS NULL` on the `users` row) automatically opens a 5-step modal in the viewer: get your API token, add the daily-brief-mcp-server connector in Claude, install the skill and set `DAILY_BRIEF_API_BASE_URL`, connect data-source MCP connectors, and a few odds and ends (Claude Desktop, Asana/Drive IDs). It calls `/api/onboarding/complete` on finishing so it doesn't reopen automatically, but anyone can reopen it any time via the "Setup" button in the topbar. The walkthrough's copy-paste values (base URL, MCP connector URL) come from `/api/client-config` — the connector URL is the plain `MCP_CONNECTOR_URL` env var below, set to whatever `mcp/DEPLOYMENT.md` (or `mcp/README.md`) says your daily-brief-mcp-server is actually reachable at.
+- **Account panel.** The "Account" button in the topbar shows the signed-in person's own token (with copy) and a "Rotate token" button with inline instructions on what to update afterward (the connector's `Authorization` header) — this is the self-service alternative to having an admin do it from `/admin`.
 - **Image tag pinning.** Currently `:latest` for simplicity during testing.
 - **Schema migrations.** `schema.sql` only runs once, on first Postgres init (see step 4). There's no migration tooling yet for changing the schema after that.

@@ -103,6 +103,41 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 .tl-dot:hover::after{opacity:1;}
 .tl-line{flex:1;height:1px;background:var(--border);min-width:10px;max-width:28px;flex-shrink:0;}
 
+/* ── Modals (setup walkthrough + account panel) ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;}
+.modal-overlay.show{display:flex;}
+.modal{background:var(--surface);border-radius:8px;max-width:540px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,.3);}
+.modal-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--surface);}
+.modal-head h2{font-size:14.5px;font-weight:600;}
+.modal-close{background:none;border:none;font-size:20px;line-height:1;color:var(--t3);cursor:pointer;padding:2px 4px;}
+.modal-close:hover{color:var(--t1);}
+.modal-body{padding:18px;}
+.modal-dots{display:flex;gap:5px;margin-bottom:16px;}
+.modal-dot{flex:1;height:3px;border-radius:99px;background:var(--border);}
+.modal-dot.active,.modal-dot.done{background:var(--accent);}
+.modal-dot.done{opacity:.45;}
+.setup-step{display:none;}
+.setup-step.active{display:block;}
+.setup-step h3{font-size:13px;font-weight:600;margin-bottom:8px;}
+.setup-step p{font-size:12.5px;color:var(--t2);line-height:1.55;margin-bottom:9px;}
+.setup-step ol,.setup-step ul{margin:0 0 9px 18px;font-size:12.5px;color:var(--t2);line-height:1.65;}
+.setup-step code{font-family:ui-monospace,"SF Mono","Cascadia Code",monospace;background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:11px;color:var(--t1);}
+.copy-row{display:flex;gap:6px;margin:8px 0 10px;}
+.copy-input{flex:1;height:32px;padding:0 9px;font-family:ui-monospace,"SF Mono","Cascadia Code",monospace;font-size:11px;background:var(--surface2);border:1px solid var(--border-strong);border-radius:var(--r);color:var(--t1);min-width:0;}
+.copy-btn{height:32px;padding:0 12px;font-size:11.5px;font-weight:500;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t2);cursor:pointer;flex-shrink:0;}
+.copy-btn:hover{background:var(--surface2);color:var(--t1);}
+.copy-btn.copied{color:var(--accent-t);border-color:var(--accent);}
+.modal-foot{padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:var(--surface);}
+.icon-btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
+.account-row{font-size:12.5px;color:var(--t2);margin-bottom:10px;}
+.account-row strong{color:var(--t1);font-weight:600;}
+.account-msg{font-size:11.5px;color:var(--t3);margin-top:8px;min-height:1.2em;}
+.account-msg.ok{color:#2a7a34;}
+[data-theme="dark"] .account-msg.ok{color:#5cc26a;}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .account-msg.ok{color:#5cc26a;}}
+.account-msg.err{color:var(--bad-t);}
+.account-hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
+
 /* ── Status ── */
 .status-bar{display:none;align-items:center;gap:8px;padding:.55rem 1.25rem;font-size:12px;color:var(--t2);background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;}
 .status-bar.show{display:flex;}
@@ -131,6 +166,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
     <button class="icon-btn" id="refresh-btn" onclick="loadBriefList()">Refresh</button>
     <span class="brief-count" id="brief-count"></span>
   </div>
+  <button class="icon-btn" id="setup-btn" onclick="openSetup()" title="Setup guide">Setup</button>
+  <button class="icon-btn" id="account-btn" onclick="openAccount()" title="Account & token">Account</button>
   <button class="mode-btn" id="mode-btn" onclick="toggleMode()" title="Toggle light/dark mode">☀</button>
 </div>
 
@@ -138,6 +175,106 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
   <div class="timeline" id="timeline"></div>
   <span class="timeline-current" id="timeline-current"></span>
 </div>
+
+<div class="modal-overlay" id="setup-overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Daily Brief setup</h2>
+      <button class="modal-close" onclick="closeSetup()" title="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-dots" id="setup-dots"></div>
+
+      <div class="setup-step active" data-step="1">
+        <h3>1. Get your API token</h3>
+        <p>This token is how your daily-brief skill authenticates to sync briefs into this viewer. It's tied to your Camunda sign-in — never share it with anyone else.</p>
+        <div class="copy-row">
+          <input class="copy-input" id="setup-token" readonly value="Loading…">
+          <button class="copy-btn" onclick="copyField('setup-token', this)">Copy</button>
+        </div>
+        <p>Keep this handy — you'll paste it into a connector setting in the next step.</p>
+      </div>
+
+      <div class="setup-step" data-step="2">
+        <h3>2. Add the daily-brief connector in Claude</h3>
+        <p>This is what actually lets your skill push brief items here — Claude's sandboxed tools can't reach this domain directly, so syncing goes through a dedicated MCP connector instead of a plain web request.</p>
+        <ol>
+          <li>In Claude, go to <strong>Settings &rarr; Connectors &rarr; Add custom connector</strong></li>
+          <li>URL:</li>
+        </ol>
+        <div class="copy-row">
+          <input class="copy-input" id="setup-mcp-url" readonly value="Loading…">
+          <button class="copy-btn" onclick="copyField('setup-mcp-url', this)">Copy</button>
+        </div>
+        <ol start="3">
+          <li>Auth type: <strong>static header</strong></li>
+          <li>Header name <code>Authorization</code>, value <code>Bearer &lt;your token from step 1&gt;</code></li>
+        </ol>
+        <p>If this token is ever rotated, update this connector's header with the new value — see the Account panel for rotating.</p>
+      </div>
+
+      <div class="setup-step" data-step="3">
+        <h3>3. Install the daily-brief skill</h3>
+        <p>Add the skill to a Claude project from <a href="https://github.com/aaron-hubbart/daily-brief" target="_blank" rel="noopener">github.com/aaron-hubbart/daily-brief</a> — copy <code>SKILL.md</code> and the <code>references/</code> folder in.</p>
+        <p>Then set this in your local copy's <strong>Admin Config</strong> block at the top of <code>SKILL.md</code>:</p>
+        <div class="copy-row">
+          <input class="copy-input" id="setup-base-url" readonly value="Loading…">
+          <button class="copy-btn" onclick="copyField('setup-base-url', this)">Copy</button>
+        </div>
+        <p>That's <code>DAILY_BRIEF_API_BASE_URL</code> — reference only. Syncing itself goes through the connector from step 2, so there's no token value to store in this file.</p>
+      </div>
+
+      <div class="setup-step" data-step="4">
+        <h3>4. Connect your data sources</h3>
+        <p>The skill pulls from these — enable whichever apply to you under Claude's <strong>Settings &rarr; Connectors</strong>:</p>
+        <ul>
+          <li><strong>Microsoft 365</strong> — Outlook calendar, email, availability</li>
+          <li><strong>Slack</strong> — DMs, channel activity, mentions, posting status updates</li>
+          <li><strong>Zoom</strong> — meeting summaries</li>
+          <li><strong>Asana</strong> — task tracking</li>
+          <li><strong>Google Drive</strong> — meeting run log sheet and status-update cache</li>
+        </ul>
+        <p>Only connect what you actually use — the skill flags a source as "not found" rather than failing when one isn't hooked up.</p>
+      </div>
+
+      <div class="setup-step" data-step="5">
+        <h3>5. A few other things</h3>
+        <ul>
+          <li><strong>Claude Desktop</strong>, if you want the <code>claude://</code> refresh and meeting-manager deep links in your briefs to work</li>
+          <li>Your own Asana recurring-activities project GID (<code>RECURRING_ACTIVITIES_PROJECT_GID</code>) and a Drive sheet for the meeting run log (<code>MEETING_RUN_LOG_SHEET_ID</code>) — set these in Admin Config as you go</li>
+          <li>See the skill repo's <code>README.md</code> for the full prerequisites list</li>
+        </ul>
+        <p>Once your skill runs once, your brief shows up here automatically. Run <code>/daily-brief</code> in Claude any time to generate one — you're all set.</p>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="icon-btn" id="setup-back" onclick="setupStep(-1)">Back</button>
+      <button class="icon-btn primary" id="setup-next" onclick="setupStep(1)">Next</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="account-overlay">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-head">
+      <h2>Account &amp; API token</h2>
+      <button class="modal-close" onclick="closeAccount()" title="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="account-row">Signed in as <strong id="account-email">…</strong></div>
+      <div class="copy-row">
+        <input class="copy-input" id="account-token" readonly value="Loading…">
+        <button class="copy-btn" onclick="copyField('account-token', this)">Copy</button>
+      </div>
+      <button class="icon-btn" id="account-rotate" onclick="rotateToken()">Rotate token</button>
+      <p style="font-size:11.5px;color:var(--t3);margin-top:10px;line-height:1.5;">Rotating invalidates your current token immediately. Afterward, update the <code>Authorization</code> header on your daily-brief-mcp-server connector (Claude Settings &rarr; Connectors) with the new value — your skill can't sync again until you do.</p>
+      <div class="account-msg" id="account-msg"></div>
+      <hr class="account-hr">
+      <button class="icon-btn" onclick="closeAccount(); openSetup(true);">Replay setup guide</button>
+    </div>
+  </div>
+</div>
+
 
 <div class="status-bar" id="status-bar">
   <div class="spinner" id="spinner"></div>
@@ -931,8 +1068,143 @@ document.getElementById('brief-select').addEventListener('change', function() {
   if (!isNaN(i)) selectBrief(i);
 });
 
+// ── Setup walkthrough + Account panel ──────────────────────────────
+
+let clientConfig = null; // {api_base_url, mcp_connector_url} — cached after first fetch
+let setupStepIndex = 1;
+const SETUP_STEP_COUNT = 5;
+
+async function getClientConfig() {
+  if (clientConfig) return clientConfig;
+  try {
+    const res = await fetch('api/client-config');
+    clientConfig = await res.json();
+  } catch (e) {
+    clientConfig = { api_base_url: null, mcp_connector_url: null };
+  }
+  return clientConfig;
+}
+
+function renderSetupDots() {
+  const dots = document.getElementById('setup-dots');
+  dots.innerHTML = '';
+  for (let i = 1; i <= SETUP_STEP_COUNT; i++) {
+    const d = document.createElement('div');
+    d.className = 'modal-dot' + (i === setupStepIndex ? ' active' : i < setupStepIndex ? ' done' : '');
+    dots.appendChild(d);
+  }
+}
+
+function renderSetupStep() {
+  document.querySelectorAll('.setup-step').forEach(el => {
+    el.classList.toggle('active', parseInt(el.dataset.step, 10) === setupStepIndex);
+  });
+  renderSetupDots();
+  document.getElementById('setup-back').style.visibility = setupStepIndex === 1 ? 'hidden' : 'visible';
+  document.getElementById('setup-next').textContent = setupStepIndex === SETUP_STEP_COUNT ? 'Done' : 'Next';
+}
+
+async function setupStep(delta) {
+  if (delta > 0 && setupStepIndex === SETUP_STEP_COUNT) {
+    await fetch('api/onboarding/complete', { method: 'POST' }).catch(() => {});
+    closeSetup();
+    return;
+  }
+  setupStepIndex = Math.min(SETUP_STEP_COUNT, Math.max(1, setupStepIndex + delta));
+  renderSetupStep();
+}
+
+async function openSetup(fromReplay) {
+  setupStepIndex = 1;
+  renderSetupStep();
+  document.getElementById('setup-overlay').classList.add('show');
+
+  fetch('api/token').then(r => r.json()).then(d => {
+    document.getElementById('setup-token').value = d.token || '(unavailable)';
+  }).catch(() => { document.getElementById('setup-token').value = '(unavailable)'; });
+
+  const cfg = await getClientConfig();
+  document.getElementById('setup-base-url').value = cfg.api_base_url || '(unavailable)';
+  document.getElementById('setup-mcp-url').value = cfg.mcp_connector_url || '(ask your admin for this URL)';
+}
+
+function closeSetup() {
+  document.getElementById('setup-overlay').classList.remove('show');
+}
+
+async function openAccount() {
+  document.getElementById('account-overlay').classList.add('show');
+  document.getElementById('account-msg').className = 'account-msg';
+  document.getElementById('account-msg').textContent = '';
+
+  try {
+    const res = await fetch('api/token');
+    const d = await res.json();
+    document.getElementById('account-email').textContent = d.email || '';
+    document.getElementById('account-token').value = d.token || '(unavailable)';
+  } catch (e) {
+    document.getElementById('account-token').value = '(unavailable)';
+  }
+}
+
+function closeAccount() {
+  document.getElementById('account-overlay').classList.remove('show');
+}
+
+async function rotateToken() {
+  if (!confirm('Rotate your API token? Your current token stops working immediately — update your daily-brief-mcp-server connector\'s Authorization header with the new value before your skill can sync again.')) {
+    return;
+  }
+  const msg = document.getElementById('account-msg');
+  msg.className = 'account-msg';
+  msg.textContent = 'Rotating…';
+  try {
+    const res = await fetch('api/token/rotate', { method: 'POST' });
+    if (!res.ok) throw new Error('status ' + res.status);
+    const d = await res.json();
+    document.getElementById('account-token').value = d.token;
+    msg.className = 'account-msg ok';
+    msg.textContent = 'Token rotated. Update your connector\'s Authorization header with this new value now.';
+  } catch (e) {
+    msg.className = 'account-msg err';
+    msg.textContent = 'Could not rotate token — try again in a moment.';
+  }
+}
+
+function copyField(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const finish = () => {
+    const original = btn.textContent;
+    btn.textContent = 'Copied';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1400);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(input.value).then(finish).catch(() => {
+      input.select();
+      document.execCommand('copy');
+      finish();
+    });
+  } else {
+    input.select();
+    document.execCommand('copy');
+    finish();
+  }
+}
+
+async function checkOnboarding() {
+  try {
+    const res = await fetch('api/whoami');
+    const d = await res.json();
+    if (!d.onboarding_completed) openSetup();
+  } catch (e) {
+    // Fails open — no walkthrough rather than blocking the viewer over it.
+  }
+}
+
 initMode();
 loadBriefList();
+checkOnboarding();
 </script>
 </body>
 </html>

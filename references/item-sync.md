@@ -53,38 +53,21 @@ The webapp renders a "Post to Slack" button on each Customer Update card (`https
 
 ### Auth token
 
-`DAILY_BRIEF_API_TOKEN_FILE_ID` (Admin Config) points at a Drive file containing `{"email": "...", "token": "..."}`, saved from `DAILY_BRIEF_API_BASE_URL/api/token`. Read the token from that file at the start of a run (`Google Drive: read_file_content`, parse JSON, use the `token` field) rather than ever asking the person to paste the raw token in chat, or storing it as a literal value anywhere in `SKILL.md`. If the file can't be read (missing, permissions, malformed JSON), treat it the same as a sync failure — see Error handling below — and ask the person for the Drive file ID of a current token export, not for the token text itself.
+Item sync goes through the **daily-brief-mcp-server** custom connector, not a direct HTTP call from this skill — Claude's sandboxed bash tool only has network egress to a fixed allowlist that doesn't include the webapp's domain, so a `curl` from here would just fail. The connector is a separate network path: Anthropic's cloud infrastructure calls it directly, and it forwards to `DAILY_BRIEF_API_BASE_URL` on the connector owner's behalf. Each person adds this connector themselves (Settings > Connectors > Add custom connector) with their own `DAILY_BRIEF_API_BASE_URL/api/token` value as the static `Authorization: Bearer` header — there's nothing for the skill itself to read, store, or manage.
 
 ### API calls
 
-Auth: every call carries `Authorization: Bearer {token read from DAILY_BRIEF_API_TOKEN_FILE_ID}`. Base URL is `$DAILY_BRIEF_API_BASE_URL` (e.g. `https://dashboard.es-sandbox.com/daily-brief`).
+Two MCP tools, both provided by the daily-brief-mcp-server connector once it's added:
 
-**Full brief run — one `batch-upsert` call for the whole day's items:** (`$DAILY_BRIEF_API_TOKEN` here is the value read from the Drive file, exported into the shell for this call — never typed or stored literally.)
+- **`daily_brief_batch_upsert_items`** — one call per full brief run, for the whole day's items. Arguments: `{brief_date, brief_type, items: [...]}`, same item shape as above (each entry minus `brief_date`, which applies to the whole batch).
+- **`daily_brief_upsert_item`** — one call per single-item patch (post-meeting-patch, section-refresh). Arguments are the full per-item shape above, including `brief_date` directly.
 
-```bash
-curl -sS -X POST "$DAILY_BRIEF_API_BASE_URL/api/items/batch-upsert" \
-  -H "Authorization: Bearer $DAILY_BRIEF_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  --data-binary @/tmp/batch_upsert.json
-```
-
-Write the payload to a temp file first rather than passing it inline with `-d` — a full day's items (meetings, recap, action items, seven-plus account cards) is large enough that this avoids shell-escaping problems, same reasoning as large GitHub file pushes elsewhere in this workflow. Payload shape: `{"brief_date": "YYYY-MM-DD", "brief_type": "morning"|"midday"|"evening", "items": [...]}` where each entry in `items` is the per-item shape above (minus `brief_date`, which applies to the whole batch).
-
-**Patch a single item — `upsert` call** (post-meeting-patch, section-refresh). Same `$DAILY_BRIEF_API_TOKEN` sourcing as above.
-
-```bash
-curl -sS -X POST "$DAILY_BRIEF_API_BASE_URL/api/items/upsert" \
-  -H "Authorization: Bearer $DAILY_BRIEF_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"brief_date": "2026-07-20", "section": "yesterday-meetings", "item_key": "ym-0900-acmefin-triage", "item_type": "checkable", "title": "...", "subtitle": "...", "links": [...], "checked": false}'
-```
-
-Same shape as one entry from the batch call, with `brief_date` included directly in the body.
+Call these the same way as any other MCP tool available in the conversation — no separate auth step, no token to source or export; the connector already carries the caller's own bearer token on every request.
 
 ### Error handling
 
-If a sync call fails (network error, non-2xx response), don't block or retry the in-chat response — note briefly in the brief output that the sync to the viewer didn't complete, and why if known. A 401/403 usually means the token was rotated: ask the person to sign in at `$DAILY_BRIEF_API_BASE_URL/api/token`, save the resulting JSON to a Drive file, and give you that file's ID — read the new token from it and update `DAILY_BRIEF_API_TOKEN_FILE_ID` in Admin Config. Never ask for the token text itself. The in-chat response is the reliable fallback either way.
+If a sync call fails, don't block or retry the in-chat response — note briefly in the brief output that the sync to the viewer didn't complete, and why if known. A 401/403 (`Error: daily-brief API returned 401`) means the token in the connector's header is stale, most often because it was rotated: ask the person to sign in at `$DAILY_BRIEF_API_BASE_URL/api/token` for the current value, then update the Authorization header on their daily-brief-mcp-server connector (Settings > Connectors in Claude) — never ask for the token to be pasted into this conversation. The in-chat response is the reliable fallback either way.
 
 ### Repo hygiene
 
-Never commit a real token value, a real `DAILY_BRIEF_API_TOKEN_FILE_ID`, real payload content (real names, meeting titles, account data), or this skill's local Admin Config values to the public repo. The `example/` folder is for sanitized demo content only, with fictional names and companies (e.g. "Acme Financial", "Pinnacle Health", "Meridian Bank") — never real account names, email addresses, Slack user IDs, Asana GIDs, Zoom meeting IDs, or calendar event IDs.
+Never commit a real token value, real payload content (real names, meeting titles, account data), or this skill's local Admin Config values to the public repo. The `example/` folder is for sanitized demo content only, with fictional names and companies (e.g. "Acme Financial", "Pinnacle Health", "Meridian Bank") — never real account names, email addresses, Slack user IDs, Asana GIDs, Zoom meeting IDs, or calendar event IDs.

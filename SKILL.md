@@ -35,14 +35,15 @@ This file is the core: trigger, timing, and what to pull. Three things are delib
 Configure these in your local copy (not committed here, since they're account-specific):
 
 ```
-DAILY_BRIEF_API_BASE_URL: <base URL of your hosted daily-brief webapp, e.g. https://dashboard.es-sandbox.com/daily-brief>
-DAILY_BRIEF_API_TOKEN_FILE_ID: <Drive file ID of a JSON file {"email": "...", "token": "..."} saved from DAILY_BRIEF_API_BASE_URL/api/token — read the token from this file at runtime, never store the raw token value in this block>
+DAILY_BRIEF_API_BASE_URL: <base URL of your hosted daily-brief webapp, e.g. https://dashboard.es-sandbox.com/daily-brief — display/reference only, item sync itself goes through the daily-brief-mcp-server connector below, not a direct call from here>
 MEETING_RUN_LOG_SHEET_ID: <your meeting-manager run log sheet ID>
 RECURRING_ACTIVITIES_PROJECT_GID: <your Asana recurring-activities project GID>
 STATUS_UPDATE_CACHE_FILE_ID: <Drive file ID of the Section 3/4 daily cache JSON — see references/status-updates.md>
 SKILL_SOURCE_SHA: <maintained automatically by the Skill Sync Check below>
 SYNC_CHECK_LAST_RUN: <ISO timestamp of the last time the Skill Sync Check actually hit the GitHub API — maintained automatically>
 ```
+
+No API token lives in this file. Item sync authenticates via the daily-brief-mcp-server custom connector (add it under Settings > Connectors in Claude, with your own token from `DAILY_BRIEF_API_BASE_URL/api/token` as the connector's static `Authorization: Bearer` header) — see `references/item-sync.md`. This isn't a style preference: Claude's sandboxed bash tool can't reach the webapp's domain directly (fixed network egress allowlist), so a direct curl call from this skill would just fail; the connector is a separate network path that Anthropic's cloud infrastructure calls on the skill's behalf.
 
 ---
 
