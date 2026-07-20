@@ -41,11 +41,6 @@ spec:
                 secretKeyRef:
                   name: daily-brief-secrets
                   key: AZURE_TENANT_ID
-            - name: UPLOAD_TOKENS
-              valueFrom:
-                secretKeyRef:
-                  name: daily-brief-secrets
-                  key: UPLOAD_TOKENS
             # Plain value, not a secret — matches the dashboard app's own
             # pattern of keeping the redirect URI as a visible env value.
             # Includes the /daily-brief prefix this app is mounted at (see

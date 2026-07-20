@@ -40,13 +40,14 @@ kubectl create secret generic daily-brief-secrets \
   --from-literal=FLASK_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')" \
   --from-literal=AZURE_CLIENT_ID="<from the app registration>" \
   --from-literal=AZURE_CLIENT_SECRET="<from the app registration>" \
-  --from-literal=AZURE_TENANT_ID="<Camunda's tenant ID>" \
-  --from-literal=UPLOAD_TOKENS='{"<generate-a-token>":"aaron.hubbart@camunda.com"}'
+  --from-literal=AZURE_TENANT_ID="<Camunda's tenant ID>"
 ```
 
-Never `kubectl apply -f k8s/*.template.yaml` directly — those are references for which keys exist, not something to fill in and apply. Generate tokens the same way as the secret keys above (`python3 -c "import secrets; print(secrets.token_hex(32))"` or `token_urlsafe`).
+Never `kubectl apply -f k8s/*.template.yaml` directly — those are references for which keys exist, not something to fill in and apply.
 
 `postgres-credentials` is the single source of truth for the DB connection — both the Postgres StatefulSet and the app Deployment read from it (the app builds `DATABASE_URL` from these three values via Kubernetes' `$(VAR)` env interpolation, so there's nothing to keep in sync by hand between the two).
+
+There's no `UPLOAD_TOKENS` secret anymore — each person's API token now lives in Postgres and is assigned automatically the first time they sign in through the browser. See step 8.
 
 ## 4. Postgres
 
@@ -62,6 +63,16 @@ kubectl -n daily-brief rollout status statefulset/postgres
 ```
 
 The `postgres-schema` ConfigMap is mounted at `/docker-entrypoint-initdb.d/` — the official Postgres image auto-runs any `.sql` files there, but **only the very first time it initializes an empty data directory**. If you change `schema.sql` later, re-creating this ConfigMap and restarting the pod won't re-apply it — that needs a real migration step (`kubectl exec` into the pod and run the new SQL by hand, or a proper migration tool, once there's a second schema change to make).
+
+**If Postgres is already running from a previous deploy** (true as of the `api_token` column being added — anyone who stood this up before that change needs this): apply the migration by hand once, against the running database:
+
+```bash
+kubectl exec -i -n daily-brief postgres-0 -- \
+  psql -U dailybrief -d dailybrief < viewer/webapp/db/migrations/001_add_api_token.sql
+```
+
+Safe to run more than once. Existing users don't need a separate backfill step — `db.get_or_create_user` assigns each of them a token automatically the next time they sign in (see step 8).
+
 
 ## 5. The app
 
@@ -102,19 +113,17 @@ kubectl -n daily-brief logs deploy/daily-brief-viewer --tail=50
 
 ## 8. Roll out to test users
 
-Any Camunda tenant account can already sign in once the above is live — nothing extra to configure per person for viewing itself. Two things do need a per-person step:
+This is now fully self-service — no `kubectl` step per person:
 
-- **Viewing**: nothing extra. They visit the URL and sign in; their `users` row is created automatically on first sign-in (or on the first item their own skill upserts, whichever happens first).
-- **Getting their own reports in**: each person who wants their own daily-brief skill pushing items here needs an entry in `UPLOAD_TOKENS` (a token mapped to their email) and their own copy of the daily-brief skill configured with that token. To add one without wiping existing tokens:
-  ```bash
-  kubectl get secret daily-brief-secrets -n daily-brief -o jsonpath='{.data.UPLOAD_TOKENS}' | base64 -d
-  # edit the JSON to add the new person, then:
-  kubectl create secret generic daily-brief-secrets -n daily-brief \
-    --from-literal=UPLOAD_TOKENS='<the edited JSON>' \
-    --dry-run=client -o yaml | kubectl apply -f -
-  kubectl -n daily-brief rollout restart deployment/daily-brief-viewer
-  ```
-  Signing in to view and having reports show up are two separate things — a test user can sign in today and see an empty state until either they get an upload token and their own skill upserts some items, or you manually insert a test row for a quick look (see `db/README.md`'s schema for the shape).
+1. **They sign in.** Visit the URL, sign in with any `@camunda.com` account. `db.get_or_create_user` creates their `users` row and assigns them a random `api_token` in that same call — nothing for you to provision.
+2. **They grab their token.** While signed in, visiting `/daily-brief/api/token` in the browser returns `{"token": "...", "email": "..."}`. That's the value they put in their own copy of the daily-brief skill's Admin Config to authenticate `/api/items/upsert` and `/api/items/batch-upsert` calls.
+3. **Their skill starts pushing items**, and their brief shows up next time they load the viewer.
+
+If someone's token ever leaks or they just want a fresh one, `POST /daily-brief/api/token/rotate` (while signed in) issues a new one and immediately invalidates the old one.
+
+**Ordering matters**: a token only exists once someone has signed in through the browser at least once — there's no way to provision a token for an email that's never authenticated, since Azure AD sign-in is the only trusted identity check in this system. A new person's sequence is always sign in first, then configure their skill, never the other way around.
+
+Signing in and having reports show up are still two separate things — a person can sign in today and see an empty state until either their own skill upserts some items using their token, or you manually insert a test row for a quick look (see `db/README.md`'s schema for the shape).
 
 ## Updating the deployed image later
 

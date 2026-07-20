@@ -9,6 +9,7 @@ need to think about yet.
 """
 import json
 import os
+import secrets
 from contextlib import contextmanager
 
 import psycopg2
@@ -51,17 +52,65 @@ def cursor(commit=False):
         cur.close()
 
 
-def get_or_create_user(email: str, slug: str) -> int:
+def get_or_create_user(email: str, slug: str) -> dict:
+    """
+    Called from the Azure AD sign-in callback. Creates the user row on
+    first sign-in and — this is what makes new-user setup automatic —
+    assigns a random api_token at the same time, with no admin step
+    required. Returns {'id': ..., 'api_token': ...}.
+    """
     with cursor(commit=True) as cur:
         cur.execute(
             """
             INSERT INTO users (email, slug) VALUES (%s, %s)
             ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
-            RETURNING id
+            RETURNING id, api_token
             """,
             (email, slug),
         )
-        return cur.fetchone()['id']
+        row = cur.fetchone()
+
+    if row['api_token'] is None:
+        # Either a brand-new user, or an existing one from before api_token
+        # existed (see migrations/001_add_api_token.sql) — assign one now.
+        # COALESCE makes this race-safe: if two requests hit this for the
+        # same user at once, only one write actually takes effect and both
+        # end up returning that same value.
+        token = secrets.token_hex(32)
+        with cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE users SET api_token = COALESCE(api_token, %s) WHERE id = %s RETURNING api_token",
+                (token, row['id']),
+            )
+            row['api_token'] = cur.fetchone()['api_token']
+
+    return row
+
+
+def get_user_by_token(token: str):
+    with cursor() as cur:
+        cur.execute("SELECT id, email, slug, api_token FROM users WHERE api_token = %s", (token,))
+        return cur.fetchone()
+
+
+def get_user_token(user_id: int) -> str:
+    with cursor() as cur:
+        cur.execute("SELECT api_token FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        return row['api_token'] if row else None
+
+
+def rotate_user_token(user_id: int) -> str:
+    """Invalidates the old token and assigns a new one. The old token stops
+    working immediately — whatever's using it (the person's skill config)
+    needs updating with the new value."""
+    new_token = secrets.token_hex(32)
+    with cursor(commit=True) as cur:
+        cur.execute(
+            "UPDATE users SET api_token = %s WHERE id = %s RETURNING api_token",
+            (new_token, user_id),
+        )
+        return cur.fetchone()['api_token']
 
 
 def list_active_briefs(user_id: int) -> list:
