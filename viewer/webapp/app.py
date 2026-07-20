@@ -44,7 +44,11 @@ from flask import Flask, Response, abort, jsonify, redirect, request, send_from_
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 APP_DIR = Path(__file__).resolve().parent
-VIEWER_HTML_DIR = APP_DIR.parent  # viewer/daily-brief-viewer.html — reused as-is
+# In the VM deployment, app.py lives at viewer/webapp/app.py and the shared
+# daily-brief-viewer.html sits one level up at viewer/. The container image
+# flattens both into /app/ directly (see Dockerfile), so this is overridable
+# rather than hardcoded to the VM's directory nesting.
+VIEWER_HTML_DIR = Path(os.environ.get('VIEWER_HTML_DIR', str(APP_DIR.parent)))
 DATA_ROOT = APP_DIR / 'data'      # data/{user-slug}/Daily Brief_*.html
 
 BRIEF_RE = re.compile(r'^Daily Brief_\d{4}-\d{2}-\d{2}', re.IGNORECASE)

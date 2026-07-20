@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: daily-brief-viewer
+  namespace: daily-brief
+  labels:
+    app: daily-brief-viewer
+spec:
+  replicas: 1
+  # The data PVC below is ReadWriteOnce — a RollingUpdate could try to
+  # schedule the new pod before the old one releases the volume, and fail
+  # to mount. Recreate avoids that at the cost of a few seconds of downtime
+  # per deploy, which is fine for a single-replica personal-scale app.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: daily-brief-viewer
+  template:
+    metadata:
+      labels:
+        app: daily-brief-viewer
+    spec:
+      volumes:
+        - name: daily-brief-data
+          persistentVolumeClaim:
+            claimName: daily-brief-data
+      containers:
+        - name: daily-brief-viewer
+          image: gcr.io/tam-aaron-hubbart/daily-brief-viewer:latest
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - name: daily-brief-data
+              mountPath: /app/data
+          env:
+            - name: FLASK_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: daily-brief-secrets
+                  key: FLASK_SECRET_KEY
+            - name: AZURE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: daily-brief-secrets
+                  key: AZURE_CLIENT_ID
+            - name: AZURE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: daily-brief-secrets
+                  key: AZURE_CLIENT_SECRET
+            - name: AZURE_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: daily-brief-secrets
+                  key: AZURE_TENANT_ID
+            - name: UPLOAD_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: daily-brief-secrets
+                  key: UPLOAD_TOKENS
+            # Plain value, not a secret — matches the dashboard app's own
+            # pattern of keeping the redirect URI as a visible env value.
+            # Includes the /daily-brief prefix this app is mounted at (see
+            # ingress.yaml) — must exactly match the Redirect URI registered
+            # on the app registration in the Azure Portal.
+            - name: AZURE_REDIRECT_URI
+              value: "https://dashboard.es-sandbox.com/daily-brief/auth/callback"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 30

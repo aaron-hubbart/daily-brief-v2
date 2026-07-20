@@ -83,10 +83,11 @@ If you're upgrading from an older copy of this viewer where brief files sat dire
 `viewer/webapp/` is a separate, hosted, multi-user alternative to the local single-user viewer above — a small Flask app that does its own Azure AD (Entra ID) sign-in against Camunda's tenant, so more than one person can sign in and each only ever sees their own briefs. It doesn't replace `viewer/server.py`; it's built to run alongside an existing app on the same host, reachable at a sub-path of `dashboard.es-sandbox.com` (e.g. `/daily-brief/`) behind nginx.
 
 - `viewer/webapp/app.py` — MSAL-based OAuth 2.0 authorization code flow against Camunda's Azure AD tenant; identity lives in a signed session cookie, never a raw token. Isolates each signed-in user's brief files under `data/{user-slug}/`. Exposes a separate bearer-token-authenticated `/api/upload` endpoint for the skill to push reports directly (the skill runs headless and can't complete an interactive sign-in).
-- `viewer/webapp/DEPLOYMENT.md` — full walkthrough: finishing the app registration, server setup, systemd, and the nginx sub-path config to add alongside your existing site.
-- `viewer/webapp/.env.example`, `gunicorn.conf.py`, `nginx.conf.example`, `daily-brief-viewer.service.example` — copy and fill in for your actual paths/values; none of the real ones are committed.
+- `viewer/webapp/DEPLOYMENT.md` — VM/nginx/systemd walkthrough: finishing the app registration, server setup, systemd, and the nginx sub-path config to add alongside your existing site.
+- `viewer/webapp/k8s/` + `viewer/webapp/k8s/README.md` — Kubernetes (GKE) deployment: Dockerfile, Cloud Build config, and manifests mirroring the existing `dashboard.es-sandbox.com` app's pattern (nginx-ingress, cert-manager, its own namespace and PVC). Use this if your cluster already runs that stack, which is the actual deployment target as of the latest round of changes here.
+- `viewer/webapp/.env.example`, `gunicorn.conf.py` / `gunicorn.k8s.conf.py`, `nginx.conf.example`, `daily-brief-viewer.service.example` — copy and fill in for your actual paths/values; none of the real ones are committed.
 
-See `DEPLOYMENT.md` for what's still a manual/follow-up step (wiring the skill's delivery step to actually call `/api/upload`, and true multi-tenant support for the underlying automation, not just the viewer login).
+See `k8s/README.md` (Kubernetes) or `DEPLOYMENT.md` (VM) for what's still a manual/follow-up step (wiring the skill's delivery step to actually call `/api/upload`, and true multi-tenant support for the underlying automation, not just the viewer login).
 
 ## Configuration
 
