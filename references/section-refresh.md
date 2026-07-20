@@ -1,6 +1,6 @@
 # Section Refresh Runs
 
-Not part of the normal brief trigger. Read this file when a Customer Update or Manager Update card's Refresh button is clicked (arrives as a new chat message via the `claude://` deep link — see `references/item-sync.md`, Customer Updates / Manager Update) or when the user directly types an equivalent request: "refresh the AcmeFin update," "regenerate manager update," "the Zebra Financial card is stale, redo it." This patches one card via a single-item upsert. It does not run a full brief and does not touch any other card, section, or item.
+Not part of the normal brief trigger. Read this file whenever any viewer Refresh button is clicked (arrives as a new chat message via the `claude://` deep link) or the user directly types an equivalent request. Two flavors, covered in order below: a single Customer Update / Manager Update card (`/daily-brief Refresh customer update for {Account Name}` / `/daily-brief Refresh manager update`), or a whole section's Refresh button (`/daily-brief Refresh {Section Label}`, covered further down). Neither flavor runs a full brief or touches anything outside its own target.
 
 ## Trigger phrases
 
@@ -19,3 +19,23 @@ Not part of the normal brief trigger. Read this file when a Customer Update or M
 6. **Respond briefly.** One line confirming which card refreshed, plus a link to `$DAILY_BRIEF_API_BASE_URL/brief/{brief_date}`. Don't reproduce the new card's content in chat — the person can read it in the viewer, same rule as a normal brief run.
 
 If the Refresh click arrives well after the day's brief was first generated, that's expected and fine — this flow only ever touches the one card, so staleness elsewhere is not this flow's concern.
+
+## Section-level refresh (the other five sections)
+
+The viewer's other five sections (Yesterday's Meetings, Account / Initiative Recap, Today, Action Items, FYI) each have their own section-header Refresh button. Read this part when one of those arrives as `/daily-brief Refresh {Section Label}` via the `claude://` deep link, or an equivalent typed request: "refresh today," "redo action items," "the yesterday's meetings section is stale, rerun it."
+
+This is a whole-section regeneration, not a single-item patch — there's no per-account cache involved here (that's specific to Customer Updates/Manager Update), so it always does a fresh pull.
+
+### Trigger phrases
+
+`/daily-brief Refresh {label}` where `{label}` is one of: `Yesterday's Meetings`, `Account / Initiative Recap`, `Today`, `Action Items`, `FYI` — the exact labels the buttons send. Match close variations the same way as above.
+
+### Steps
+
+1. **Identify the target section** from the five slugs above.
+2. **Determine `brief_date`** the same way as a normal run (today's local date per Timezone Resolution in `SKILL.md`).
+3. **Re-run that section's normal data pull and generation logic only** — the same source calls and item shape described in `references/item-sync.md`'s per-section notes for that slug (e.g. Outlook + Zoom + Asana for Yesterday's Meetings, Asana search/create for Action Items). Skip every other section's data sources entirely; this is the whole point of a section-level refresh over a full brief run.
+4. **Batch-upsert only this section's items.** `POST $DAILY_BRIEF_API_BASE_URL/api/items/batch-upsert` with `brief_date` and an `items` array containing only entries for the refreshed section, using the same `item_key` conventions from `references/item-sync.md` so existing rows are updated in place rather than duplicated. Items in every other section are untouched by definition, since each row is addressed by its own `(section, item_key)`.
+5. **Respond briefly.** One line confirming which section refreshed, plus a link to `$DAILY_BRIEF_API_BASE_URL/brief/{brief_date}`. Same no-reproduction rule as a normal brief run and the card-level refresh above.
+
+A caveat worth naming for **Action Items** specifically: re-running its Asana search/create step could pick up genuinely new action items that weren't part of the original run (e.g. from a meeting that just ended) — that's expected and desirable, not a bug. It does not touch or duplicate any task already represented by an existing `action-{asana_gid}` item.

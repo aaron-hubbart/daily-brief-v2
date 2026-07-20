@@ -72,6 +72,9 @@ details.sec>.sec-body{padding:4px 14px 10px;}
 .foot-note{font-size:11px;color:var(--t3);}
 .reset-btn{font-size:11px;color:var(--t3);background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--border-strong);padding:0;}
 .reset-btn:hover{color:var(--t2);}
+.sec-refresh{font-size:10px;font-weight:600;letter-spacing:.03em;text-transform:none;padding:2px 7px;border-radius:99px;border:.5px solid var(--border-strong);color:var(--t3);background:var(--surface);cursor:pointer;text-decoration:none;margin-left:8px;white-space:nowrap;}
+.sec-refresh:hover{color:var(--t2);filter:brightness(.95);}
+.sec-summary-right{display:flex;align-items:center;}
 </style>
 </head>
 <body>
@@ -94,7 +97,12 @@ details.sec>.sec-body{padding:4px 14px 10px;}
   <details class="sec" data-section="{{ section.slug }}" {% if section.open_default %}open{% endif %}>
     <summary class="sec-summary">
       <span class="sec-label">{{ section.label }}</span>
-      <span class="sec-count">{{ section.count_label }}</span>
+      <span class="sec-summary-right">
+        <span class="sec-count">{{ section.count_label }}</span>
+        {% if section.slug not in ('customer-updates', 'manager-update') %}
+        <a class="sec-refresh" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh ' + section.label)|urlencode }}" target="_blank" title="Regenerate this section only" onclick="event.stopPropagation(); event.preventDefault(); window.open(this.href, '_blank');">Refresh</a>
+        {% endif %}
+      </span>
     </summary>
     <div class="sec-body">
       {% if section.slug == 'fyi' %}

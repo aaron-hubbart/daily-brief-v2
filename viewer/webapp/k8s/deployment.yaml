@@ -48,6 +48,13 @@ spec:
             # on the app registration in the Azure Portal.
             - name: AZURE_REDIRECT_URI
               value: "https://dashboard.es-sandbox.com/daily-brief/auth/callback"
+            # Plain value, not a secret (just an allowlist of email
+            # addresses) — comma-separated emails allowed to reach /admin.
+            # Unset (empty) disables the admin panel entirely. Edit this
+            # value directly and re-apply/rollout-restart to change it;
+            # not worth a Secret for something this low-sensitivity.
+            - name: ADMIN_EMAILS
+              value: ""
             # Built from postgres-credentials via $(VAR) interpolation
             # (supported natively by Kubernetes for env vars defined earlier
             # in the same list) rather than duplicating the connection

@@ -102,6 +102,13 @@ AZURE_REDIRECT_URI = _require_env('AZURE_REDIRECT_URI')
 _allowed_groups_raw = os.environ.get('ALLOWED_GROUPS', '').strip()
 ALLOWED_GROUPS = {g.strip() for g in _allowed_groups_raw.split(',') if g.strip()} if _allowed_groups_raw else None
 
+# Optional, inactive unless set — comma-separated emails allowed to reach
+# /admin and its API. Same shape as ALLOWED_GROUPS: leave unset and the
+# admin routes 404 for everyone rather than silently exposing an empty
+# panel. Case-insensitive since Azure AD UPNs aren't guaranteed one case.
+_admin_emails_raw = os.environ.get('ADMIN_EMAILS', '').strip()
+ADMIN_EMAILS = {e.strip().lower() for e in _admin_emails_raw.split(',') if e.strip()} if _admin_emails_raw else None
+
 AZURE_AUTHORITY = f'https://login.microsoftonline.com/{AZURE_TENANT_ID}'
 GRAPH_SCOPES = []  # no Graph calls made — sign-in identity only, nothing to scope
 
@@ -202,6 +209,18 @@ def login_required(view):
             session['post_login_redirect'] = request.script_root + request.path
             return redirect(url_for('login'))
         request.brief_user = user
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def admin_required(view):
+    """Stacks on top of login_required (apply login_required first/outer).
+    If ADMIN_EMAILS is unset, every admin route 404s for everyone — there's
+    no "admin panel open to any signed-in user" fallback state."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if ADMIN_EMAILS is None or request.brief_user['email'].lower() not in ADMIN_EMAILS:
+            abort(404)
         return view(*args, **kwargs)
     return wrapped
 
@@ -344,6 +363,54 @@ def api_token_rotate():
     working immediately; whatever skill config used it needs updating."""
     new_token = db.rotate_user_token(request.brief_user['id'])
     return jsonify({'token': new_token})
+
+
+@app.route('/admin')
+@login_required
+@admin_required
+def admin_page():
+    return render_template('admin.html', admin_email=request.brief_user['email'])
+
+
+@app.route('/api/admin/users')
+@login_required
+@admin_required
+def admin_list_users():
+    return jsonify(db.list_users_with_stats())
+
+
+@app.route('/api/admin/users/<int:user_id>/rotate-token', methods=['POST'])
+@login_required
+@admin_required
+def admin_rotate_user_token(user_id):
+    """Rotates another user's token from the admin panel — for troubleshooting
+    a stuck sync (401/403 from the skill) without asking the person to find
+    and revisit /api/token themselves. Whoever's token this is needs their
+    skill's Admin Config (DAILY_BRIEF_API_TOKEN_FILE_ID's Drive file) updated
+    with the new value before their next brief run — this only invalidates
+    the old one, it doesn't push the new one anywhere."""
+    user = db.get_user_by_id(user_id)
+    if not user:
+        abort(404)
+    new_token = db.rotate_user_token(user_id)
+    return jsonify({'email': user['email'], 'token': new_token})
+
+
+@app.route('/api/admin/config')
+@login_required
+@admin_required
+def admin_config_status():
+    """Presence checks only — never the actual secret values — so an admin
+    can confirm a deployment's env vars are wired up without this becoming
+    a way to read secrets out of the running pod."""
+    return jsonify({
+        'azure_tenant_id_set': bool(AZURE_TENANT_ID),
+        'azure_client_id_set': bool(AZURE_CLIENT_ID),
+        'azure_redirect_uri': AZURE_REDIRECT_URI,
+        'allowed_groups_active': ALLOWED_GROUPS is not None,
+        'allowed_groups_count': len(ALLOWED_GROUPS) if ALLOWED_GROUPS else 0,
+        'admin_emails_count': len(ADMIN_EMAILS) if ADMIN_EMAILS else 0,
+    })
 
 
 @app.route('/api/briefs')

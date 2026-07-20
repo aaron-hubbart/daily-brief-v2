@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Brief · Admin</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#f5f4f1; --surface:#fff; --surface2:#f0efe9; --border:#e2e0d8; --border-strong:#c8c6bc;
+  --t1:#1a1916; --t2:#5a5850; --t3:#9a9890;
+  --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
+  --good-bg:#eef7ee; --good-t:#2a7a34; --bad-bg:#fef1f0; --bad-t:#b02520;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",monospace; --r:5px;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#18181b; --surface:#1e1e22; --surface2:#26262c; --border:#2c2c32; --border-strong:#3c3c44;
+  --t1:#e6e4de; --t2:#9a9890; --t3:#5a5850;
+  --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
+  --good-bg:#122415; --good-t:#5cc26a; --bad-bg:#280e0e; --bad-t:#e06868;
+}}
+html{font-size:14px;}
+body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5;padding:24px 16px 60px;max-width:960px;margin:0 auto;}
+.head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1.5px solid var(--border-strong);}
+.head h1{font-size:19px;font-weight:600;letter-spacing:-.025em;}
+.head .sub{font-size:12px;color:var(--t3);}
+.panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);margin-bottom:20px;overflow:hidden;}
+.panel-head{padding:10px 14px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);}
+.panel-body{padding:12px 14px;}
+.cfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;}
+.cfg-item{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:6px 0;border-bottom:.5px solid var(--border);}
+.cfg-item:last-child{border-bottom:none;}
+.pill{font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:2px 7px;border-radius:99px;}
+.pill.on{background:var(--good-bg);color:var(--good-t);}
+.pill.off{background:var(--bad-bg);color:var(--bad-t);}
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
+td{padding:8px;border-bottom:.5px solid var(--border);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+.email{font-weight:500;}
+.slug{color:var(--t3);font-family:var(--mono);font-size:11px;}
+.muted{color:var(--t3);}
+.btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+.btn:hover{filter:brightness(.95);}
+.btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
+.msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
+.msg.ok{color:var(--good-t);}
+.msg.err{color:var(--bad-t);}
+.empty{color:var(--t3);font-size:12px;padding:8px 0;}
+a.back{font-size:12px;color:var(--accent-t);text-decoration:none;}
+</style>
+</head>
+<body>
+
+  <div class="head">
+    <div>
+      <h1>Daily Brief · Admin</h1>
+      <div class="sub">Signed in as {{ admin_email }}</div>
+    </div>
+    <a class="back" href="../">&larr; Back to briefs</a>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">Deployment status</div>
+    <div class="panel-body">
+      <div class="cfg-grid" id="cfg-grid">
+        <div class="empty">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">Users</div>
+    <div class="panel-body">
+      <table id="users-table" style="display:none;">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Slug</th>
+            <th>Signed up</th>
+            <th>Active briefs</th>
+            <th>Last active</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="users-body"></tbody>
+      </table>
+      <div class="empty" id="users-loading">Loading…</div>
+      <div class="msg" id="users-msg"></div>
+    </div>
+  </div>
+
+<script>
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+async function loadConfig() {
+  const grid = document.getElementById('cfg-grid');
+  try {
+    const res = await fetch('api/admin/config');
+    if (!res.ok) throw new Error('status ' + res.status);
+    const cfg = await res.json();
+    const rows = [
+      ['Azure tenant ID', cfg.azure_tenant_id_set],
+      ['Azure client ID', cfg.azure_client_id_set],
+      ['Group restriction', cfg.allowed_groups_active ? cfg.allowed_groups_count + ' group(s)' : false],
+      ['Admin emails', cfg.admin_emails_count + ' configured'],
+    ];
+    grid.innerHTML = rows.map(([label, val]) => {
+      const on = !!val;
+      const text = typeof val === 'string' ? val : (on ? 'Set' : 'Not set');
+      return `<div class="cfg-item"><span>${label}</span><span class="pill ${on ? 'on' : 'off'}">${text}</span></div>`;
+    }).join('') + `<div class="cfg-item"><span>Redirect URI</span><span class="muted">${cfg.azure_redirect_uri}</span></div>`;
+  } catch (e) {
+    grid.innerHTML = '<div class="empty">Could not load config status.</div>';
+  }
+}
+
+async function loadUsers() {
+  const table = document.getElementById('users-table');
+  const body = document.getElementById('users-body');
+  const loading = document.getElementById('users-loading');
+  try {
+    const res = await fetch('api/admin/users');
+    if (!res.ok) throw new Error('status ' + res.status);
+    const users = await res.json();
+    loading.style.display = 'none';
+    if (!users.length) {
+      loading.style.display = '';
+      loading.textContent = 'No users have signed in yet.';
+      return;
+    }
+    table.style.display = '';
+    body.innerHTML = users.map(u => `
+      <tr data-id="${u.id}">
+        <td class="email">${u.email}</td>
+        <td class="slug">${u.slug}</td>
+        <td>${fmtDate(u.created_at)}</td>
+        <td>${u.active_brief_count}</td>
+        <td>${fmtDate(u.last_active_at)}</td>
+        <td><button class="btn danger" onclick="rotateToken(${u.id}, '${u.email}')">Rotate token</button></td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    loading.textContent = 'Could not load users.';
+  }
+}
+
+async function rotateToken(userId, email) {
+  if (!confirm(`Rotate ${email}'s API token? Their existing token stops working immediately — they'll need to sign in and revisit /api/token to get the new one before their skill can sync again.`)) {
+    return;
+  }
+  const msg = document.getElementById('users-msg');
+  msg.className = 'msg';
+  msg.textContent = 'Rotating…';
+  try {
+    const res = await fetch(`api/admin/users/${userId}/rotate-token`, { method: 'POST' });
+    if (!res.ok) throw new Error('status ' + res.status);
+    msg.className = 'msg ok';
+    msg.textContent = `Token rotated for ${email}. They should revisit /api/token while signed in to get the new value.`;
+  } catch (e) {
+    msg.className = 'msg err';
+    msg.textContent = `Could not rotate token for ${email}.`;
+  }
+}
+
+loadConfig();
+loadUsers();
+</script>
+
+</body>
+</html>

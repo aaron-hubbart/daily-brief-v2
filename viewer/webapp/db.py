@@ -100,6 +100,33 @@ def get_user_token(user_id: int) -> str:
         return row['api_token'] if row else None
 
 
+def get_user_by_id(user_id: int):
+    with cursor() as cur:
+        cur.execute("SELECT id, email, slug, api_token, created_at FROM users WHERE id = %s", (user_id,))
+        return cur.fetchone()
+
+
+def list_users_with_stats() -> list:
+    """One row per user for the admin panel: sign-up date, how many brief
+    days they have, and when they were last active. Left joins so a user
+    who signed in but whose skill has never synced anything still shows up
+    (with brief_count 0 / last_active null) rather than being hidden."""
+    with cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+                u.id, u.email, u.slug, u.created_at,
+                COUNT(bd.id) FILTER (WHERE bd.status = 'active') AS active_brief_count,
+                MAX(bd.last_updated_at) AS last_active_at
+            FROM users u
+            LEFT JOIN brief_days bd ON bd.user_id = u.id
+            GROUP BY u.id
+            ORDER BY u.email
+            """
+        )
+        return cur.fetchall()
+
+
 def rotate_user_token(user_id: int) -> str:
     """Invalidates the old token and assigns a new one. The old token stops
     working immediately — whatever's using it (the person's skill config)
