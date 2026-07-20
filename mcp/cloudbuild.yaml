@@ -1,0 +1,37 @@
+# Build with:
+#   gcloud builds submit --config=cloudbuild.yaml `
+#     --substitutions=_REGION=us-central1,_REPO=daily-brief,_IMAGE=daily-brief-mcp-server `
+#     .
+#
+# Cloud Build's build steps always run as containers in Google's managed environment —
+# there's no Podman option server-side. Kaniko is the closest match to Podman's philosophy
+# (daemonless, rootless image builds, no privileged Docker socket needed), so this uses
+# Kaniko rather than the default gcr.io/cloud-builders/docker step. It reads the same
+# Containerfile unmodified.
+#
+# One-time setup before the first run:
+#   gcloud services enable cloudbuild.googleapis.com artifactregistry.googleapis.com
+#   gcloud artifacts repositories create ${_REPO} `
+#     --repository-format=docker --location=${_REGION} `
+#     --description="daily-brief MCP server images"
+
+steps:
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    args:
+      - '--dockerfile=Containerfile'
+      - '--context=dir:///workspace'
+      - '--destination=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$SHORT_SHA'
+      - '--destination=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest'
+      - '--cache=true'
+      - '--cache-ttl=168h'
+
+substitutions:
+  _REGION: us-central1
+  _REPO: daily-brief
+  _IMAGE: daily-brief-mcp-server
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_MEDIUM'
+
+timeout: 900s

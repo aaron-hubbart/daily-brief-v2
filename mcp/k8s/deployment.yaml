@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: daily-brief
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: daily-brief-mcp-server
+  namespace: daily-brief
+  labels:
+    app: daily-brief-mcp-server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: daily-brief-mcp-server
+  template:
+    metadata:
+      labels:
+        app: daily-brief-mcp-server
+    spec:
+      containers:
+        - name: daily-brief-mcp-server
+          image: us-central1-docker.pkg.dev/tam-aaron-hubbart/daily-brief/daily-brief-mcp-server@sha256:8981b4d4b84ae9472efc3551e776359753662697331622baed3083a8a29cd8e3
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: daily-brief-mcp-secrets
+          env:
+            - name: PORT
+              value: "3000"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: daily-brief-mcp-server
+  namespace: daily-brief
+spec:
+  selector:
+    app: daily-brief-mcp-server
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+  type: ClusterIP

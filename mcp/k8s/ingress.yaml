@@ -1,0 +1,64 @@
+# Two Ingress objects sharing the same host and TLS secret, split by path:
+#
+#   /healthz -> open to anyone, for manual curl checks and generic uptime monitors
+#   /mcp     -> restricted to Anthropic's published MCP egress range
+#
+# Only the first object carries the cert-manager annotation, so cert-manager only
+# ever manages one Certificate for this host. The second references the same
+# secretName and reuses whatever the first one issues -- it does not request its
+# own certificate.
+#
+# Confirm 160.79.104.0/21 is still current before relying on it:
+# https://platform.claude.com/docs/en/api/ip-addresses
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: daily-brief-mcp-server-public
+  namespace: daily-brief
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - mcp.dashboard.es-sandbox.com
+      secretName: daily-brief-mcp-server-tls
+  rules:
+    - host: mcp.dashboard.es-sandbox.com
+      http:
+        paths:
+          - path: /healthz
+            pathType: Exact
+            backend:
+              service:
+                name: daily-brief-mcp-server
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: daily-brief-mcp-server
+  namespace: daily-brief
+  annotations:
+    nginx.ingress.kubernetes.io/whitelist-source-range: "160.79.104.0/21"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - mcp.dashboard.es-sandbox.com
+      secretName: daily-brief-mcp-server-tls
+  rules:
+    - host: mcp.dashboard.es-sandbox.com
+      http:
+        paths:
+          - path: /mcp
+            pathType: Prefix
+            backend:
+              service:
+                name: daily-brief-mcp-server
+                port:
+                  number: 80
