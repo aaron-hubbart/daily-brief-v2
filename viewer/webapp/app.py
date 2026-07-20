@@ -124,10 +124,40 @@ app.config.update(
     SESSION_COOKIE_PATH='/daily-brief',
 )
 
-# Trust nginx's forwarded headers for scheme, host, and path prefix — required
-# for url_for() and the OAuth redirect_uri to come out correct when this app
-# is mounted at a sub-path behind a reverse proxy rather than at a domain root.
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+class ForcePrefixMiddleware:
+    """Hardcodes SCRIPT_NAME instead of trusting X-Forwarded-Prefix.
+
+    The plan was for nginx (via the ingress's proxy-set-headers annotation +
+    the daily-brief-proxy-headers ConfigMap) to inject X-Forwarded-Prefix,
+    and for ProxyFix(x_prefix=1) to turn that into SCRIPT_NAME so url_for()
+    and login_required's redirect(url_for('login')) would come out as
+    /daily-brief/login. In practice that annotation is only a documented
+    *global* ingress-nginx-controller ConfigMap key, not a per-Ingress one —
+    confirmed by dumping the controller's rendered nginx.conf, which has no
+    proxy_set_header for X-Forwarded-Prefix anywhere in this app's location
+    block. The header never arrived, so SCRIPT_NAME stayed empty, redirects
+    came out as bare /login (outside this app's ingress path entirely), and
+    people fell into the dashboard app's own sign-in instead of ours.
+
+    This app is always mounted at exactly one fixed prefix, so there's
+    nothing to "discover" from a header — just set it.
+    """
+    def __init__(self, wsgi_app, prefix):
+        self.wsgi_app = wsgi_app
+        self.prefix = prefix
+
+    def __call__(self, environ, start_response):
+        environ['SCRIPT_NAME'] = self.prefix
+        return self.wsgi_app(environ, start_response)
+
+
+# Trust nginx's forwarded headers for scheme, host, and client IP; the path
+# prefix is hardcoded above instead of trusted from a header (see
+# ForcePrefixMiddleware) since nginx never actually sends one for this app.
+app.wsgi_app = ForcePrefixMiddleware(
+    ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1),
+    '/daily-brief',
+)
 app.teardown_appcontext(db.close_conn)
 
 
@@ -163,7 +193,8 @@ def login_required(view):
             # stripped the /daily-brief prefix (that's the whole point of
             # the Ingress rewrite-target) — it's just "/" for the viewer's
             # root, with no prefix on it. request.script_root is where
-            # ProxyFix put that prefix back, from X-Forwarded-Prefix. Unlike
+            # ForcePrefixMiddleware put that prefix back (hardcoded, not
+            # from a forwarded header — see its docstring). Unlike
             # url_for(), a plain redirect(dest) does NOT automatically
             # prepend script_root to a literal string — skipping this here
             # sent people back to the domain root after sign-in instead of
