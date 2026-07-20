@@ -2,3 +2,6 @@
 # never commit them. The example/ folder holds the sanitized demo file instead.
 viewer/data/*.html
 viewer/.server.pid
+viewer/webapp/data/
+__pycache__/
+*.pyc

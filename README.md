@@ -78,6 +78,15 @@ The `viewer/` folder contains a standalone local viewer for browsing saved brief
 
 If you're upgrading from an older copy of this viewer where brief files sat directly in `viewer/`, move them into `viewer/data/` (or just let old ones age out — the dropdown only reflects what's actually in `data/` going forward).
 
+## Hosted deployment (optional)
+
+`viewer/webapp/` is a separate, hosted alternative to the local single-user viewer above — a small Flask app meant to run behind Azure App Service's built-in Authentication (Easy Auth) with Azure AD / Entra ID, so more than one person can sign in and each only sees their own briefs. It doesn't replace `viewer/server.py`; it's for when you want the viewer reachable at a real URL (this repo was built with `dashboard.es-sandbox.com` in mind) instead of only on the machine running the local server.
+
+- `viewer/webapp/app.py` — reads the identity App Service already verified (no token handling in-app), isolates each user's brief files under `data/{user-slug}/`, and exposes a separate bearer-token-authenticated `/api/upload` endpoint for the skill to push reports directly (since the skill runs headless and can't complete an interactive sign-in).
+- `viewer/webapp/AZURE_SETUP.md` — step-by-step Azure Portal setup: app registration, App Service, Easy Auth, custom domain, and the app settings this needs (`FLASK_SECRET_KEY`, `UPLOAD_TOKENS`).
+
+See that doc for the full walkthrough and for what's still a manual/follow-up step (wiring the skill's delivery step to actually call `/api/upload`, and true multi-tenant support for the underlying automation, not just the viewer login).
+
 ## Configuration
 
 Set these values in the `## Admin Config` block at the top of your local `SKILL.md` (this repo's copy keeps that block as placeholders, since the values are account-specific):
