@@ -1,0 +1,4 @@
+# Generated brief reports contain real account names, meeting content, and links —
+# never commit them. The example/ folder holds the sanitized demo file instead.
+viewer/data/*.html
+viewer/.server.pid

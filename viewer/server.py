@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """
 Daily Brief Viewer — local server.
-Scans its own folder for Daily Brief HTML files and serves them.
-No API keys, no external services, no CORS issues.
+Scans a data/ subfolder (next to this script) for Daily Brief HTML files and serves them.
+Report files live under data/ so generated content stays separate from app code —
+this matters once the viewer is Drive-synced or deployed anywhere beyond a single
+local folder. No API keys, no external services, no CORS issues.
 
 Usage: double-click launch.bat (Windows) or run install-startup.bat once for auto-start.
 Opens: http://localhost:8765
@@ -12,14 +14,17 @@ from urllib.parse import urlparse, unquote
 
 PORT = 8765
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(SCRIPT_DIR, 'data')
 BRIEF_RE = re.compile(r'^Daily Brief_\d{4}-\d{2}-\d{2}', re.IGNORECASE)
 
 
 def list_briefs():
     files = []
-    for name in os.listdir(SCRIPT_DIR):
+    if not os.path.isdir(DATA_DIR):
+        return files
+    for name in os.listdir(DATA_DIR):
         if BRIEF_RE.match(name) and name.lower().endswith('.html'):
-            path = os.path.join(SCRIPT_DIR, name)
+            path = os.path.join(DATA_DIR, name)
             files.append({
                 'name': name,
                 'label': make_label(name),
@@ -105,7 +110,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.set_headers(400, 'text/plain', len(body))
                 self.wfile.write(body)
                 return
-            fpath = os.path.join(SCRIPT_DIR, name)
+            fpath = os.path.join(DATA_DIR, name)
             if not os.path.isfile(fpath):
                 body = b'Not found'
                 self.set_headers(404, 'text/plain', len(body))
@@ -138,9 +143,15 @@ if __name__ == '__main__':
         print('ERROR: daily-brief-viewer.html not found in', SCRIPT_DIR)
         sys.exit(1)
 
+    if not os.path.isdir(DATA_DIR):
+        os.makedirs(DATA_DIR, exist_ok=True)
+        print('Created data folder:', DATA_DIR)
+        print('Point your Drive sync (or wherever the daily-brief skill uploads reports) at this folder.')
+
     briefs = list_briefs()
     print('Daily Brief Viewer')
-    print('  Folder:', SCRIPT_DIR)
+    print('  App folder:', SCRIPT_DIR)
+    print('  Data folder:', DATA_DIR)
     print('  Briefs found:', len(briefs))
     for b in briefs[:5]:
         print('   -', b['name'])

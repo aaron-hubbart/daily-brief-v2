@@ -62,7 +62,7 @@ The following connectors must be enabled in your Claude workspace:
 ## Output
 
 - **File name:** `Daily Brief_YYYY-MM-DD_hh-mm.html` (local date and 24-hour local time at generation)
-- **Location:** Google Drive folder configured in `BRIEF_OUTPUT_FOLDER_ID`
+- **Location:** Google Drive folder configured in `BRIEF_OUTPUT_FOLDER_ID` — if that folder is synced to a local folder that also runs the viewer, sync it to `viewer/data/`, not `viewer/` itself (see Viewer below)
 - **Format:** Self-contained HTML with checkboxes, progress bar, and localStorage state persistence, keyed by date so multiple same-day files (regular runs, post-meeting patches, section refreshes) share checkbox progress
 - **Multiple runs per day:** each run — full brief, post-meeting patch, or section refresh — writes a new timestamped file rather than overwriting the previous one, since Drive has no update-by-fileId path for this. The viewer lets you pick between same-day files.
 
@@ -71,9 +71,12 @@ The following connectors must be enabled in your Claude workspace:
 The `viewer/` folder contains a standalone local viewer for browsing saved brief files:
 
 - `daily-brief-viewer.html` — dropdown selector, timeline strip, dark/light mode, persistent checkboxes, Jira deep links, Claude Desktop meeting-manager and section-refresh buttons
-- `server.py` — Python stdlib local HTTP server (no dependencies)
+- `server.py` — Python stdlib local HTTP server (no dependencies). Reads brief files from `viewer/data/`, not from its own folder — this keeps generated reports (real account names, meeting content) separate from app code. Creates `data/` automatically on first run if it doesn't exist.
+- `data/` — generated `Daily Brief_*.html` files land here. Gitignored; point your Drive sync (or wherever the skill uploads reports) at this folder.
 - `launch.bat` / `launch.command` — manual launchers for Windows and Mac
 - `install-startup.bat` / `uninstall-startup.bat` — Windows Task Scheduler auto-start
+
+If you're upgrading from an older copy of this viewer where brief files sat directly in `viewer/`, move them into `viewer/data/` (or just let old ones age out — the dropdown only reflects what's actually in `data/` going forward).
 
 ## Configuration
 
