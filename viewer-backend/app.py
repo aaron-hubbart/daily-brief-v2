@@ -403,12 +403,6 @@ ALLOWED_GROUPS = {g.strip() for g in _allowed_groups_raw.split(',') if g.strip()
 _admin_emails_raw = os.environ.get('ADMIN_EMAILS', '').strip()
 ADMIN_EMAILS = {e.strip().lower() for e in _admin_emails_raw.split(',') if e.strip()} if _admin_emails_raw else None
 
-# Optional, display-only — the daily-brief-mcp-server connector's public
-# URL (e.g. https://mcp.dashboard.es-sandbox.com/mcp), shown verbatim in
-# the in-app setup walkthrough so people don't have to go find it
-# themselves. Not used for anything security-relevant by this app itself.
-MCP_CONNECTOR_URL = os.environ.get('MCP_CONNECTOR_URL', '').strip() or None
-
 AZURE_AUTHORITY = f'https://login.microsoftonline.com/{AZURE_TENANT_ID}'
 GRAPH_SCOPES = []  # no Graph calls made — sign-in identity only, nothing to scope
 
@@ -550,21 +544,6 @@ def admin_required(view):
             abort(404)
         return view(*args, **kwargs)
     return wrapped
-
-
-def ensure_upload_context():
-    """Shared bearer-token check for the skill-facing item endpoints.
-    Returns the resolved user_id. Tokens are auto-assigned per user at
-    first sign-in (db.get_or_create_user) — there's no admin-managed token
-    list to keep in sync anymore."""
-    auth = request.headers.get('Authorization', '')
-    if not auth.startswith('Bearer '):
-        abort(401)
-    token = auth[len('Bearer '):].strip()
-    user = db.get_user_by_token(token)
-    if not user:
-        abort(403)
-    return user['id']
 
 
 def _drive_context():
@@ -733,43 +712,12 @@ def api_onboarding_complete():
 @app.route('/api/client-config')
 @login_required
 def api_client_config():
-    """Values the setup walkthrough and Account panel need to render
-    correct copy-paste instructions, computed server-side rather than
-    guessed from window.location (this app is deployed at a sub-path, and
-    the MCP connector lives on an entirely different subdomain that the
-    browser has no way to derive on its own)."""
+    """Values the setup walkthrough and Account panel need. request.host_url
+    isn't reliable to derive client-side since this app is deployed at a
+    sub-path (see ForcePrefixMiddleware's docstring)."""
     return jsonify({
-        # request.script_root is where ForcePrefixMiddleware put the
-        # /daily-brief prefix back (see its docstring) — same value this
-        # deployment's DAILY_BRIEF_API_BASE_URL is set to.
         'api_base_url': request.host_url.rstrip('/') + request.script_root,
-        'mcp_connector_url': MCP_CONNECTOR_URL,
     })
-
-
-@app.route('/api/token')
-@login_required
-def api_token():
-    """
-    Lets a signed-in person retrieve their own api_token — this is the
-    self-service half of automatic setup. There's no admin step between
-    "person signs in for the first time" and "person has a token they can
-    put in their own daily-brief skill's Admin Config": db.get_or_create_user
-    already assigned one at sign-in time (see /auth/callback); this just
-    surfaces it.
-    """
-    token = db.get_user_token(request.brief_user['id'])
-    return jsonify({'token': token, 'email': request.brief_user['email']})
-
-
-@app.route('/api/token/rotate', methods=['POST'])
-@login_required
-def api_token_rotate():
-    """Invalidates the current token and issues a new one — for when a
-    token leaks or someone just wants a fresh one. The old value stops
-    working immediately; whatever skill config used it needs updating."""
-    new_token = db.rotate_user_token(request.brief_user['id'])
-    return jsonify({'token': new_token})
 
 
 @app.route('/api/asana-pat')
@@ -1066,93 +1014,6 @@ def set_item_due_date(section, item_key):
     return jsonify(result)
 
 
-@app.route('/api/config/account-projects', methods=['POST'])
-def api_config_account_projects():
-    """
-    Called by the daily-brief skill (via the daily_brief_sync_account_projects
-    MCP tool) on every run to mirror its account -> Asana project GID
-    mapping from Meeting Manager Config.xlsx. Full replace, not a merge —
-    see db.replace_account_projects. This is what the live Action Items
-    pull (_fetch_live_action_items) reads to know which boards to poll;
-    the webapp has no Google Drive access of its own to read the sheet
-    directly.
-
-    Not behind @login_required, same reasoning as the items endpoints
-    below: the skill runs headless, authenticated by its own bearer token.
-
-    Body: {accounts: [{account_name, project_gid}, ...]}
-    """
-    user_id = ensure_upload_context()
-    body = request.get_json(silent=True) or {}
-    accounts = body.get('accounts')
-    if not isinstance(accounts, list):
-        abort(400, 'accounts must be an array')
-    for acct in accounts:
-        if not acct.get('account_name') or not acct.get('project_gid'):
-            abort(400, 'every account needs account_name and project_gid')
-    db.replace_account_projects(user_id, accounts)
-    return jsonify({'status': 'ok', 'count': len(accounts)})
-
-
-@app.route('/api/items/upsert', methods=['POST'])
-def api_items_upsert():
-    """
-    Called by the daily-brief skill to create or refresh one item. This is
-    the single operation for both "generate a brand-new day's brief" (call
-    once per item) and "refresh one thing later" (call again for just that
-    item_key) — the old file-based model needed a whole separate patch flow
-    (references/section-refresh.md in the skill repo) for the second case;
-    an upsert doesn't need that distinction.
-
-    Not behind @login_required: the skill runs headless and has no browser
-    session for an interactive Azure AD sign-in. Guarded by its own bearer
-    token instead, scoped to exactly one user.
-
-    Body: {brief_date, brief_type?, section, item_key, item_type?, title?,
-           subtitle?, badge?, links?, content?, checked?, display_order?}
-    """
-    user_id = ensure_upload_context()
-    body = request.get_json(silent=True) or {}
-
-    brief_date = body.get('brief_date', '')
-    if not DATE_RE.match(brief_date):
-        abort(400, 'brief_date must be YYYY-MM-DD')
-    if not body.get('section') or not body.get('item_key'):
-        abort(400, 'section and item_key are required')
-
-    brief_day_id = db.upsert_brief_day(user_id, brief_date, body.get('brief_type'))
-    db.upsert_item(brief_day_id, body)
-    return jsonify({'status': 'ok'}), 201
-
-
-@app.route('/api/items/batch-upsert', methods=['POST'])
-def api_items_batch_upsert():
-    """
-    Same as /api/items/upsert but for a whole day's worth of items in one
-    call — what a full brief-generation run should use, rather than one
-    HTTP round trip per item. Body: {brief_date, brief_type?, items: [...]}
-    where each entry in items is the same shape as the single-upsert body
-    (minus brief_date/brief_type, which apply to the whole batch).
-    """
-    user_id = ensure_upload_context()
-    body = request.get_json(silent=True) or {}
-
-    brief_date = body.get('brief_date', '')
-    if not DATE_RE.match(brief_date):
-        abort(400, 'brief_date must be YYYY-MM-DD')
-    items = body.get('items')
-    if not isinstance(items, list) or not items:
-        abort(400, 'items must be a non-empty array')
-    for item in items:
-        if not item.get('section') or not item.get('item_key'):
-            abort(400, 'every item needs section and item_key')
-
-    brief_day_id = db.upsert_brief_day(user_id, brief_date, body.get('brief_type'))
-    for item in items:
-        db.upsert_item(brief_day_id, item)
-    return jsonify({'status': 'ok', 'count': len(items)}), 201
-
-
 @app.route('/healthz')
 def healthz():
     # Unauthenticated on purpose — process-liveness only, deliberately does
@@ -1165,15 +1026,11 @@ def healthz():
 
 @app.route('/readyz')
 def readyz():
-    # Readiness should depend on the DB — if Postgres is unreachable this
-    # pod can't actually serve a real request, and Kubernetes should stop
-    # routing traffic to it (via the Service) until it's back, without
-    # killing/restarting the pod itself (that's what /healthz is for).
     try:
-        with db.cursor() as cur:
+        with db_tokens.cursor() as cur:
             cur.execute('SELECT 1')
     except Exception as e:
-        return f'db unavailable: {e}', 503
+        return f'token store unavailable: {e}', 503
     return 'ok', 200
 
 
