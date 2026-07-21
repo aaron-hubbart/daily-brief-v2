@@ -49,6 +49,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 import token_store as db_tokens
 import google_oauth
+import drive_store
 
 APP_DIR = Path(__file__).resolve().parent
 # In the VM deployment, app.py lives at viewer/webapp/app.py and the shared
@@ -566,6 +567,19 @@ def ensure_upload_context():
     return user['id']
 
 
+def _drive_context():
+    """Every brief-reading/writing route needs both the caller's valid Drive
+    access token and their linked brief_data_folder_id. Centralizing the
+    lookup here means a route body reads exactly like its db.py-backed
+    predecessor, just swapping db.X(user_id, ...) for
+    drive_store.X(access_token, folder_id, ...)."""
+    user = db_tokens.get_user(request.brief_user['id'])
+    if not user or not user['brief_data_folder_id']:
+        abort(400, 'No Google Drive folder linked yet — visit the Account panel to link one.')
+    access_token = google_oauth.get_valid_access_token(request.brief_user['id'])
+    return access_token, user['brief_data_folder_id']
+
+
 # ── Auth routes ──────────────────────────────────────────────────────────
 
 @app.route('/login')
@@ -698,7 +712,7 @@ def index():
 @app.route('/api/whoami')
 @login_required
 def whoami():
-    user = db.get_user_by_id(request.brief_user['id'])
+    user = db_tokens.get_user(request.brief_user['id'])
     return jsonify({
         'name': request.brief_user['name'],
         'email': request.brief_user['email'],
@@ -712,7 +726,7 @@ def api_onboarding_complete():
     """Called once the person finishes (or dismisses) the in-app setup
     walkthrough, so it doesn't auto-open again on their next sign-in.
     They can still reopen it manually any time from the Account panel."""
-    db.mark_onboarding_complete(request.brief_user['id'])
+    db_tokens.mark_onboarding_complete(request.brief_user['id'])
     return jsonify({'status': 'ok'})
 
 
@@ -766,7 +780,7 @@ def api_asana_pat_status():
     third-party credential with write access to the person's own Asana
     account, not something this app minted, so there's less reason to
     ever need to re-display it and more reason not to."""
-    pat = db.get_asana_pat(request.brief_user['id'])
+    pat = db_tokens.get_asana_pat(request.brief_user['id'])
     return jsonify({'configured': bool(pat)})
 
 
@@ -789,7 +803,7 @@ def api_asana_pat_save():
     asana_user = _validate_asana_pat(pat)
     if asana_user is None:
         abort(400, 'Could not validate this token against Asana — check that it was copied correctly and hasn\'t been revoked.')
-    db.set_asana_pat(request.brief_user['id'], pat)
+    db_tokens.set_asana_pat(request.brief_user['id'], pat)
     return jsonify({'status': 'ok', 'asana_user': asana_user})
 
 
@@ -801,7 +815,7 @@ def api_asana_pat_clear():
     New Items keeps working as before since that path doesn't need a PAT
     to read (though creating/completing tasks in Asana itself still needs
     the skill's own Asana connector, unrelated to this webapp-side PAT)."""
-    db.clear_asana_pat(request.brief_user['id'])
+    db_tokens.clear_asana_pat(request.brief_user['id'])
     return jsonify({'status': 'ok'})
 
 
@@ -834,24 +848,12 @@ def admin_page():
 @login_required
 @admin_required
 def admin_list_users():
-    return jsonify(db.list_users_with_stats())
-
-
-@app.route('/api/admin/users/<int:user_id>/rotate-token', methods=['POST'])
-@login_required
-@admin_required
-def admin_rotate_user_token(user_id):
-    """Rotates another user's token from the admin panel — for troubleshooting
-    a stuck sync (401/403 from the skill) without asking the person to find
-    and revisit /api/token themselves. Whoever's token this is needs their
-    skill's Admin Config (DAILY_BRIEF_API_TOKEN_FILE_ID's Drive file) updated
-    with the new value before their next brief run — this only invalidates
-    the old one, it doesn't push the new one anywhere."""
-    user = db.get_user_by_id(user_id)
-    if not user:
-        abort(404)
-    new_token = db.rotate_user_token(user_id)
-    return jsonify({'email': user['email'], 'token': new_token})
+    # Drive-era admin panel shows registered users only -- no brief_count/
+    # last_active_at columns, since computing those now means listing every
+    # user's Drive folder on every admin page load rather than one indexed
+    # Postgres query. Deliberately dropped rather than reimplemented at that
+    # cost; revisit if the admin panel's user list needs it back.
+    return jsonify(db_tokens.list_users())
 
 
 @app.route('/api/admin/config')
@@ -868,22 +870,20 @@ def admin_config_status():
         'allowed_groups_active': ALLOWED_GROUPS is not None,
         'allowed_groups_count': len(ALLOWED_GROUPS) if ALLOWED_GROUPS else 0,
         'admin_emails_count': len(ADMIN_EMAILS) if ADMIN_EMAILS else 0,
-        'users_with_asana_pat': db.count_users_with_asana_pat(),
+        'users_with_asana_pat': db_tokens.count_users_with_asana_pat(),
     })
 
 
 @app.route('/api/briefs')
 @login_required
 def api_briefs():
-    days = db.list_active_briefs(request.brief_user['id'])
+    access_token, folder_id = _drive_context()
+    days = drive_store.list_active_briefs(access_token, folder_id)
     # 'name' and 'label' are what the existing viewer JS actually reads
     # (see daily-brief-viewer.html) — everything else from the old
     # file-listing response (size, mtime) was never used by the frontend,
     # so it's fine that a DB row doesn't have a natural equivalent for them.
-    return jsonify([
-        {'name': d['brief_date'].isoformat(), 'label': d['brief_date'].isoformat()}
-        for d in days
-    ])
+    return jsonify([{'name': d['brief_date'], 'label': d['brief_date']} for d in days])
 
 
 @app.route('/brief/<date_str>')
@@ -891,11 +891,12 @@ def api_briefs():
 def serve_brief(date_str):
     if not DATE_RE.match(date_str):
         abort(400)
-    brief_day = db.get_brief_day(request.brief_user['id'], date_str)
+    access_token, folder_id = _drive_context()
+    brief_day = drive_store.get_brief_day(access_token, folder_id, date_str)
     if not brief_day:
         abort(404)
 
-    items = db.get_items_for_day(brief_day['id'])
+    items = drive_store.get_items_for_day(access_token, folder_id, date_str)
     items_by_section = {}
     checkable_count = 0
     for item in items:
@@ -918,10 +919,10 @@ def serve_brief(date_str):
     # brief_date.
     today_iso = date.today().isoformat()
     postgres_action_items = items_by_section.get('action-items', [])
-    asana_pat = db.get_asana_pat(request.brief_user['id'])
+    asana_pat = db_tokens.get_asana_pat(request.brief_user['id'])
 
     if asana_pat:
-        account_projects = db.get_account_projects(request.brief_user['id'])
+        account_projects = drive_store.get_account_projects(access_token, folder_id)
         exclude_gids = {
             it['item_key'][len(ASANA_ACTION_ITEM_PREFIX):]
             for it in postgres_action_items
@@ -960,6 +961,16 @@ def serve_brief(date_str):
     # only Action Items needs the override.
     action_items_displayed = sum(len(g['items']) for g in action_subsections)
 
+    # '%-d' (day of month, no leading zero) is a glibc/macOS libc strftime
+    # extension, not part of the C89 standard '%d' set -- Windows' C runtime
+    # raises ValueError('Invalid format string') on it. Building the no-
+    # leading-zero day with plain int formatting instead of '%-d' keeps the
+    # exact same rendered label ("Tuesday, July 21") on every platform this
+    # runs on, whether that's a Windows dev box or the Linux gunicorn
+    # deployment.
+    brief_date_obj = date.fromisoformat(brief_day['brief_date'])
+    brief_date_label = f"{brief_date_obj.strftime('%A, %B')} {brief_date_obj.day}"
+
     sections = []
     for s in SECTIONS:
         section_items = items_by_section.get(s['slug'], [])
@@ -972,7 +983,7 @@ def serve_brief(date_str):
     return render_template(
         'brief_fragment.html',
         brief_date=date_str,
-        brief_date_label=brief_day['brief_date'].strftime('%A, %B %-d'),
+        brief_date_label=brief_date_label,
         brief_type=brief_day['brief_type'],
         checkable_count=checkable_count,
         sections=sections,
@@ -1004,23 +1015,14 @@ def set_item_checked(section, item_key):
     if 'checked' not in body:
         abort(400, 'checked (bool) is required')
     checked = bool(body['checked'])
-    pat = db.get_asana_pat(request.brief_user['id'])
 
-    brief_day = db.get_brief_day(request.brief_user['id'], date_str)
-    found = db.set_item_checked(brief_day['id'], section, item_key, checked) if brief_day else False
+    access_token, folder_id = _drive_context()
+    brief_day = drive_store.get_brief_day(access_token, folder_id, date_str)
+    if not brief_day:
+        abort(404)
+    drive_store.set_item_checked(access_token, folder_id, date_str, section, item_key, checked)
 
-    if not found:
-        # No Postgres row for this item — it's one of the live-pulled
-        # Overdue/Due Next 7 Days/No Due Date items (see
-        # _fetch_live_action_items), which are never persisted here.
-        # Write straight to Asana instead of 404ing; these only ever
-        # render when a pat is configured, so this should always be
-        # attempted successfully unless the pat was just revoked.
-        attempted, ok = _sync_asana_completed(pat, item_key, checked)
-        if not attempted:
-            abort(404)
-        return jsonify({'status': 'ok', 'asana_synced': ok})
-
+    pat = db_tokens.get_asana_pat(request.brief_user['id'])
     attempted, ok = _sync_asana_completed(pat, item_key, checked)
     result = {'status': 'ok'}
     if attempted:
@@ -1049,19 +1051,14 @@ def set_item_due_date(section, item_key):
     due_on = body['due_on']
     if due_on is not None and not DATE_RE.match(due_on):
         abort(400, 'due_on must be YYYY-MM-DD or null')
-    pat = db.get_asana_pat(request.brief_user['id'])
 
-    brief_day = db.get_brief_day(request.brief_user['id'], date_str)
-    found = db.set_item_due_date(brief_day['id'], section, item_key, due_on) if brief_day else False
+    access_token, folder_id = _drive_context()
+    brief_day = drive_store.get_brief_day(access_token, folder_id, date_str)
+    if not brief_day:
+        abort(404)
+    drive_store.set_item_due_date(access_token, folder_id, date_str, section, item_key, due_on)
 
-    if not found:
-        # Same live-item fallback as set_item_checked above — no Postgres
-        # row exists for this one, so write straight to Asana.
-        attempted, ok = _sync_asana_due_date(pat, item_key, due_on)
-        if not attempted:
-            abort(404)
-        return jsonify({'status': 'ok', 'asana_synced': ok})
-
+    pat = db_tokens.get_asana_pat(request.brief_user['id'])
     attempted, ok = _sync_asana_due_date(pat, item_key, due_on)
     result = {'status': 'ok'}
     if attempted:
