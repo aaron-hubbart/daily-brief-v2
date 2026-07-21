@@ -486,7 +486,7 @@ class ForcePrefixMiddleware:
 # ForcePrefixMiddleware) since nginx never actually sends one for this app.
 app.wsgi_app = ForcePrefixMiddleware(
     ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1),
-    '/daily-brief',
+    '/daily-brief-v2',
 )
 app.teardown_appcontext(db_tokens.close_conn)
 
