@@ -157,32 +157,41 @@ details.sec>.sec-body{padding:4px 14px 10px;}
         <div class="asana-hint">Connect Asana in the Account panel to see Overdue, Due Next 7 Days, and No Due Date items here too.</div>
         {% endif %}
         {% for group in action_subsections %}
-        <div class="ssub">{{ group.label }}</div>
-        {% for item in group['items'] %}
-        <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}" data-section="action-items">
-          <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
-          <div class="ibody">
-            <div class="ititle">{{ item.title }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
-            <div class="iboard">{{ item.content.get('project_name') or 'My Tasks' }}</div>
-            {% if item.subtitle %}<div class="isub">{{ item.subtitle }}</div>{% endif %}
-            {% if item.links %}
-            <div class="ilinks">
-              {% for link in item.links %}
-              <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url }}" target="_blank">{{ link.label }}</a>
-              {% endfor %}
+        <details class="acct-card" data-subsection="{{ group.slug }}" open>
+          <summary>
+            <span class="acct-card-name">{{ group.label }}</span>
+            <span class="acct-card-meta">{{ group['items']|length }} item{{ '' if group['items']|length == 1 else 's' }}</span>
+          </summary>
+          <div class="acct-card-body">
+            {% for item in group['items'] %}
+            <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}" data-section="action-items">
+              <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
+              <div class="ibody">
+                <div class="ititle">{{ item.title }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
+                <div class="iboard">{{ item.content.get('project_name') or 'My Tasks' }}</div>
+                {% if item.subtitle %}<div class="isub">{{ item.subtitle }}</div>{% endif %}
+                {% if item.links %}
+                <div class="ilinks">
+                  {% for link in item.links %}
+                  <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url }}" target="_blank">{{ link.label }}</a>
+                  {% endfor %}
+                </div>
+                {% endif %}
+                <div class="duebox" data-item-key="{{ item.item_key }}" data-section="action-items" data-date="{{ brief_date }}">
+                  <input type="date" class="due-input{% if item.content.get('due_on') and item.content.get('due_on') < today_iso %} overdue{% endif %}" value="{{ item.content.get('due_on', '') }}">
+                  <button type="button" class="duebtn" data-shortcut="today">Today</button>
+                  <button type="button" class="duebtn" data-shortcut="tomorrow">Tomorrow</button>
+                  <button type="button" class="duebtn" data-shortcut="next-week">Next week</button>
+                  <button type="button" class="duebtn" data-shortcut="next-month">Next month</button>
+                  <span class="due-sync-note" data-role="sync-status"></span>
+                </div>
+              </div>
             </div>
-            {% endif %}
-            <div class="duebox" data-item-key="{{ item.item_key }}" data-section="action-items" data-date="{{ brief_date }}">
-              <input type="date" class="due-input{% if item.content.get('due_on') and item.content.get('due_on') < today_iso %} overdue{% endif %}" value="{{ item.content.get('due_on', '') }}">
-              <button type="button" class="duebtn" data-shortcut="today">Today</button>
-              <button type="button" class="duebtn" data-shortcut="tomorrow">Tomorrow</button>
-              <button type="button" class="duebtn" data-shortcut="next-week">Next week</button>
-              <button type="button" class="duebtn" data-shortcut="next-month">Next month</button>
-              <span class="due-sync-note" data-role="sync-status"></span>
-            </div>
+            {% else %}
+            <div class="fyi-txt">Nothing here.</div>
+            {% endfor %}
           </div>
-        </div>
-        {% endfor %}
+        </details>
         {% endfor %}
       {% else %}
         {% for item in section_items %}
