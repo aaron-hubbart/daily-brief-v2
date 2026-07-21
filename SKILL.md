@@ -40,6 +40,7 @@ MEETING_RUN_LOG_SHEET_ID: <your meeting-manager run log sheet ID>
 RECURRING_ACTIVITIES_PROJECT_GID: <your Asana recurring-activities project GID>
 STATUS_UPDATE_CACHE_FILE_ID: <Drive file ID of the Section 3/4 daily cache JSON — see references/status-updates.md>
 SKILL_SOURCE_SHA: <maintained automatically by the Skill Sync Check below>
+REFERENCES_SOURCE_SHA: <maintained automatically by the Skill Sync Check below — tree SHA of the whole references/ directory, catches drift in reference files even when SKILL.md itself hasn't changed>
 SYNC_CHECK_LAST_RUN: <ISO timestamp of the last time the Skill Sync Check actually hit the GitHub API — maintained automatically>
 ```
 
@@ -49,15 +50,17 @@ No API token lives in this file. Item sync authenticates via the daily-brief-mcp
 
 ## Skill Sync Check (run this first, every time, before anything else)
 
-This skill's canonical source of truth is this file on `main` in `aaron-hubbart/daily-brief`. Any environment that loads a local copy of this skill (e.g. a persistent runtime skill directory) can silently fall behind if `main` is updated without that local copy being refreshed. Check for that drift before doing anything else, every time this skill fires — but rate-limit the check itself, since hitting the GitHub API on every single brief run is pure overhead for a condition that's only ever true right after a PR merges.
+This skill's canonical source of truth is this file and the `references/` directory on `main` in `aaron-hubbart/daily-brief`. Any environment that loads a local copy of this skill (e.g. a persistent runtime skill directory) can silently fall behind if `main` is updated without that local copy being refreshed. Check for that drift before doing anything else, every time this skill fires — but rate-limit the check itself, since hitting the GitHub API on every single brief run is pure overhead for a condition that's only ever true right after a PR merges.
+
+Two things are tracked separately, since a PR can change one without the other (most reference-only changes never touch this file's own content): `SKILL_SOURCE_SHA` (this file's own blob SHA) and `REFERENCES_SOURCE_SHA` (the `references/` directory's tree SHA — a single value that changes whenever any file inside that directory changes, anywhere in it, without needing to check each reference file individually). Checking `SKILL.md` alone is not sufficient: several past changes touched only `references/item-sync.md` and left this file's own content untouched, which a `SKILL.md`-only check would have reported as "Match" while the loaded reference files quietly went stale.
 
 1. **Rate-limit gate:** compare the current time to `SYNC_CHECK_LAST_RUN`. If less than 4 hours have passed, skip straight to step 2's "Match" behavior without calling the GitHub API at all. If 4+ hours have passed (or the marker is missing), proceed to the actual check and update `SYNC_CHECK_LAST_RUN` to now regardless of the check's outcome.
-2. **Check:** fetch the current blob SHA for `SKILL.md` on `main` via the GitHub API and compare it against the `SKILL_SOURCE_SHA` marker in this local copy's Admin Config block (that marker is local-only; it is not part of this repo file).
-3. **Match:** proceed with the brief normally.
-4. **Mismatch:** the repo has moved ahead of the loaded copy. Self-heal: fetch `SKILL.md` and the full `references/` directory fresh from `main`, re-insert the local copy's real values into the `## Admin Config` block (this repo file keeps that block as generic placeholders for public-repo hygiene — the structure is version-controlled, only the literal IDs are local), update the `SKILL_SOURCE_SHA` marker, overwrite the local copy, and note briefly in the brief output that the skill definition was auto-synced.
+2. **Check:** fetch the current blob SHA for `SKILL.md` on `main` (`GET /repos/aaron-hubbart/daily-brief/contents/SKILL.md`, or equivalent) and separately fetch the current tree SHA for the `references/` directory (`GET /repos/aaron-hubbart/daily-brief/git/trees/main`, then read the `sha` of the entry whose `path` is `references`). Compare both against the `SKILL_SOURCE_SHA` and `REFERENCES_SOURCE_SHA` markers in this local copy's Admin Config block (both markers are local-only; neither is part of this repo file).
+3. **Match:** both SHAs match their markers — proceed with the brief normally.
+4. **Mismatch (either one):** the repo has moved ahead of the loaded copy — this applies even if only `REFERENCES_SOURCE_SHA` differs and `SKILL_SOURCE_SHA` still matches. Self-heal: fetch `SKILL.md` and the full `references/` directory fresh from `main`, re-insert the local copy's real values into the `## Admin Config` block (this repo file keeps that block as generic placeholders for public-repo hygiene — the structure is version-controlled, only the literal IDs are local), update both the `SKILL_SOURCE_SHA` and `REFERENCES_SOURCE_SHA` markers, overwrite the local copy, and note briefly in the brief output that the skill definition was auto-synced.
 5. **Fetch fails:** skip silently and proceed with the current local copy. Never block the brief on this check.
 
-This makes drift self-correcting without paying for an API round trip on every single invocation.
+This makes drift self-correcting without paying for an API round trip on every single invocation — and, as of the two-marker check above, without a reference-only update silently going undetected.
 
 ---
 
