@@ -752,11 +752,6 @@ def serve_brief(date_str):
         if item['item_type'] in ('checkable', 'fyi') and item['checked'] is not None:
             checkable_count += 1
 
-    sections = []
-    for s in SECTIONS:
-        section_items = items_by_section.get(s['slug'], [])
-        sections.append({**s, 'count_label': _count_label(s['slug'], section_items)})
-
     # Action Items renders as four fixed subsections (New Items, Overdue,
     # Due Next 7 Days, No Due Date) rather than one flat list. New Items is
     # the only one tracked in Postgres (the skill only upserts action-items
@@ -791,6 +786,22 @@ def serve_brief(date_str):
         # un-refreshable "Overdue"/"Due Soon" section with no live source).
         new_only = [it for it in postgres_action_items if (it.get('content') or {}).get('is_new')]
         action_subsections = _group_action_items(new_only, today_iso)
+
+    # Count actually displayed, not raw Postgres row counts, for Action
+    # Items — the two now diverge on purpose (stale non-new rows get
+    # filtered out with no asana_pat; live-pulled items get added in with
+    # one). Every other section still has count == what's in Postgres, so
+    # only Action Items needs the override.
+    action_items_displayed = sum(len(g['items']) for g in action_subsections)
+
+    sections = []
+    for s in SECTIONS:
+        section_items = items_by_section.get(s['slug'], [])
+        if s['slug'] == 'action-items':
+            count_label = f'{action_items_displayed} items'
+        else:
+            count_label = _count_label(s['slug'], section_items)
+        sections.append({**s, 'count_label': count_label})
 
     return render_template(
         'brief_fragment.html',
