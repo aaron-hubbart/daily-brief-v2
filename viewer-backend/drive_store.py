@@ -224,3 +224,79 @@ def get_account_projects(access_token, brief_data_folder_id):
         for a in config.get('accounts', [])
         if a.get('project_gid')
     ]
+
+
+from datetime import date as _date
+
+
+def _update_state_entry(access_token, brief_data_folder_id, brief_date, section, item_key, **fields):
+    """
+    Shared read-modify-write for both set_item_checked and
+    set_item_due_date: 'state' is used as a folder-like container of
+    per-date files -- Drive has no distinct "create folder" primitive
+    exposed by this module (see _create_json_file's multipart body, which
+    always sets a JSON mimetype), so the state root is itself just a
+    zero-content JSON file used as a stable parent id for _find_child
+    lookups on its date-named children. Intentionally simple over "correct
+    Drive folder semantics" given the low volume involved (one file per
+    active brief-date, per user).
+
+    fields is exactly one of {checked: bool} or {due_on_override: str|None}
+    -- whichever the caller didn't pass stays untouched on the existing
+    entry, which is what lets a due-date edit preserve a prior checked
+    value and vice versa.
+    """
+    state_root = _find_child(access_token, brief_data_folder_id, 'state')
+    state = {}
+    state_file = None
+    if state_root:
+        state_file = _find_child(access_token, state_root['id'], f'{brief_date}.json')
+        if state_file:
+            state = _download_json(access_token, state_file['id'])
+
+    key = f'{section}:{item_key}'
+    entry = state.get(key, {'checked': None, 'due_on_override': None})
+    entry.update(fields)
+    state[key] = entry
+
+    if state_file:
+        _upload_json_update(access_token, state_file['id'], state)
+    else:
+        if not state_root:
+            state_root = _create_json_file(access_token, brief_data_folder_id, 'state', {})
+        _create_json_file(access_token, state_root['id'], f'{brief_date}.json', state)
+
+
+def set_item_checked(access_token, brief_data_folder_id, brief_date, section, item_key, checked):
+    _update_state_entry(access_token, brief_data_folder_id, brief_date, section, item_key, checked=checked)
+
+
+def set_item_due_date(access_token, brief_data_folder_id, brief_date, section, item_key, due_on):
+    _update_state_entry(access_token, brief_data_folder_id, brief_date, section, item_key, due_on_override=due_on)
+
+
+def run_retention_cleanup(access_token, brief_data_folder_id, active_days=14, hard_delete_days=30, today=None):
+    """
+    Trashes /briefs/{date} folders older than active_days. hard_delete_days
+    is accepted for interface parity with the old 14/30-day Postgres model
+    but not separately implemented: Drive auto-empties Trash after 30 days
+    on its own, so a single trash call already produces the same two-stage
+    effect without this module needing a second destructive delete call.
+    """
+    today = today or _date.today()
+    root = _find_child(access_token, brief_data_folder_id, 'briefs')
+    if not root:
+        return {'trashed': [], 'skipped': []}
+
+    trashed, skipped = [], []
+    for folder in _list_children(access_token, root['id']):
+        try:
+            folder_date = _date.fromisoformat(folder['name'])
+        except ValueError:
+            continue
+        if (today - folder_date).days > active_days:
+            _trash_file(access_token, folder['id'])
+            trashed.append(folder['name'])
+        else:
+            skipped.append(folder['name'])
+    return {'trashed': trashed, 'skipped': skipped}
