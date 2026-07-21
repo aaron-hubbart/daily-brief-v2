@@ -74,6 +74,25 @@ def test_create_json_file_sends_multipart_post(mocker):
     assert b'folder-1' in request_obj.data
 
 
+def test_create_folder_sends_plain_post_with_folder_mimetype(mocker):
+    import drive_store
+
+    mock_urlopen = mocker.patch('urllib.request.urlopen', return_value=_fake_response(
+        json.dumps({'id': 'new-folder-1', 'name': 'state'}).encode('utf-8')
+    ))
+    result = drive_store._create_folder('tok', 'parent-1', 'state')
+
+    assert result == {'id': 'new-folder-1', 'name': 'state'}
+    request_obj = mock_urlopen.call_args[0][0]
+    assert request_obj.get_method() == 'POST'
+    assert request_obj.full_url == 'https://www.googleapis.com/drive/v3/files'
+    assert '/upload/' not in request_obj.full_url
+    body = json.loads(request_obj.data.decode('utf-8'))
+    assert body['mimeType'] == 'application/vnd.google-apps.folder'
+    assert body['name'] == 'state'
+    assert body['parents'] == ['parent-1']
+
+
 def test_trash_file_sends_patch_trashed_true(mocker):
     import drive_store
 
