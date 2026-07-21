@@ -1,24 +1,13 @@
 ---
 name: daily-brief
 description: >
-  Generates a personalized daily briefing for Aaron Hubbart, Senior TAM at Camunda.
-  Pulls from all available data sources: Outlook calendar, Outlook email, Slack (DMs,
-  account channels, tiger team channels, direct mentions), Zoom meeting summaries,
-  and Asana tasks. Produces a structured, easy-to-read summary covering the current
-  day in review and the day ahead in plan.
+  Generates a personalized daily briefing for Aaron Hubbart, Senior TAM at Camunda, pulling from Outlook calendar/email, Slack (DMs, account channels, tiger team, mentions), Zoom summaries, and Asana tasks. Produces a structured recap of the day so far and a plan ahead.
 
-  Trigger on any of these phrases or clear variations: "daily brief", "morning brief",
-  "evening brief", "brief me", "what's my day look like", "catch me up", "day ahead",
-  "what happened today", "end of day summary", "start of day", "eod brief", "sod brief",
-  "what do I have today", "what's on my plate", "run my brief", "give me my brief".
-  Also trigger when the user says something like "brief" with no other context, or
-  asks to be caught up on the day, communications, or schedule. Also trigger on
-  "refresh the [account] update", "regenerate manager update", "redo the [account]
-  card", or a message starting with "/daily-brief Refresh" — these patch a single
-  Customer Update or Manager Update card rather than running a full brief.
+  Trigger on: "daily brief", "morning brief", "evening brief", "brief me", "what's my day look like", "catch me up", "day ahead", "what happened today", "end of day summary", "start of day", "eod brief", "sod brief", "what do I have today", "what's on my plate", "run my brief", "give me my brief", or "brief" alone. Also trigger when asked to catch up on the day, communications, or schedule.
 
-  Do NOT require the user to specify morning vs. evening — infer from context or current
-  time. Always run the brief without asking for confirmation first.
+  Also trigger on "refresh the [account] update", "regenerate manager update", "redo the [account] card", "refresh section:[slug]", or any message starting with "/daily-brief Refresh" — these patch a single card/section, not a full brief.
+
+  Don't require morning vs. evening — infer from context or current time. Always run without asking for confirmation first.
 ---
 
 # Daily Brief Skill
