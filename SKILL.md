@@ -219,7 +219,7 @@ For each, include:
 - Asana tasks due today or tomorrow tied to that account
 - Any flagged email or Slack threads requiring same-day action
 
-For any meeting today that qualifies for meeting-prep (see "Today" in HTML structure below — customer meetings and substantive internal meetings, i.e. anything with attendees beyond the user), note whether prep exists yet or was just generated as part of this run.
+**Every meeting in Today gets both a pre-meeting-prep deep-link and a post-meeting deep-link, with no exceptions and no qualifying criteria.** This used to be gated on the meeting "qualifying" (customer meetings and substantive internal meetings, i.e. anything with attendees beyond the user) — that gate is gone. Every meeting gets both links regardless of type, size, or whether meeting-prep already exists for it: a personal solo block has no attendees and isn't a meeting at all for this purpose (same exclusion as Yesterday's Meetings), but anything with attendees gets both links, full stop. See `references/item-sync.md` for the exact link shape and the `claude://` deep-link targets for each (pre-meeting prep before the meeting concludes, post-meeting notes after).
 
 End with a brief **Open Time** note if there are meaningful unblocked blocks in the day.
 
