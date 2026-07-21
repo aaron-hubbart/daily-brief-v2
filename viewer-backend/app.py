@@ -1017,15 +1017,19 @@ def set_item_due_date(section, item_key):
 @app.route('/healthz')
 def healthz():
     # Unauthenticated on purpose — process-liveness only, deliberately does
-    # NOT check the database. A transient Postgres blip shouldn't cause
-    # Kubernetes to kill and restart this pod; restarting doesn't fix a DB
-    # problem, it just adds a second failure on top of the first. Use
-    # /readyz (below) for anything that should depend on DB connectivity.
+    # NOT check the token store. A transient SQLite/disk blip shouldn't cause
+    # Kubernetes to kill and restart this pod; restarting doesn't fix a
+    # storage problem, it just adds a second failure on top of the first.
+    # Use /readyz (below) for anything that should depend on token store
+    # connectivity.
     return 'ok', 200
 
 
 @app.route('/readyz')
 def readyz():
+    """Kubernetes readiness probe: confirms the token_store SQLite file is
+    reachable, so a pod that can't read/write it stops receiving traffic
+    without being killed and restarted (that's /healthz's job instead)."""
     try:
         with db_tokens.cursor() as cur:
             cur.execute('SELECT 1')
