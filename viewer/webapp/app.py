@@ -252,7 +252,7 @@ def _fetch_live_action_items(pat, account_projects, exclude_gids):
                 'item_key': f'{ASANA_ACTION_ITEM_PREFIX}{task_gid}',
                 'title': task.get('name') or '(untitled task)',
                 'subtitle': None,
-                'badge': None,
+                'badge': None if task.get('assignee') else {'label': 'unassigned', 'class': 'bwarn'},
                 'links': [{
                     'label': 'Open in Asana',
                     'url': task.get('permalink_url') or f'https://app.asana.com/0/0/{task_gid}/f',
