@@ -673,7 +673,12 @@ def handle_google_auth_required(error):
     user's stored Google refresh token is missing or a refresh grant fails
     -- e.g. they revoked access at myaccount.google.com. Without this
     handler, every brief-related route would 500 for that user instead of
-    sending them back through the Google consent flow to re-link."""
+    sending them back through the Google consent flow to re-link.
+
+    Sets post_google_link_redirect the same way login_required's own
+    not-yet-linked branch does, so re-consenting returns the user to the
+    page they were on rather than always landing on index."""
+    session['post_google_link_redirect'] = request.script_root + request.path
     session.pop('google_oauth_state', None)
     return redirect(url_for('google_login'))
 
