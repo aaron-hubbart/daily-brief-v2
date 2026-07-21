@@ -114,7 +114,7 @@ def get_or_create_user(entra_object_id: str, email: str) -> dict:
         return _row_to_user(cur.fetchone())
 
 
-def get_user(entra_object_id: str):
+def get_user(entra_object_id: str) -> dict | None:
     with cursor() as cur:
         cur.execute('SELECT * FROM users WHERE entra_object_id = ?', (entra_object_id,))
         row = cur.fetchone()
@@ -129,7 +129,7 @@ def set_brief_data_folder_id(entra_object_id: str, folder_id: str) -> None:
         )
 
 
-def get_asana_pat(entra_object_id: str):
+def get_asana_pat(entra_object_id: str) -> str | None:
     with cursor() as cur:
         cur.execute('SELECT asana_pat_enc FROM users WHERE entra_object_id = ?', (entra_object_id,))
         row = cur.fetchone()
@@ -160,7 +160,7 @@ def count_users_with_asana_pat() -> int:
         return cur.fetchone()['n']
 
 
-def get_google_tokens(entra_object_id: str):
+def get_google_tokens(entra_object_id: str) -> dict | None:
     with cursor() as cur:
         cur.execute(
             'SELECT google_access_token_enc, google_refresh_token_enc, google_token_expiry '
@@ -199,7 +199,7 @@ def mark_onboarding_complete(entra_object_id: str) -> None:
         )
 
 
-def list_users() -> list:
+def list_users() -> list[dict]:
     with cursor() as cur:
         cur.execute('SELECT entra_object_id, email, created_at FROM users ORDER BY email')
         return [dict(row) for row in cur.fetchall()]
