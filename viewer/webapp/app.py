@@ -166,21 +166,28 @@ def _validate_asana_pat(pat):
 
 def _fetch_live_action_items(pat, account_projects, exclude_gids):
     """
-    Pulls open tasks assigned to the signed-in user directly from Asana,
-    for every project GID in account_projects, excluding any task GID
-    already tracked in Postgres as a New Item (see references/item-sync.md
-    in the skill repo — only newly-created tasks are upserted there now).
-    Returns a flat list of item dicts shaped like the skill's own
-    action-items rows, so _group_action_items can bucket them exactly the
-    same way it already does for New Items.
+    Pulls open tasks that are either assigned to the signed-in user or
+    unassigned, directly from Asana, for every project GID in
+    account_projects, excluding any task GID already tracked in Postgres
+    as a New Item (see references/item-sync.md in the skill repo — only
+    newly-created tasks are upserted there now). Returns a flat list of
+    item dicts shaped like the skill's own action-items rows, so
+    _group_action_items can bucket them exactly the same way it already
+    does for New Items.
+
+    Unassigned tasks are included on purpose: an unassigned task sitting
+    in one of the person's own account projects is still their problem to
+    triage, and a live pull that silently hid those would understate what
+    actually needs attention.
 
     Asana's /tasks endpoint rejects a query that specifies both `project`
     and `assignee` — its own API error is "Must specify exactly one of
     project, tag, section, user task list, or assignee + workspace". So
     this queries by `project` alone (every task in the project, done or
     not, hence `completed_since=now` to only get incomplete ones) and
-    filters to the signed-in person's own tasks client-side using their
-    Asana user gid, resolved once per call rather than per project.
+    filters client-side to tasks with no assignee or assigned to the
+    signed-in person's own Asana user gid, resolved once per call rather
+    than per project.
 
     Best-effort per project: one project's fetch failing (bad GID, Asana
     outage, rate limit) doesn't block the others — it's just logged and
@@ -226,9 +233,12 @@ def _fetch_live_action_items(pat, account_projects, exclude_gids):
             )
             continue
         fetched = data.get('data', [])
-        mine = [t for t in fetched if (t.get('assignee') or {}).get('gid') == me_gid]
+        mine = [
+            t for t in fetched
+            if t.get('assignee') is None or (t.get('assignee') or {}).get('gid') == me_gid
+        ]
         logger.info(
-            'live action items: %s (account=%s) returned %d task(s), %d assigned to me',
+            'live action items: %s (account=%s) returned %d task(s), %d mine or unassigned',
             gid, ap.get('account_name'), len(fetched), len(mine),
         )
         for task in mine:
