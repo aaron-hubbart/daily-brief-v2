@@ -56,6 +56,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
 .ibody{flex:1;min-width:0;}
 .ititle{font-size:13px;font-weight:500;color:var(--t1);line-height:1.35;display:flex;flex-wrap:wrap;align-items:center;gap:4px;}
 .isub{font-size:11.5px;color:var(--t2);margin-top:3px;line-height:1.45;}
+.iboard{font-size:10px;font-weight:600;letter-spacing:.03em;color:var(--t3);text-transform:uppercase;margin-top:2px;}
 .ilinks{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
 .badge{font-size:9.5px;font-weight:700;letter-spacing:.03em;padding:1px 5px;border-radius:3px;line-height:1.6;flex-shrink:0;}
 .bwarn{background:var(--warn-bg);color:var(--warn-t);}
@@ -158,6 +159,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
           <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
           <div class="ibody">
             <div class="ititle">{{ item.title }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
+            <div class="iboard">{{ item.content.get('project_name') or 'My Tasks' }}</div>
             {% if item.subtitle %}<div class="isub">{{ item.subtitle }}</div>{% endif %}
             {% if item.links %}
             <div class="ilinks">

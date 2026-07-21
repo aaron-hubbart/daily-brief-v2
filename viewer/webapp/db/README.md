@@ -10,7 +10,7 @@ With one row per item: refreshing a single account's update, or a single meeting
 
 ## `content` JSONB shape by `item_type`
 
-- **`checkable`** (Yesterday's Meetings, Account/Initiative Recap, Today, Action Items): `content` is usually `{}` — `title`, `subtitle`, `badge`, and `links` columns carry everything needed to render the row. `checked` holds the checkbox state.
+- **`checkable`** (Yesterday's Meetings, Account/Initiative Recap, Today, Action Items): `content` is usually `{}` — `title`, `subtitle`, `badge`, and `links` columns carry everything needed to render the row. `checked` holds the checkbox state. **Action Items is the exception**: `content` holds `{"due_on": "YYYY-MM-DD" or null, "is_new": true|false, "project_name": "..." or null}` — see `../references/item-sync.md` for how the skill populates these. `due_on`/`is_new` drive subsection placement (New Items, Overdue, Due Next 7 Days, No Due Date); `project_name` is display-only, the Asana board the task belongs to (`null` renders as "My Tasks").
 - **`fyi`**: same as `checkable` but `checked` is always `NULL` — FYI items were never checkable in the file-based model either.
 - **`card`** (Customer Updates — one row per account): `content` holds `{"textarea": "...", "channel_id": "C0XXXXXXX", "last_posted_at": "2026-07-13T18:00:00Z"}`.
 - **`text-block`** (Manager Update — always exactly one row per day, `item_key = 'mgr-update'`): `content` holds `{"textarea": "..."}`.
