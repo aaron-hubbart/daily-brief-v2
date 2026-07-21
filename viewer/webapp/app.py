@@ -37,6 +37,7 @@ import re
 import secrets
 import urllib.error
 import urllib.request
+from datetime import date
 from functools import wraps
 from pathlib import Path
 
@@ -101,6 +102,107 @@ def _sync_asana_completed(item_key: str, checked: bool):
             return True, True
     except urllib.error.URLError:
         return True, False
+
+
+def _sync_asana_due_date(item_key: str, due_on):
+    """
+    Best-effort: mirrors an Action Items due-date box edit to the linked
+    Asana task's due_on field. Same shape and same caveats as
+    _sync_asana_completed above — returns (attempted, ok), and a failed
+    Asana call never rolls back the Postgres write it accompanies.
+    due_on is an ISO date string ('YYYY-MM-DD') or None to clear the date.
+    """
+    if not item_key.startswith(ASANA_ACTION_ITEM_PREFIX):
+        return False, False
+    if not ASANA_PAT:
+        return False, False
+    gid = item_key[len(ASANA_ACTION_ITEM_PREFIX):]
+    if not gid.isdigit():
+        return False, False
+    req = urllib.request.Request(
+        f'https://app.asana.com/api/1.0/tasks/{gid}',
+        data=json.dumps({'data': {'due_on': due_on}}).encode('utf-8'),
+        method='PUT',
+        headers={
+            'Authorization': f'Bearer {ASANA_PAT}',
+            'Content-Type': 'application/json',
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10):
+            return True, True
+    except urllib.error.URLError:
+        return True, False
+
+
+# Fixed order and labels for the Action Items subsections (see
+# _group_action_items below). "New Items" always renders first regardless
+# of due date so a freshly created task doesn't get buried under overdue
+# items from prior days.
+ACTION_SUBSECTIONS = [
+    {'slug': 'new', 'label': 'New Items'},
+    {'slug': 'overdue', 'label': 'Overdue'},
+    {'slug': 'due-soon', 'label': 'Due Next 7 Days'},
+    {'slug': 'no-due-date', 'label': 'No Due Date'},
+]
+
+
+def _group_action_items(items, today_iso: str):
+    """
+    Splits the flat Action Items list into the four fixed subsections the
+    template renders. Membership is exclusive — an item lands in exactly
+    one group, checked in this priority order:
+
+      1. is_new  — content.is_new is true (this brief run created the
+         Asana task itself; see references/item-sync.md). Takes priority
+         over the date-based groups below so a brand-new overdue-looking
+         task still shows up under "New Items", not "Overdue".
+      2. overdue — content.due_on is set and before today.
+      3. due-soon — content.due_on is set and within the next 7 days
+         (inclusive of today).
+      4. no-due-date — everything else: no due_on at all, or a non-Asana
+         action item with no natural date.
+
+    Items are sorted by due_on ascending within groups 2 and 3; group 4
+    keeps upstream display_order (already priority-ordered by the skill)
+    since there's no date to sort on, and group 1 does the same.
+    Returns a list of {slug, label, items} dicts, omitting empty groups —
+    the template skips rendering a subsection header with nothing under it.
+    """
+    from datetime import date, timedelta
+
+    today = date.fromisoformat(today_iso)
+    week_out = today + timedelta(days=7)
+    buckets = {s['slug']: [] for s in ACTION_SUBSECTIONS}
+
+    for item in items:
+        content = item.get('content') or {}
+        due_on = content.get('due_on')
+        if content.get('is_new'):
+            buckets['new'].append(item)
+            continue
+        if due_on:
+            try:
+                due_date = date.fromisoformat(due_on)
+            except ValueError:
+                due_date = None
+        else:
+            due_date = None
+        if due_date is not None and due_date < today:
+            buckets['overdue'].append(item)
+        elif due_date is not None and due_date <= week_out:
+            buckets['due-soon'].append(item)
+        else:
+            buckets['no-due-date'].append(item)
+
+    for slug in ('overdue', 'due-soon'):
+        buckets[slug].sort(key=lambda it: (it.get('content') or {}).get('due_on') or '')
+
+    return [
+        {**s, 'items': buckets[s['slug']]}
+        for s in ACTION_SUBSECTIONS
+        if buckets[s['slug']]
+    ]
 
 
 def _count_label(slug, items):
@@ -535,6 +637,18 @@ def serve_brief(date_str):
         section_items = items_by_section.get(s['slug'], [])
         sections.append({**s, 'count_label': _count_label(s['slug'], section_items)})
 
+    # Action Items renders as four fixed subsections (New Items, Overdue,
+    # Due Next 7 Days, No Due Date) rather than one flat list — see
+    # _group_action_items for the grouping rules. "Today" here means the
+    # server's own local date; brief_date is the brief's date, which isn't
+    # necessarily the same day the person is viewing it on an evening/late
+    # run, so we deliberately use wall-clock today for the overdue/due-soon
+    # cutoffs rather than brief_date.
+    action_subsections = _group_action_items(
+        items_by_section.get('action-items', []),
+        date.today().isoformat(),
+    )
+
     return render_template(
         'brief_fragment.html',
         brief_date=date_str,
@@ -543,6 +657,8 @@ def serve_brief(date_str):
         checkable_count=checkable_count,
         sections=sections,
         items_by_section=items_by_section,
+        action_subsections=action_subsections,
+        today_iso=date.today().isoformat(),
     )
 
 
@@ -574,6 +690,40 @@ def set_item_checked(section, item_key):
     if not found:
         abort(404)
     attempted, ok = _sync_asana_completed(item_key, checked)
+    result = {'status': 'ok'}
+    if attempted:
+        result['asana_synced'] = ok
+    return jsonify(result)
+
+
+@app.route('/api/items/<section>/<item_key>/due-date', methods=['PATCH'])
+@login_required
+def set_item_due_date(section, item_key):
+    """
+    Called by the Action Items due-date box (input or one of the four
+    shortcut buttons — Today/Tomorrow/Next week/Next month) on every edit.
+    Same bidirectional shape as set_item_checked above: the Postgres write
+    is the source of truth for what the box displays after a refresh, and
+    a best-effort Asana sync (_sync_asana_due_date) mirrors the new date
+    onto the linked task so editing it in the brief and editing it in
+    Asana directly both converge on the same value either way.
+    """
+    date_str = request.args.get('date', '')
+    if not DATE_RE.match(date_str):
+        abort(400, 'date query param (YYYY-MM-DD) is required')
+    brief_day = db.get_brief_day(request.brief_user['id'], date_str)
+    if not brief_day:
+        abort(404)
+    body = request.get_json(silent=True) or {}
+    if 'due_on' not in body:
+        abort(400, 'due_on (YYYY-MM-DD or null) is required')
+    due_on = body['due_on']
+    if due_on is not None and not DATE_RE.match(due_on):
+        abort(400, 'due_on must be YYYY-MM-DD or null')
+    found = db.set_item_due_date(brief_day['id'], section, item_key, due_on)
+    if not found:
+        abort(404)
+    attempted, ok = _sync_asana_due_date(item_key, due_on)
     result = {'status': 'ok'}
     if attempted:
         result['asana_synced'] = ok

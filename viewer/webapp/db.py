@@ -264,3 +264,25 @@ def set_item_checked(brief_day_id: int, section: str, item_key: str, checked: bo
             (checked, brief_day_id, section, item_key),
         )
         return cur.rowcount > 0
+
+
+def set_item_due_date(brief_day_id: int, section: str, item_key: str, due_on) -> bool:
+    """
+    Updates content.due_on for a single item — the write side of the
+    Action Items due-date box. due_on is an ISO date string ('YYYY-MM-DD')
+    or None to clear it. jsonb_set with a NULL value would delete the key
+    entirely under some Postgres versions' semantics, so a None due_on is
+    written as JSON null via to_jsonb(NULL::text) rather than removed,
+    keeping the key present with an empty value for the template to check.
+    """
+    with cursor(commit=True) as cur:
+        cur.execute(
+            """
+            UPDATE items
+            SET content = jsonb_set(COALESCE(content, '{}'::jsonb), '{due_on}', to_jsonb(%s::text), true),
+                updated_at = now()
+            WHERE brief_day_id = %s AND section = %s AND item_key = %s
+            """,
+            (due_on, brief_day_id, section, item_key),
+        )
+        return cur.rowcount > 0

@@ -391,6 +391,70 @@ function saveBriefState(filename, state) {
   } catch(e) {}
 }
 
+// Local-date ISO string offset by `days` from today (not UTC, so it
+// matches whatever calendar day the person is actually looking at).
+function dateOffset(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function todayISO() { return dateOffset(0); }
+
+// Wires one Action Items due-date box: the <input type=date> and the
+// four shortcut buttons (Today/Tomorrow/Next week/Next month) all funnel
+// into the same commit() call, so editing either one updates the other's
+// displayed state — the input reflects whatever a shortcut just set, and
+// typing a manual date is exactly as valid as clicking a shortcut.
+function wireDueBox(duebox, filename) {
+  const input = duebox.querySelector('.due-input');
+  const statusEl = duebox.querySelector('[data-role="sync-status"]');
+  const itemKey = duebox.dataset.itemKey;
+  const section = duebox.dataset.section;
+  if (!input || !itemKey || !section) return;
+
+  function setOverdueClass() {
+    input.classList.toggle('overdue', !!input.value && input.value < todayISO());
+  }
+
+  async function commit(newValue) {
+    input.value = newValue;
+    setOverdueClass();
+    if (statusEl) statusEl.textContent = 'Syncing…';
+    try {
+      const res = await fetch(
+        'api/items/' + encodeURIComponent(section) + '/' + encodeURIComponent(itemKey) + '/due-date?date=' + encodeURIComponent(filename),
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ due_on: newValue || null }),
+        }
+      );
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const body = await res.json();
+      if (statusEl) {
+        statusEl.textContent = body.asana_synced === false ? 'Saved (Asana sync failed)' : 'Saved';
+        setTimeout(() => { statusEl.textContent = ''; }, 2500);
+      }
+    } catch (err) {
+      if (statusEl) statusEl.textContent = 'Save failed — retry';
+    }
+  }
+
+  input.addEventListener('click', e => e.stopPropagation());
+  input.addEventListener('change', e => { e.stopPropagation(); commit(input.value); });
+
+  duebox.querySelectorAll('.duebtn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const shortcut = btn.dataset.shortcut;
+      const days = { today: 0, tomorrow: 1, 'next-week': 7, 'next-month': 30 }[shortcut];
+      if (days === undefined) return;
+      commit(dateOffset(days));
+    });
+  });
+}
+
 function initBriefState(filename) {
   const container = document.getElementById('brief-content');
   const state = loadBriefState(filename);
@@ -459,6 +523,7 @@ function initBriefState(filename) {
     fresh.addEventListener('click', e => {
       if (e.target.closest('a')) return;
       if (e.target === cb || e.target.closest('input[type=checkbox]')) return; // checkbox handles itself
+      if (e.target.closest('.duebox')) return; // due-date box handles itself, below
       if (cb) {
         cb.checked = !cb.checked;
         cb.dispatchEvent(new Event('change', { bubbles: false }));
@@ -466,6 +531,13 @@ function initBriefState(filename) {
         toggle(id, section);
       }
     });
+
+    // Due-date box (Action Items only): the date input and the four
+    // shortcut buttons (Today/Tomorrow/Next week/Next month) both write
+    // to the same input value, then a shared commit() PATCHes it to the
+    // server and best-effort mirrors it onto the linked Asana task.
+    const duebox = fresh.querySelector('.duebox');
+    if (duebox) wireDueBox(duebox, filename);
   });
 
   // Wire reset button

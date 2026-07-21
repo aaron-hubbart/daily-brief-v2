@@ -31,11 +31,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 .prog-track{width:110px;height:3px;background:var(--border);border-radius:99px;overflow:hidden;margin-left:auto;}
 .prog-fill{height:100%;background:var(--accent);border-radius:99px;transition:width .2s;width:0%;}
 details.sec{border:1px solid var(--border);border-radius:var(--r);margin-bottom:14px;overflow:hidden;}
-details.sec>summary.sec-summary{list-style:none;cursor:pointer;padding:10px 14px;background:var(--surface2);display:flex;align-items:center;justify-content:space-between;user-select:none;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);}
+details.sec>summary.sec-summary{list-style:none;cursor:pointer;padding:10px 14px;background:var(--surface2);border-bottom:2px solid var(--border-strong);display:flex;align-items:center;justify-content:space-between;user-select:none;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t1);}
+details.sec:not([open])>summary.sec-summary{border-bottom-color:transparent;}
 details.sec>summary.sec-summary::-webkit-details-marker{display:none;}
-details.sec>summary.sec-summary::before{content:'▸';margin-right:8px;font-size:9px;display:inline-block;transition:transform .15s;}
+details.sec>summary.sec-summary::before{content:'▸';margin-right:8px;font-size:9px;display:inline-block;color:var(--t2);transition:transform .15s;}
 details.sec[open]>summary.sec-summary::before{transform:rotate(90deg);}
 details.sec>.sec-body{padding:4px 14px 10px;}
+.ssub{font-size:10.5px;font-weight:700;color:var(--accent-t);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 4px;padding-bottom:4px;border-bottom:1px solid var(--border);}
+.sec-body>.ssub:first-child{margin-top:6px;}
+.bnew{background:var(--accent-bg);color:var(--accent-t);}
+.duebox{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:6px;}
+.duebox input[type=date]{font-family:var(--font);font-size:11px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+.duebox input[type=date].overdue{color:var(--bad-t);border-color:var(--bad-t);}
+.duebtn{font-size:10.5px;padding:2px 7px;background:transparent;color:var(--t2);border:1px solid var(--border-strong);border-radius:var(--r);cursor:pointer;white-space:nowrap;font-family:var(--font);}
+.duebtn:hover{background:var(--accent-bg);color:var(--accent-t);border-color:var(--accent);}
+.due-sync-note{font-size:9.5px;color:var(--t3);margin-left:2px;}
 .item{display:flex;align-items:flex-start;gap:8px;padding:9px 0;border-bottom:.5px solid var(--border);cursor:pointer;transition:opacity .15s;-webkit-user-select:none;user-select:none;}
 .item:last-child{border-bottom:none;}
 .item.done{opacity:var(--done);}
@@ -139,6 +149,34 @@ details.sec>.sec-body{padding:4px 14px 10px;}
           <a class="post-btn" href="{{ item.content.get('post_url', '#') }}" target="_blank">Post to Manager</a>
           <a class="lbtn" href="claude://claude.ai/new?q=%2Fdaily-brief%20Refresh%20manager%20update" target="_blank">Refresh</a>
         </div>
+        {% endfor %}
+      {% elif section.slug == 'action-items' %}
+        {% for group in action_subsections %}
+        <div class="ssub">{{ group.label }}</div>
+        {% for item in group.items %}
+        <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}" data-section="action-items">
+          <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
+          <div class="ibody">
+            <div class="ititle">{{ item.title }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
+            {% if item.subtitle %}<div class="isub">{{ item.subtitle }}</div>{% endif %}
+            {% if item.links %}
+            <div class="ilinks">
+              {% for link in item.links %}
+              <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url }}" target="_blank">{{ link.label }}</a>
+              {% endfor %}
+            </div>
+            {% endif %}
+            <div class="duebox" data-item-key="{{ item.item_key }}" data-section="action-items" data-date="{{ brief_date }}">
+              <input type="date" class="due-input{% if item.content.get('due_on') and item.content.get('due_on') < today_iso %} overdue{% endif %}" value="{{ item.content.get('due_on', '') }}">
+              <button type="button" class="duebtn" data-shortcut="today">Today</button>
+              <button type="button" class="duebtn" data-shortcut="tomorrow">Tomorrow</button>
+              <button type="button" class="duebtn" data-shortcut="next-week">Next week</button>
+              <button type="button" class="duebtn" data-shortcut="next-month">Next month</button>
+              <span class="due-sync-note" data-role="sync-status"></span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
         {% endfor %}
       {% else %}
         {% for item in section_items %}
