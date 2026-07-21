@@ -23,15 +23,21 @@ def test_set_item_checked_creates_state_file_and_folder_when_absent(mocker):
     import drive_store
 
     mocker.patch('drive_store._find_child', return_value=None)
-    create_spy = mocker.patch('drive_store._create_json_file', side_effect=[
-        {'id': 'new-state-root', 'name': 'state'},
-        {'id': 'new-state-file', 'name': '2026-07-21.json'},
-    ])
+    create_folder_spy = mocker.patch('drive_store._create_folder', return_value={
+        'id': 'new-state-root', 'name': 'state',
+    })
+    create_file_spy = mocker.patch('drive_store._create_json_file', return_value={
+        'id': 'new-state-file', 'name': '2026-07-21.json',
+    })
     update_spy = mocker.patch('drive_store._upload_json_update')
 
     drive_store.set_item_checked('tok', 'root-folder', '2026-07-21', 'today', 'today-0900-jpmc', False)
 
-    assert create_spy.call_count == 2
+    create_folder_spy.assert_called_once_with('tok', 'root-folder', 'state')
+    create_file_spy.assert_called_once()
+    assert create_file_spy.call_args[0][0] == 'tok'
+    assert create_file_spy.call_args[0][1] == 'new-state-root'
+    assert create_file_spy.call_args[0][2] == '2026-07-21.json'
     update_spy.assert_not_called()
 
 

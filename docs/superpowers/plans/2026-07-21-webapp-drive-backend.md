@@ -2192,3 +2192,7 @@ If the manual pass surfaces a mismatch with `docs/superpowers/specs/2026-07-21-d
 git add -A
 git commit -m "Complete manual end-to-end verification of the Drive-backed viewer-backend"
 ```
+
+## Open items going into implementation planning
+
+- `run_retention_cleanup` in `drive_store.py` is implemented and unit-tested but not wired to any scheduler or route yet — nothing in `app.py`, the k8s manifests, or elsewhere invokes it. Wiring it up (e.g. a k8s CronJob calling a small script, or an authenticated admin-only endpoint) is a deliberately deferred follow-up for a future task, not a silent gap.

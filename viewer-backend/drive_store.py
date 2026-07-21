@@ -67,6 +67,20 @@ def _upload_json_update(access_token, file_id, content):
     )
 
 
+def _create_folder(access_token, parent_id, name):
+    body = json.dumps({
+        'name': name,
+        'mimeType': 'application/vnd.google-apps.folder',
+        'parents': [parent_id],
+    }).encode('utf-8')
+    raw = _drive_request(
+        access_token, 'POST', f'{DRIVE_API_BASE}/files',
+        body_bytes=body, content_type='application/json',
+    )
+    data = json.loads(raw.decode('utf-8'))
+    return {'id': data['id'], 'name': data['name']}
+
+
 def _create_json_file(access_token, parent_id, name, content):
     boundary = uuid.uuid4().hex
     metadata = json.dumps({'name': name, 'parents': [parent_id]})
@@ -232,14 +246,11 @@ from datetime import date as _date
 def _update_state_entry(access_token, brief_data_folder_id, brief_date, section, item_key, **fields):
     """
     Shared read-modify-write for both set_item_checked and
-    set_item_due_date: 'state' is used as a folder-like container of
-    per-date files -- Drive has no distinct "create folder" primitive
-    exposed by this module (see _create_json_file's multipart body, which
-    always sets a JSON mimetype), so the state root is itself just a
-    zero-content JSON file used as a stable parent id for _find_child
-    lookups on its date-named children. Intentionally simple over "correct
-    Drive folder semantics" given the low volume involved (one file per
-    active brief-date, per user).
+    set_item_due_date: 'state' is a real Drive folder (created via
+    _create_folder) that acts as a container of per-date state files, one
+    per active brief-date per user. It must be an actual folder -- not a
+    JSON file -- because Drive's `parents` field on the per-date files
+    requires a real folder id; a file cannot be the parent of another file.
 
     fields is exactly one of {checked: bool} or {due_on_override: str|None}
     -- whichever the caller didn't pass stays untouched on the existing
@@ -263,7 +274,7 @@ def _update_state_entry(access_token, brief_data_folder_id, brief_date, section,
         _upload_json_update(access_token, state_file['id'], state)
     else:
         if not state_root:
-            state_root = _create_json_file(access_token, brief_data_folder_id, 'state', {})
+            state_root = _create_folder(access_token, brief_data_folder_id, 'state')
         _create_json_file(access_token, state_root['id'], f'{brief_date}.json', state)
 
 
@@ -282,6 +293,14 @@ def run_retention_cleanup(access_token, brief_data_folder_id, active_days=14, ha
     but not separately implemented: Drive auto-empties Trash after 30 days
     on its own, so a single trash call already produces the same two-stage
     effect without this module needing a second destructive delete call.
+
+    NOT YET WIRED UP: nothing in app.py, the k8s manifests, or any
+    scheduler currently invokes this function, so in the real deployment
+    briefs will accumulate in Drive indefinitely until something calls it.
+    This is a known, deliberately-deferred follow-up rather than a silent
+    gap -- wiring it up (e.g. via a k8s CronJob invoking a small script that
+    calls this function per user, or via an authenticated admin-only route)
+    is left to a future task.
     """
     today = today or _date.today()
     root = _find_child(access_token, brief_data_folder_id, 'briefs')

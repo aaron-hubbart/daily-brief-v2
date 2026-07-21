@@ -666,6 +666,18 @@ def google_callback():
     return redirect(dest)
 
 
+@app.errorhandler(google_oauth.GoogleAuthRequired)
+def handle_google_auth_required(error):
+    """google_oauth.get_valid_access_token (via _drive_context) and
+    exchange_code_for_tokens (via google_callback) both raise this when a
+    user's stored Google refresh token is missing or a refresh grant fails
+    -- e.g. they revoked access at myaccount.google.com. Without this
+    handler, every brief-related route would 500 for that user instead of
+    sending them back through the Google consent flow to re-link."""
+    session.pop('google_oauth_state', None)
+    return redirect(url_for('google_login'))
+
+
 @app.route('/logout')
 def logout():
     session.clear()

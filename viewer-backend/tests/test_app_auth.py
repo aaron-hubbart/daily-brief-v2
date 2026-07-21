@@ -73,3 +73,25 @@ def test_drive_folder_save_and_status_round_trip(client, monkeypatch, mocker):
 
     resp = client.get('/api/drive-folder')
     assert resp.get_json() == {'folder_id': 'folder-xyz'}
+
+
+def test_brief_route_redirects_to_google_login_when_reauth_required(client, monkeypatch, mocker):
+    """A user who has already linked Google but whose refresh token has
+    since been revoked (e.g. at myaccount.google.com) hits
+    google_oauth.get_valid_access_token -> GoogleAuthRequired deep inside
+    _drive_context. Without the errorhandler in app.py this would 500;
+    it should instead come back as a redirect to re-consent."""
+    _sign_in(client, monkeypatch)
+
+    import token_store
+    with client.application.app_context():
+        token_store.get_or_create_user('oid-1', 'aaron@camunda.com')
+        token_store.set_google_tokens('oid-1', 'stale-access', 'stale-refresh', '2020-01-01T00:00:00+00:00')
+        token_store.set_brief_data_folder_id('oid-1', 'folder-xyz')
+
+    import google_oauth
+    mocker.patch('google_oauth.get_valid_access_token', side_effect=google_oauth.GoogleAuthRequired('refresh failed'))
+
+    resp = client.get('/api/briefs')
+    assert resp.status_code == 302
+    assert '/auth/google/login' in resp.headers['Location']
