@@ -174,11 +174,29 @@ def _fetch_live_action_items(pat, account_projects, exclude_gids):
     action-items rows, so _group_action_items can bucket them exactly the
     same way it already does for New Items.
 
+    Asana's /tasks endpoint rejects a query that specifies both `project`
+    and `assignee` — its own API error is "Must specify exactly one of
+    project, tag, section, user task list, or assignee + workspace". So
+    this queries by `project` alone (every task in the project, done or
+    not, hence `completed_since=now` to only get incomplete ones) and
+    filters to the signed-in person's own tasks client-side using their
+    Asana user gid, resolved once per call rather than per project.
+
     Best-effort per project: one project's fetch failing (bad GID, Asana
-    outage, rate limit) doesn't block the others — it's just silently
+    outage, rate limit) doesn't block the others — it's just logged and
     skipped, since there's no per-item place in this flat list to surface
     a project-level error.
     """
+    try:
+        me = _asana_api_get(pat, '/users/me', {'opt_fields': 'gid'})
+        me_gid = me.get('data', {}).get('gid')
+    except (urllib.error.URLError, json.JSONDecodeError) as e:
+        logger.warning('live action items: could not resolve Asana user gid, aborting pull: %s', e)
+        return []
+    if not me_gid:
+        logger.warning('live action items: /users/me returned no gid, aborting pull')
+        return []
+
     items = []
     seen_gids = set(exclude_gids)
     for ap in account_projects:
@@ -186,9 +204,8 @@ def _fetch_live_action_items(pat, account_projects, exclude_gids):
         try:
             data = _asana_api_get(pat, '/tasks', {
                 'project': gid,
-                'assignee': 'me',
                 'completed_since': 'now',
-                'opt_fields': 'name,due_on,permalink_url,projects.name',
+                'opt_fields': 'name,due_on,permalink_url,projects.name,assignee.gid',
                 'limit': 100,
             })
         except urllib.error.HTTPError as e:
@@ -209,11 +226,12 @@ def _fetch_live_action_items(pat, account_projects, exclude_gids):
             )
             continue
         fetched = data.get('data', [])
+        mine = [t for t in fetched if (t.get('assignee') or {}).get('gid') == me_gid]
         logger.info(
-            'live action items: %s (account=%s) returned %d task(s) assigned to me',
-            gid, ap.get('account_name'), len(fetched),
+            'live action items: %s (account=%s) returned %d task(s), %d assigned to me',
+            gid, ap.get('account_name'), len(fetched), len(mine),
         )
-        for task in fetched:
+        for task in mine:
             task_gid = task.get('gid')
             if not task_gid or task_gid in seen_gids:
                 continue
