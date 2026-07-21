@@ -94,6 +94,9 @@ details.sec>.sec-body{padding:4px 14px 10px;}
 .sec-refresh{font-size:10px;font-weight:600;letter-spacing:.03em;text-transform:none;padding:2px 7px;border-radius:99px;border:.5px solid var(--border-strong);color:var(--t3);background:var(--surface);cursor:pointer;text-decoration:none;margin-left:8px;white-space:nowrap;}
 .sec-refresh:hover{color:var(--t2);filter:brightness(.95);}
 .sec-summary-right{display:flex;align-items:center;}
+.toolbar{display:flex;gap:8px;margin-bottom:14px;}
+.toolbtn{font-size:11px;font-weight:500;padding:4px 10px;background:var(--surface);color:var(--t2);border:1px solid var(--border-strong);border-radius:var(--r);cursor:pointer;font-family:var(--font);}
+.toolbtn:hover{background:var(--accent-bg);color:var(--accent-t);border-color:var(--accent);}
 </style>
 </head>
 <body>
@@ -108,6 +111,11 @@ details.sec>.sec-body{padding:4px 14px 10px;}
       <div class="prog-label" id="prog-label">0 of {{ checkable_count }} done</div>
       <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
     </div>
+  </div>
+
+  <div class="toolbar">
+    <button type="button" class="toolbtn" id="expand-all-btn">Expand all</button>
+    <button type="button" class="toolbtn" id="collapse-all-btn">Collapse all</button>
   </div>
 
   {% macro action_item(item, show_board=true) %}
@@ -139,7 +147,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
   {% for section in sections %}
   {% set section_items = items_by_section.get(section.slug, []) %}
   {% if section_items %}
-  <details class="sec" data-section="{{ section.slug }}" {% if section.open_default %}open{% endif %}>
+  <details class="sec" data-section="{{ section.slug }}">
     <summary class="sec-summary">
       <span class="sec-label">{{ section.label }}</span>
       <span class="sec-summary-right">
@@ -190,7 +198,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
         <div class="asana-hint">Connect Asana in the Account panel to see Overdue, Due Next 7 Days, and No Due Date items here too.</div>
         {% endif %}
         {% for group in action_subsections %}
-        <details class="acct-card" data-subsection="{{ group.slug }}" open>
+        <details class="acct-card" data-subsection="{{ group.slug }}">
           <summary>
             <span class="acct-card-name">{{ group.label }}</span>
             <span class="acct-card-meta">{{ group['items']|length }} item{{ '' if group['items']|length == 1 else 's' }}</span>
@@ -198,7 +206,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
           <div class="acct-card-body">
             {% if group.slug == 'no-due-date' %}
               {% for board in group.boards %}
-              <details class="board-group" open>
+              <details class="board-group">
                 <summary>{{ board.name }} <span class="acct-card-meta">({{ board['items']|length }})</span></summary>
                 {% for item in board['items'] %}
                 {{ action_item(item, show_board=false) }}
@@ -245,5 +253,17 @@ details.sec>.sec-body{padding:4px 14px 10px;}
   </div>
 
 </div>
+
+<script>
+(function () {
+  function setAllDetails(open) {
+    document.querySelectorAll('details').forEach(function (d) { d.open = open; });
+  }
+  var expandBtn = document.getElementById('expand-all-btn');
+  var collapseBtn = document.getElementById('collapse-all-btn');
+  if (expandBtn) expandBtn.addEventListener('click', function () { setAllDetails(true); });
+  if (collapseBtn) collapseBtn.addEventListener('click', function () { setAllDetails(false); });
+})();
+</script>
 </body>
 </html>
