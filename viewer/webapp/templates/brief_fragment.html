@@ -153,7 +153,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
       {% elif section.slug == 'action-items' %}
         {% for group in action_subsections %}
         <div class="ssub">{{ group.label }}</div>
-        {% for item in group.items %}
+        {% for item in group['items'] %}
         <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}" data-section="action-items">
           <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
           <div class="ibody">
