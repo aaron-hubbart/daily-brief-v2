@@ -6,6 +6,8 @@ import {
   BriefItemSchema,
   upsertItem,
   batchUpsertItems,
+  AccountProjectSchema,
+  syncAccountProjects,
   DailyBriefApiError
 } from "./dailyBriefClient.js";
 import { requestContext } from "./requestContext.js";
@@ -150,6 +152,58 @@ function formatError(err: unknown): string {
   }
   return `Error: ${String(err)}`;
 }
+
+// --- daily_brief_sync_account_projects ---------------------------------------
+
+const SyncAccountProjectsInputSchema = z.object({
+  accounts: z.array(AccountProjectSchema)
+    .describe("The full current account -> Asana project GID mapping, read fresh from Meeting Manager Config.xlsx's Accounts sheet")
+}).strict();
+
+type SyncAccountProjectsInput = z.infer<typeof SyncAccountProjectsInputSchema>;
+
+server.registerTool(
+  "daily_brief_sync_account_projects",
+  {
+    title: "Sync the account -> Asana project GID mapping",
+    description: `Mirrors the skill's account -> Asana project GID mapping (from Meeting Manager Config.xlsx) into the viewer's Postgres store, as a full replace for this user.
+
+Call this once per brief run, after reading the Accounts sheet's Account Name and Asana Project GID columns. This is what the webapp reads to know which boards to poll for its live Overdue/Due Next 7 Days/No Due Date Action Items pull — the webapp has no Google Drive access of its own, so it can't read the sheet directly.
+
+This is a full replace, not a merge: send every account currently in the sheet with a non-blank Asana Project GID on every call, even ones that haven't changed. Omitting an account here removes its mapping — do not send only the accounts that changed since the last run.
+
+Args:
+  - accounts (array of {account_name, project_gid}): every account with a configured GID
+
+Returns:
+  { "ok": true, "count": <number of accounts synced> }
+
+Error Handling:
+  - Returns "Error: daily-brief API returned 401" if the bearer token is invalid or expired
+  - A failed sync should not block the in-chat brief — treat this as best-effort, same as the item upserts`,
+    inputSchema: SyncAccountProjectsInputSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
+  },
+  async (params: SyncAccountProjectsInput) => {
+    try {
+      const result = await syncAccountProjects(params.accounts);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result) }],
+        structuredContent: result
+      };
+    } catch (err) {
+      return {
+        content: [{ type: "text", text: formatError(err) }],
+        isError: true
+      };
+    }
+  }
+);
 
 // --- HTTP transport + auth ----------------------------------------------------
 //

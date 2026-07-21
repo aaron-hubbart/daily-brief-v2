@@ -109,7 +109,7 @@ async function loadConfig() {
       ['Azure client ID', cfg.azure_client_id_set],
       ['Group restriction', cfg.allowed_groups_active ? cfg.allowed_groups_count + ' group(s)' : false],
       ['Admin emails', cfg.admin_emails_count + ' configured'],
-      ['Asana PAT', cfg.asana_pat_set],
+      ['Users with Asana connected', cfg.users_with_asana_pat + ' user(s)'],
     ];
     grid.innerHTML = rows.map(([label, val]) => {
       const on = !!val;

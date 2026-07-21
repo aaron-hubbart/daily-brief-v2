@@ -1,10 +1,12 @@
 # daily-brief-mcp-server
 
-Remote MCP server wrapping the daily-brief webapp's item-sync API
-(`/api/items/upsert`, `/api/items/batch-upsert`) as two MCP tools:
+Remote MCP server wrapping the daily-brief webapp's item-sync and config API
+(`/api/items/upsert`, `/api/items/batch-upsert`, `/api/config/account-projects`)
+as three MCP tools:
 
 - `daily_brief_upsert_item` — single-item patch (post-meeting-patch, section-refresh)
 - `daily_brief_batch_upsert_items` — full brief run, all items in one call
+- `daily_brief_sync_account_projects` — mirrors the account -> Asana project GID mapping (from Meeting Manager Config.xlsx) so the webapp can pull live Overdue/Due Next 7 Days/No Due Date Action Items directly from Asana without needing Drive access of its own
 
 Built with the TypeScript MCP SDK on Streamable HTTP, per Anthropic's recommended
 stack for remote servers (stateless JSON, no session state to manage).

@@ -103,3 +103,22 @@ export async function batchUpsertItems(
     items
   });
 }
+
+// Mirrors the account -> Asana project GID mapping the daily-brief skill
+// reads from Meeting Manager Config.xlsx (Accounts sheet). See
+// references/item-sync.md and viewer/webapp/db/README.md for why this
+// exists: the webapp has no Google Drive access of its own, so it can't
+// read that sheet directly to know which boards to poll for the live
+// Overdue/Due Next 7 Days/No Due Date Action Items pull.
+export const AccountProjectSchema = z.object({
+  account_name: z.string(),
+  project_gid: z.string()
+});
+
+export type AccountProject = z.infer<typeof AccountProjectSchema>;
+
+export async function syncAccountProjects(
+  accounts: AccountProject[]
+): Promise<{ ok: boolean; count: number }> {
+  return request("/api/config/account-projects", { accounts });
+}

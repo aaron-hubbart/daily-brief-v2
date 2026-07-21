@@ -5,4 +5,4 @@ viewer/.server.pid
 viewer/webapp/.env
 __pycache__/
 *.pyc
-secrets/*
+secrets/*node_modules/

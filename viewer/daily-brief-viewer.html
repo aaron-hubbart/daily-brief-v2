@@ -124,6 +124,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 .setup-step code{font-family:ui-monospace,"SF Mono","Cascadia Code",monospace;background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:11px;color:var(--t1);}
 .copy-row{display:flex;gap:6px;margin:8px 0 10px;}
 .copy-input{flex:1;height:32px;padding:0 9px;font-family:ui-monospace,"SF Mono","Cascadia Code",monospace;font-size:11px;background:var(--surface2);border:1px solid var(--border-strong);border-radius:var(--r);color:var(--t1);min-width:0;}
+.text-input{flex:1;height:32px;padding:0 9px;font-family:ui-monospace,"SF Mono","Cascadia Code",monospace;font-size:11px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r);color:var(--t1);min-width:0;}
+.text-input:focus{outline:2px solid var(--accent);outline-offset:-1px;}
 .copy-btn{height:32px;padding:0 12px;font-size:11.5px;font-weight:500;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t2);cursor:pointer;flex-shrink:0;}
 .copy-btn:hover{background:var(--surface2);color:var(--t1);}
 .copy-btn.copied{color:var(--accent-t);border-color:var(--accent);}
@@ -244,6 +246,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
           <li>Your own Asana recurring-activities project GID (<code>RECURRING_ACTIVITIES_PROJECT_GID</code>) and a Drive sheet for the meeting run log (<code>MEETING_RUN_LOG_SHEET_ID</code>) — set these in Admin Config as you go</li>
           <li>See the skill repo's <code>README.md</code> for the full prerequisites list</li>
         </ul>
+      </div>
+
+      <div class="setup-step" data-step="6">
+        <h3>6. Connect Asana (optional)</h3>
+        <p>Adding your own Asana Personal Access Token lets this viewer pull your Overdue, Due Next 7 Days, and No Due Date tasks directly from Asana every time you load a brief — always current, not just whatever the skill saw on its last run. Only the New Items you saw above come from the brief run itself; this step is what turns on the other three.</p>
+        <p>To create one: sign in to Asana, go to <strong>your profile photo &rarr; My Settings &rarr; Apps &rarr; Manage Developer Apps &rarr; Personal Access Tokens &rarr; Create new token</strong> (or go directly to <a href="https://app.asana.com/0/developer-console" target="_blank" rel="noopener">app.asana.com/0/developer-console</a>). Give it a name like "Daily Brief Viewer" and copy the token — Asana only shows it once.</p>
+        <div class="copy-row">
+          <input class="text-input" id="setup-asana-pat" type="password" placeholder="Paste your Asana PAT here" autocomplete="off">
+          <button class="copy-btn" id="setup-asana-save" onclick="saveAsanaPatFromSetup()">Save</button>
+        </div>
+        <div class="account-msg" id="setup-asana-msg"></div>
+        <p style="font-size:11.5px;color:var(--t3);">This is entirely optional. Skip it and finish setup — you can always add it later from the Account panel, and New Items will keep working either way.</p>
         <p>Once your skill runs once, your brief shows up here automatically. Run <code>/daily-brief</code> in Claude any time to generate one — you're all set.</p>
       </div>
     </div>
@@ -269,6 +283,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
       <button class="icon-btn" id="account-rotate" onclick="rotateToken()">Rotate token</button>
       <p style="font-size:11.5px;color:var(--t3);margin-top:10px;line-height:1.5;">Rotating invalidates your current token immediately. Afterward, update the <code>Authorization</code> header on your daily-brief-mcp-server connector (Claude Settings &rarr; Connectors) with the new value — your skill can't sync again until you do.</p>
       <div class="account-msg" id="account-msg"></div>
+      <hr class="account-hr">
+      <div class="account-row" id="asana-status-row">Asana connection: <strong id="asana-status">checking…</strong></div>
+      <div class="copy-row">
+        <input class="text-input" id="account-asana-pat" type="password" placeholder="Paste your Asana PAT to connect or replace it" autocomplete="off">
+        <button class="copy-btn" id="account-asana-save" onclick="saveAsanaPatFromAccount()">Save</button>
+      </div>
+      <button class="icon-btn" id="account-asana-disconnect" onclick="disconnectAsana()" style="display:none;">Disconnect Asana</button>
+      <div class="account-msg" id="account-asana-msg"></div>
       <hr class="account-hr">
       <button class="icon-btn" onclick="closeAccount(); openSetup(true);">Replay setup guide</button>
     </div>
@@ -1144,7 +1166,7 @@ document.getElementById('brief-select').addEventListener('change', function() {
 
 let clientConfig = null; // {api_base_url, mcp_connector_url} — cached after first fetch
 let setupStepIndex = 1;
-const SETUP_STEP_COUNT = 5;
+const SETUP_STEP_COUNT = 6;
 
 async function getClientConfig() {
   if (clientConfig) return clientConfig;
@@ -1155,6 +1177,67 @@ async function getClientConfig() {
     clientConfig = { api_base_url: null, mcp_connector_url: null };
   }
   return clientConfig;
+}
+
+async function saveAsanaPat(inputId, msgId, onSuccess) {
+  const input = document.getElementById(inputId);
+  const msg = document.getElementById(msgId);
+  const pat = input.value.trim();
+  if (!pat) {
+    msg.className = 'account-msg err';
+    msg.textContent = 'Paste a token first.';
+    return;
+  }
+  msg.className = 'account-msg';
+  msg.textContent = 'Validating with Asana…';
+  try {
+    const res = await fetch('api/asana-pat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pat }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.description || ('HTTP ' + res.status));
+    msg.className = 'account-msg ok';
+    const name = body.asana_user && body.asana_user.name;
+    msg.textContent = name ? `Connected as ${name}.` : 'Connected.';
+    input.value = '';
+    if (onSuccess) onSuccess();
+  } catch (e) {
+    msg.className = 'account-msg err';
+    msg.textContent = 'Could not validate that token — check it was copied correctly.';
+  }
+}
+
+function saveAsanaPatFromSetup() {
+  saveAsanaPat('setup-asana-pat', 'setup-asana-msg');
+}
+
+function saveAsanaPatFromAccount() {
+  saveAsanaPat('account-asana-pat', 'account-asana-msg', refreshAsanaStatus);
+}
+
+async function refreshAsanaStatus() {
+  const statusEl = document.getElementById('asana-status');
+  const disconnectBtn = document.getElementById('account-asana-disconnect');
+  try {
+    const res = await fetch('api/asana-pat');
+    const d = await res.json();
+    statusEl.textContent = d.configured ? 'Connected' : 'Not connected';
+    disconnectBtn.style.display = d.configured ? '' : 'none';
+  } catch (e) {
+    statusEl.textContent = 'Unknown';
+  }
+}
+
+async function disconnectAsana() {
+  if (!confirm('Disconnect Asana? Overdue, Due Next 7 Days, and No Due Date items will stop showing until you reconnect — New Items keeps working either way.')) {
+    return;
+  }
+  try {
+    await fetch('api/asana-pat', { method: 'DELETE' });
+  } catch (e) { /* best-effort */ }
+  refreshAsanaStatus();
 }
 
 function renderSetupDots() {
@@ -1190,6 +1273,9 @@ async function openSetup(fromReplay) {
   setupStepIndex = 1;
   renderSetupStep();
   document.getElementById('setup-overlay').classList.add('show');
+  document.getElementById('setup-asana-pat').value = '';
+  document.getElementById('setup-asana-msg').className = 'account-msg';
+  document.getElementById('setup-asana-msg').textContent = '';
 
   fetch('api/token').then(r => r.json()).then(d => {
     document.getElementById('setup-token').value = d.token || '(unavailable)';
@@ -1208,6 +1294,9 @@ async function openAccount() {
   document.getElementById('account-overlay').classList.add('show');
   document.getElementById('account-msg').className = 'account-msg';
   document.getElementById('account-msg').textContent = '';
+  document.getElementById('account-asana-msg').className = 'account-msg';
+  document.getElementById('account-asana-msg').textContent = '';
+  document.getElementById('account-asana-pat').value = '';
 
   try {
     const res = await fetch('api/token');
@@ -1217,6 +1306,8 @@ async function openAccount() {
   } catch (e) {
     document.getElementById('account-token').value = '(unavailable)';
   }
+
+  refreshAsanaStatus();
 }
 
 function closeAccount() {

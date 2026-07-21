@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS users (
     -- the first time this user signs in through the browser (see
     -- get_or_create_user in db.py) -- nobody has to hand-provision this.
     api_token   TEXT UNIQUE,
+    -- Per-user Asana Personal Access Token — see migrations/003_add_asana_pat.sql
+    -- for what it's used for. NULL means the person skipped that step of
+    -- setup; the webapp treats that as "live Action Items pull disabled."
+    asana_pat   TEXT,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     -- Set once the person has clicked through the in-app setup walkthrough
     -- (or dismissed it). NULL means "show it automatically on next login."
@@ -72,3 +76,20 @@ CREATE TABLE IF NOT EXISTS items (
 );
 
 CREATE INDEX IF NOT EXISTS idx_items_brief_day ON items (brief_day_id, section, display_order);
+
+-- Mirror of the account -> Asana project GID mapping from Meeting Manager
+-- Config.xlsx, re-synced by the skill on every run (full replace-per-user)
+-- since the webapp has no Google Drive access of its own. See
+-- migrations/004_add_account_projects.sql and app.py's live Action Items
+-- pull for how this gets used.
+CREATE TABLE IF NOT EXISTS account_projects (
+    id           SERIAL PRIMARY KEY,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    account_name TEXT NOT NULL,
+    project_gid  TEXT NOT NULL,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, account_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_projects_user ON account_projects (user_id);
+

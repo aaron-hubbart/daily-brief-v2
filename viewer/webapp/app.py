@@ -36,8 +36,9 @@ import os
 import re
 import secrets
 import urllib.error
+import urllib.parse
 import urllib.request
-from datetime import date
+from datetime import date, timedelta
 from functools import wraps
 from pathlib import Path
 
@@ -72,28 +73,32 @@ SECTIONS = [
 ASANA_ACTION_ITEM_PREFIX = 'action-'
 
 
-def _sync_asana_completed(item_key: str, checked: bool):
+ASANA_API_BASE = 'https://app.asana.com/api/1.0'
+
+
+def _sync_asana_completed(pat, item_key: str, checked: bool):
     """
     Best-effort: mirrors a checkbox toggle on an Action Item to the
     completed state of its linked Asana task. Returns (attempted, ok).
     attempted is False when the item_key isn't an Asana-backed action item
-    or ASANA_PAT isn't configured, ok is False when it was attempted but
-    the Asana API call itself failed — either way the Postgres write this
-    accompanies has already succeeded and isn't rolled back.
+    or the signed-in user has no asana_pat configured, ok is False when it
+    was attempted but the Asana API call itself failed — either way the
+    Postgres write this accompanies (if any — see the live-item fallback
+    in set_item_checked below) has already succeeded and isn't rolled back.
     """
     if not item_key.startswith(ASANA_ACTION_ITEM_PREFIX):
         return False, False
-    if not ASANA_PAT:
+    if not pat:
         return False, False
     gid = item_key[len(ASANA_ACTION_ITEM_PREFIX):]
     if not gid.isdigit():
         return False, False
     req = urllib.request.Request(
-        f'https://app.asana.com/api/1.0/tasks/{gid}',
+        f'{ASANA_API_BASE}/tasks/{gid}',
         data=json.dumps({'data': {'completed': checked}}).encode('utf-8'),
         method='PUT',
         headers={
-            'Authorization': f'Bearer {ASANA_PAT}',
+            'Authorization': f'Bearer {pat}',
             'Content-Type': 'application/json',
         },
     )
@@ -104,7 +109,7 @@ def _sync_asana_completed(item_key: str, checked: bool):
         return True, False
 
 
-def _sync_asana_due_date(item_key: str, due_on):
+def _sync_asana_due_date(pat, item_key: str, due_on):
     """
     Best-effort: mirrors an Action Items due-date box edit to the linked
     Asana task's due_on field. Same shape and same caveats as
@@ -114,17 +119,17 @@ def _sync_asana_due_date(item_key: str, due_on):
     """
     if not item_key.startswith(ASANA_ACTION_ITEM_PREFIX):
         return False, False
-    if not ASANA_PAT:
+    if not pat:
         return False, False
     gid = item_key[len(ASANA_ACTION_ITEM_PREFIX):]
     if not gid.isdigit():
         return False, False
     req = urllib.request.Request(
-        f'https://app.asana.com/api/1.0/tasks/{gid}',
+        f'{ASANA_API_BASE}/tasks/{gid}',
         data=json.dumps({'data': {'due_on': due_on}}).encode('utf-8'),
         method='PUT',
         headers={
-            'Authorization': f'Bearer {ASANA_PAT}',
+            'Authorization': f'Bearer {pat}',
             'Content-Type': 'application/json',
         },
     )
@@ -133,6 +138,85 @@ def _sync_asana_due_date(item_key: str, due_on):
             return True, True
     except urllib.error.URLError:
         return True, False
+
+
+def _asana_api_get(pat, path, params):
+    query = urllib.parse.urlencode(params)
+    req = urllib.request.Request(
+        f'{ASANA_API_BASE}{path}?{query}',
+        headers={'Authorization': f'Bearer {pat}'},
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode('utf-8'))
+
+
+def _validate_asana_pat(pat):
+    """Used when a person saves a new PAT during setup or from the Account
+    panel — calls Asana's own /users/me so a bad token is caught immediately
+    with a clear error, rather than silently failing later on the first
+    live pull. Returns the Asana user's name/email dict, or None if the
+    token is invalid or the call otherwise failed."""
+    try:
+        data = _asana_api_get(pat, '/users/me', {'opt_fields': 'name,email'})
+        return data.get('data')
+    except (urllib.error.URLError, json.JSONDecodeError):
+        return None
+
+
+def _fetch_live_action_items(pat, account_projects, exclude_gids):
+    """
+    Pulls open tasks assigned to the signed-in user directly from Asana,
+    for every project GID in account_projects, excluding any task GID
+    already tracked in Postgres as a New Item (see references/item-sync.md
+    in the skill repo — only newly-created tasks are upserted there now).
+    Returns a flat list of item dicts shaped like the skill's own
+    action-items rows, so _group_action_items can bucket them exactly the
+    same way it already does for New Items.
+
+    Best-effort per project: one project's fetch failing (bad GID, Asana
+    outage, rate limit) doesn't block the others — it's just silently
+    skipped, since there's no per-item place in this flat list to surface
+    a project-level error.
+    """
+    items = []
+    seen_gids = set(exclude_gids)
+    for ap in account_projects:
+        gid = ap['project_gid']
+        try:
+            data = _asana_api_get(pat, '/tasks', {
+                'project': gid,
+                'assignee': 'me',
+                'completed_since': 'now',
+                'opt_fields': 'name,due_on,permalink_url,projects.name',
+                'limit': 100,
+            })
+        except (urllib.error.URLError, json.JSONDecodeError):
+            continue
+        for task in data.get('data', []):
+            task_gid = task.get('gid')
+            if not task_gid or task_gid in seen_gids:
+                continue
+            seen_gids.add(task_gid)
+            projects = task.get('projects') or []
+            project_name = ', '.join(p['name'] for p in projects if p.get('name')) or None
+            items.append({
+                'item_key': f'{ASANA_ACTION_ITEM_PREFIX}{task_gid}',
+                'title': task.get('name') or '(untitled task)',
+                'subtitle': None,
+                'badge': None,
+                'links': [{
+                    'label': 'Open in Asana',
+                    'url': task.get('permalink_url') or f'https://app.asana.com/0/0/{task_gid}/f',
+                    'class': 'lbtn',
+                }],
+                'content': {
+                    'due_on': task.get('due_on'),
+                    'is_new': False,
+                    'project_name': project_name,
+                },
+                'checked': False,
+            })
+    return items
 
 
 # Fixed order and labels for the Action Items subsections (see
@@ -169,8 +253,6 @@ def _group_action_items(items, today_iso: str):
     Returns a list of {slug, label, items} dicts, omitting empty groups —
     the template skips rendering a subsection header with nothing under it.
     """
-    from datetime import date, timedelta
-
     today = date.fromisoformat(today_iso)
     week_out = today + timedelta(days=7)
     buckets = {s['slug']: [] for s in ACTION_SUBSECTIONS}
@@ -248,15 +330,6 @@ ALLOWED_GROUPS = {g.strip() for g in _allowed_groups_raw.split(',') if g.strip()
 # panel. Case-insensitive since Azure AD UPNs aren't guaranteed one case.
 _admin_emails_raw = os.environ.get('ADMIN_EMAILS', '').strip()
 ADMIN_EMAILS = {e.strip().lower() for e in _admin_emails_raw.split(',') if e.strip()} if _admin_emails_raw else None
-
-# Optional, inactive unless set — a single Asana Personal Access Token used
-# to keep Action Items in sync with their linked Asana task's completed
-# state. Action item keys are minted as `action-{asana_gid}` (see
-# references/item-sync.md in the skill repo), so the GID needed for the
-# Asana API call comes straight out of the item_key with no extra lookup.
-# Leave unset and checkbox toggles on action items still persist to
-# Postgres, they just don't reach Asana.
-ASANA_PAT = os.environ.get('ASANA_PAT', '').strip() or None
 
 # Optional, display-only — the daily-brief-mcp-server connector's public
 # URL (e.g. https://mcp.dashboard.es-sandbox.com/mcp), shown verbatim in
@@ -552,6 +625,53 @@ def api_token_rotate():
     return jsonify({'token': new_token})
 
 
+@app.route('/api/asana-pat')
+@login_required
+def api_asana_pat_status():
+    """Presence check only — the PAT itself is never sent back to the
+    browser once saved, unlike the daily-brief api_token above. It's a
+    third-party credential with write access to the person's own Asana
+    account, not something this app minted, so there's less reason to
+    ever need to re-display it and more reason not to."""
+    pat = db.get_asana_pat(request.brief_user['id'])
+    return jsonify({'configured': bool(pat)})
+
+
+@app.route('/api/asana-pat', methods=['POST'])
+@login_required
+def api_asana_pat_save():
+    """
+    Saves (or replaces) the signed-in user's Asana PAT — called from both
+    the setup walkthrough and the Account panel. Validates against Asana's
+    own /users/me before saving, so a typo'd or already-revoked token is
+    caught immediately with a clear error rather than failing silently on
+    the next brief's live pull. Enabling this is what turns on the Overdue
+    / Due Next 7 Days / No Due Date Action Items subsections; skipping it
+    (or never calling this) leaves only New Items showing.
+    """
+    body = request.get_json(silent=True) or {}
+    pat = (body.get('pat') or '').strip()
+    if not pat:
+        abort(400, 'pat is required')
+    asana_user = _validate_asana_pat(pat)
+    if asana_user is None:
+        abort(400, 'Could not validate this token against Asana — check that it was copied correctly and hasn\'t been revoked.')
+    db.set_asana_pat(request.brief_user['id'], pat)
+    return jsonify({'status': 'ok', 'asana_user': asana_user})
+
+
+@app.route('/api/asana-pat', methods=['DELETE'])
+@login_required
+def api_asana_pat_clear():
+    """Disconnects Asana — same effect as skipping it during setup. Turns
+    off the live pull and the two-way checkbox/due-date sync immediately;
+    New Items keeps working as before since that path doesn't need a PAT
+    to read (though creating/completing tasks in Asana itself still needs
+    the skill's own Asana connector, unrelated to this webapp-side PAT)."""
+    db.clear_asana_pat(request.brief_user['id'])
+    return jsonify({'status': 'ok'})
+
+
 @app.route('/admin')
 @login_required
 @admin_required
@@ -597,7 +717,7 @@ def admin_config_status():
         'allowed_groups_active': ALLOWED_GROUPS is not None,
         'allowed_groups_count': len(ALLOWED_GROUPS) if ALLOWED_GROUPS else 0,
         'admin_emails_count': len(ADMIN_EMAILS) if ADMIN_EMAILS else 0,
-        'asana_pat_set': bool(ASANA_PAT),
+        'users_with_asana_pat': db.count_users_with_asana_pat(),
     })
 
 
@@ -638,16 +758,39 @@ def serve_brief(date_str):
         sections.append({**s, 'count_label': _count_label(s['slug'], section_items)})
 
     # Action Items renders as four fixed subsections (New Items, Overdue,
-    # Due Next 7 Days, No Due Date) rather than one flat list — see
-    # _group_action_items for the grouping rules. "Today" here means the
-    # server's own local date; brief_date is the brief's date, which isn't
-    # necessarily the same day the person is viewing it on an evening/late
-    # run, so we deliberately use wall-clock today for the overdue/due-soon
-    # cutoffs rather than brief_date.
-    action_subsections = _group_action_items(
-        items_by_section.get('action-items', []),
-        date.today().isoformat(),
-    )
+    # Due Next 7 Days, No Due Date) rather than one flat list. New Items is
+    # the only one tracked in Postgres (the skill only upserts action-items
+    # rows where content.is_new is true — see references/item-sync.md). The
+    # other three are pulled live from Asana on every page render if the
+    # signed-in user has an asana_pat configured; if not, they're omitted
+    # entirely and only whatever's in Postgres (New Items, plus any stale
+    # pre-migration rows from before the skill stopped syncing the rest)
+    # renders. "Today" here means the server's own local date; brief_date
+    # is the brief's date, which isn't necessarily the same day the person
+    # is viewing it on an evening/late run, so we deliberately use
+    # wall-clock today for the overdue/due-soon cutoffs rather than
+    # brief_date.
+    today_iso = date.today().isoformat()
+    postgres_action_items = items_by_section.get('action-items', [])
+    asana_pat = db.get_asana_pat(request.brief_user['id'])
+
+    if asana_pat:
+        account_projects = db.get_account_projects(request.brief_user['id'])
+        exclude_gids = {
+            it['item_key'][len(ASANA_ACTION_ITEM_PREFIX):]
+            for it in postgres_action_items
+            if it['item_key'].startswith(ASANA_ACTION_ITEM_PREFIX)
+        }
+        live_items = _fetch_live_action_items(asana_pat, account_projects, exclude_gids)
+        action_subsections = _group_action_items(postgres_action_items + live_items, today_iso)
+    else:
+        # No Asana connection for this user — only ever show items this
+        # brief run itself created and synced to Postgres, never any
+        # stale non-new rows a pre-migration skill run may have left
+        # behind (those would otherwise show up here as an inconsistent,
+        # un-refreshable "Overdue"/"Due Soon" section with no live source).
+        new_only = [it for it in postgres_action_items if (it.get('content') or {}).get('is_new')]
+        action_subsections = _group_action_items(new_only, today_iso)
 
     return render_template(
         'brief_fragment.html',
@@ -658,7 +801,8 @@ def serve_brief(date_str):
         sections=sections,
         items_by_section=items_by_section,
         action_subsections=action_subsections,
-        today_iso=date.today().isoformat(),
+        asana_pat_configured=bool(asana_pat),
+        today_iso=today_iso,
     )
 
 
@@ -679,17 +823,28 @@ def set_item_checked(section, item_key):
     date_str = request.args.get('date', '')
     if not DATE_RE.match(date_str):
         abort(400, 'date query param (YYYY-MM-DD) is required')
-    brief_day = db.get_brief_day(request.brief_user['id'], date_str)
-    if not brief_day:
-        abort(404)
     body = request.get_json(silent=True) or {}
     if 'checked' not in body:
         abort(400, 'checked (bool) is required')
     checked = bool(body['checked'])
-    found = db.set_item_checked(brief_day['id'], section, item_key, checked)
+    pat = db.get_asana_pat(request.brief_user['id'])
+
+    brief_day = db.get_brief_day(request.brief_user['id'], date_str)
+    found = db.set_item_checked(brief_day['id'], section, item_key, checked) if brief_day else False
+
     if not found:
-        abort(404)
-    attempted, ok = _sync_asana_completed(item_key, checked)
+        # No Postgres row for this item — it's one of the live-pulled
+        # Overdue/Due Next 7 Days/No Due Date items (see
+        # _fetch_live_action_items), which are never persisted here.
+        # Write straight to Asana instead of 404ing; these only ever
+        # render when a pat is configured, so this should always be
+        # attempted successfully unless the pat was just revoked.
+        attempted, ok = _sync_asana_completed(pat, item_key, checked)
+        if not attempted:
+            abort(404)
+        return jsonify({'status': 'ok', 'asana_synced': ok})
+
+    attempted, ok = _sync_asana_completed(pat, item_key, checked)
     result = {'status': 'ok'}
     if attempted:
         result['asana_synced'] = ok
@@ -711,23 +866,58 @@ def set_item_due_date(section, item_key):
     date_str = request.args.get('date', '')
     if not DATE_RE.match(date_str):
         abort(400, 'date query param (YYYY-MM-DD) is required')
-    brief_day = db.get_brief_day(request.brief_user['id'], date_str)
-    if not brief_day:
-        abort(404)
     body = request.get_json(silent=True) or {}
     if 'due_on' not in body:
         abort(400, 'due_on (YYYY-MM-DD or null) is required')
     due_on = body['due_on']
     if due_on is not None and not DATE_RE.match(due_on):
         abort(400, 'due_on must be YYYY-MM-DD or null')
-    found = db.set_item_due_date(brief_day['id'], section, item_key, due_on)
+    pat = db.get_asana_pat(request.brief_user['id'])
+
+    brief_day = db.get_brief_day(request.brief_user['id'], date_str)
+    found = db.set_item_due_date(brief_day['id'], section, item_key, due_on) if brief_day else False
+
     if not found:
-        abort(404)
-    attempted, ok = _sync_asana_due_date(item_key, due_on)
+        # Same live-item fallback as set_item_checked above — no Postgres
+        # row exists for this one, so write straight to Asana.
+        attempted, ok = _sync_asana_due_date(pat, item_key, due_on)
+        if not attempted:
+            abort(404)
+        return jsonify({'status': 'ok', 'asana_synced': ok})
+
+    attempted, ok = _sync_asana_due_date(pat, item_key, due_on)
     result = {'status': 'ok'}
     if attempted:
         result['asana_synced'] = ok
     return jsonify(result)
+
+
+@app.route('/api/config/account-projects', methods=['POST'])
+def api_config_account_projects():
+    """
+    Called by the daily-brief skill (via the daily_brief_sync_account_projects
+    MCP tool) on every run to mirror its account -> Asana project GID
+    mapping from Meeting Manager Config.xlsx. Full replace, not a merge —
+    see db.replace_account_projects. This is what the live Action Items
+    pull (_fetch_live_action_items) reads to know which boards to poll;
+    the webapp has no Google Drive access of its own to read the sheet
+    directly.
+
+    Not behind @login_required, same reasoning as the items endpoints
+    below: the skill runs headless, authenticated by its own bearer token.
+
+    Body: {accounts: [{account_name, project_gid}, ...]}
+    """
+    user_id = ensure_upload_context()
+    body = request.get_json(silent=True) or {}
+    accounts = body.get('accounts')
+    if not isinstance(accounts, list):
+        abort(400, 'accounts must be an array')
+    for acct in accounts:
+        if not acct.get('account_name') or not acct.get('project_gid'):
+            abort(400, 'every account needs account_name and project_gid')
+    db.replace_account_projects(user_id, accounts)
+    return jsonify({'status': 'ok', 'count': len(accounts)})
 
 
 @app.route('/api/items/upsert', methods=['POST'])

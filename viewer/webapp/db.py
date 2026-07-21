@@ -103,10 +103,71 @@ def get_user_token(user_id: int) -> str:
 def get_user_by_id(user_id: int):
     with cursor() as cur:
         cur.execute(
-            "SELECT id, email, slug, api_token, created_at, onboarding_completed_at FROM users WHERE id = %s",
+            "SELECT id, email, slug, api_token, asana_pat, created_at, onboarding_completed_at FROM users WHERE id = %s",
             (user_id,),
         )
         return cur.fetchone()
+
+
+def get_asana_pat(user_id: int):
+    """Returns the user's Asana PAT, or None if they've never set one (or
+    skipped that step of setup). None disables the live Action Items pull
+    and the two-way checkbox/due-date sync back to Asana for this user."""
+    with cursor() as cur:
+        cur.execute("SELECT asana_pat FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        return row['asana_pat'] if row else None
+
+
+def set_asana_pat(user_id: int, pat: str) -> None:
+    with cursor(commit=True) as cur:
+        cur.execute("UPDATE users SET asana_pat = %s WHERE id = %s", (pat, user_id))
+
+
+def clear_asana_pat(user_id: int) -> None:
+    """Removing the PAT is the 'disconnect' action from the Account panel —
+    same effect as skipping it during setup: live pull and two-way sync
+    both turn off immediately for this user."""
+    with cursor(commit=True) as cur:
+        cur.execute("UPDATE users SET asana_pat = NULL WHERE id = %s", (user_id,))
+
+
+def count_users_with_asana_pat() -> int:
+    """For the admin panel's presence check — never the actual token values."""
+    with cursor() as cur:
+        cur.execute("SELECT COUNT(*) AS n FROM users WHERE asana_pat IS NOT NULL")
+        return cur.fetchone()['n']
+
+
+def get_account_projects(user_id: int) -> list:
+    """The account -> Asana project GID mapping mirrored from Meeting
+    Manager Config.xlsx, used to know which boards to poll for the live
+    Action Items pull. Empty list if the skill hasn't synced this yet."""
+    with cursor() as cur:
+        cur.execute(
+            "SELECT account_name, project_gid FROM account_projects WHERE user_id = %s ORDER BY account_name",
+            (user_id,),
+        )
+        return cur.fetchall()
+
+
+def replace_account_projects(user_id: int, accounts: list) -> None:
+    """Full replace, not an upsert-per-row — the skill sends its complete
+    current mapping on every run, so a row for an account that's been
+    removed or renamed in the source sheet shouldn't linger here. Runs as
+    one transaction: delete-then-insert, never a visible empty gap."""
+    with cursor(commit=True) as cur:
+        cur.execute("DELETE FROM account_projects WHERE user_id = %s", (user_id,))
+        for acct in accounts:
+            cur.execute(
+                """
+                INSERT INTO account_projects (user_id, account_name, project_gid)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id, account_name) DO UPDATE
+                    SET project_gid = EXCLUDED.project_gid, updated_at = now()
+                """,
+                (user_id, acct['account_name'], acct['project_gid']),
+            )
 
 
 def mark_onboarding_complete(user_id: int) -> None:
