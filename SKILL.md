@@ -26,7 +26,7 @@ description: >
 This file is the core: trigger, timing, and what to pull. Three things are deliberately kept in separate reference files in this same skill directory so they don't get read on every run when they don't apply:
 
 - `references/item-sync.md` — item shape, section/item_key conventions, and the API calls that sync a run's content into the hosted viewer's Postgres store. Used every run, but pulled out so this core file stays short for the earlier decision-making steps.
-- `references/status-updates.md` — Section 3/4 (Customer Updates, Manager Update) generation. Gated per-account: most runs should reuse most or all of the cache (see Section 3/4 note below).
+- `references/status-updates.md` — Section 3/4 (Customer Updates, Manager Update) generation. **Read this file on every single brief run, with no exceptions** — including the first "brief me" of the day, which is exactly the case where every account and the manager entry are cache misses and need full generation. The per-account gate that decides reuse-vs-regenerate lives inside that file, not here; you cannot correctly skip Sections 3/4 without having read it first. Treating these sections as optional, or assuming a cache hit without checking, is the single most common failure mode of this skill — do not extrapolate "most runs reuse the cache" into "check is skippable."
 - `references/post-meeting-patch.md` — the post-meeting patch flow. Only read when that specific, infrequent trigger fires.
 - `references/section-refresh.md` — patches a single Customer Update or Manager Update card when its Refresh button is clicked. Only read when that trigger fires.
 
@@ -219,9 +219,9 @@ End with a brief **Open Time** note if there are meaningful unblocked blocks in 
 
 ### Section 3: Customer Updates & Section 4: Manager/Leadership Update
 
-Both sections are gated by a per-account daily cache to avoid re-synthesizing the same status updates on every brief run of the day. Full generation logic, the cache schema, and the gate live in `references/status-updates.md` — read that file for any account or the manager entry that the gate says needs generating, and skip it entirely for entries the gate says to reuse.
+**Sections 3 and 4 are mandatory parts of every brief run — they are never silently omitted.** What varies per run is only whether each entry's content comes from cache or gets freshly generated, not whether the section appears at all. Both sections are gated by a per-account daily cache to avoid re-synthesizing the same status updates on every brief run of the day. Full generation logic, the cache schema, and the gate live in `references/status-updates.md` — **read that file on every run, before considering the brief complete**, then generate for any account or the manager entry the gate says needs it, and reuse cached content for entries the gate says to reuse.
 
-Quick summary of the gate: each account (and the manager update) generates fresh the first time it's needed that day, then every later run that day reuses its cached content — evaluated per entry, so a run can reuse six accounts and regenerate two in the same pass. Each card also has a Refresh button (see `references/item-sync.md`) that forces an immediate, single-card regeneration outside the normal brief flow — see `references/section-refresh.md` for that flow.
+Quick summary of the gate: each account (and the manager update) generates fresh the first time it's needed that day, then every later run that day reuses its cached content — evaluated per entry, so a run can reuse six accounts and regenerate two in the same pass. On the first "brief me" of a given day, expect every entry to be a cache miss — that means a full generate-and-synthesize pass for all eight accounts plus the manager update, not a quick skip. Each card also has a Refresh button (see `references/item-sync.md`) that forces an immediate, single-card regeneration outside the normal brief flow — see `references/section-refresh.md` for that flow.
 
 ---
 
