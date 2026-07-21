@@ -153,7 +153,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
       <span class="sec-summary-right">
         <span class="sec-count">{{ section.count_label }}</span>
         {% if section.slug not in ('customer-updates', 'manager-update') %}
-        <a class="sec-refresh" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh ' + section.label)|urlencode }}" target="_blank" title="Regenerate this section only" onclick="event.stopPropagation(); event.preventDefault(); window.open(this.href, '_blank');">Refresh</a>
+        <a class="sec-refresh" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh section:' + section.slug + ' date:' + brief_date)|urlencode }}" target="_blank" title="Regenerate this section only" onclick="event.stopPropagation(); event.preventDefault(); window.open(this.href, '_blank');">Refresh</a>
         {% endif %}
       </span>
     </summary>
@@ -180,7 +180,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
             <div class="update-row">
               <input class="channel-input" type="text" value="{{ item.content.get('channel_id', '') }}" readonly>
               <a class="post-btn" href="https://slack.com/app_redirect?channel={{ item.content.get('channel_id', '') }}" target="_blank">Post to Slack</a>
-              <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh customer update for ' ~ (item.title or 'Unnamed account'))|urlencode }}" target="_blank">Refresh</a>
+              <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh customer update for ' ~ (item.title or 'Unnamed account') ~ ' date:' ~ brief_date)|urlencode }}" target="_blank">Refresh</a>
             </div>
           </div>
         </details>
@@ -190,7 +190,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
         <textarea class="update-textarea">{{ item.content.get('textarea', '') }}</textarea>
         <div class="update-row">
           <a class="post-btn" href="{{ item.content.get('post_url', '#') }}" target="_blank">Post to Manager</a>
-          <a class="lbtn" href="claude://claude.ai/new?q=%2Fdaily-brief%20Refresh%20manager%20update" target="_blank">Refresh</a>
+          <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh manager update date:' ~ brief_date)|urlencode }}" target="_blank">Refresh</a>
         </div>
         {% endfor %}
       {% elif section.slug == 'action-items' %}
