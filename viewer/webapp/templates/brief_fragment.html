@@ -131,7 +131,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
         {% for item in section_items %}
         <details class="acct-card" data-id="{{ item.item_key }}">
           <summary>
-            <span class="acct-card-name">{{ item.title }}</span>
+            <span class="acct-card-name">{{ item.title or 'Unnamed account' }}</span>
             <span class="acct-card-meta">{{ item.content.get('last_posted_label', 'No previous update found') }}</span>
           </summary>
           <div class="acct-card-body">
@@ -139,7 +139,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
             <div class="update-row">
               <input class="channel-input" type="text" value="{{ item.content.get('channel_id', '') }}" readonly>
               <a class="post-btn" href="https://slack.com/app_redirect?channel={{ item.content.get('channel_id', '') }}" target="_blank">Post to Slack</a>
-              <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh customer update for ' + item.title)|urlencode }}" target="_blank">Refresh</a>
+              <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh customer update for ' ~ (item.title or 'Unnamed account'))|urlencode }}" target="_blank">Refresh</a>
             </div>
           </div>
         </details>
