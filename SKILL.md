@@ -163,18 +163,26 @@ This section has two parts. Part A is meeting-centric (one entry per meeting); P
 
 #### Part A: Yesterday's Meetings (call processing status)
 
-List every meeting from the last business day (yesterday, or the prior Friday if today is Monday) in chronological order — this is meeting-by-meeting, not grouped by account. Personal calendar blocks and solo admin reminders (no attendees) are excluded; anything with attendees counts as a meeting for this list.
+List every meeting from the last business day (yesterday, or the prior Friday if today is Monday) in chronological order — this is meeting-by-meeting, not grouped by account. Personal calendar blocks and solo admin reminders (no attendees) are excluded; anything with attendees counts as a meeting for this list. This applies regardless of platform — Zoom, Webex, Teams, or anything else the calendar shows; the recording/transcript check below is what determines whether one was found, not which platform hosted the meeting.
+
+**Every meeting in this list gets a recording/transcript check, with no exceptions.** This is not conditional on the meeting looking important, on the person not having mentioned it, or on a prior run having already covered it — check every single time, every meeting, every run. Skipping this check (or checking it but not following through on the "not found" path below) is a known failure mode of this skill; treat "I already noted it was missing" as not having actually done this step; noting a gap without asking is exactly the silent-and-move-on behavior this rule exists to prevent.
 
 For each meeting, report:
 - Title, time, attendees
 - **Recording/transcript status** — checked via Zoom `get_meeting_assets`:
   - Found: link directly to the meeting summary doc (`summary_doc_url`) and/or recording, and note whether a transcript is available
-  - Not found: flag it clearly (e.g. a `bwarn` badge reading "recording not found") — this is the trigger condition below
+  - Not found: flag it with a `bbad` badge reading "not found — needs input" (matches the badge shape in `references/item-sync.md`) — this is the trigger condition below, and it applies whether or not the meeting was ever on Zoom to begin with (a Webex/Teams meeting with no Zoom presence at all is still "not found", not exempt from the check)
 - **Asana action-item status** — checked per the Asana data-source note above (run log sheet first, Asana project search as fallback):
   - Found: note that items were logged, with a link to the task(s) or the account project
   - Not found: say so plainly — "no action items logged yet"
 
-**If recording/transcript can't be found for a meeting:** don't silently note the gap and move on. Explicitly ask the user for a recording link or the full transcript text, so it can be run through the meeting-manager skill's post-meeting flow. Phrase this as a direct request in both the chat response and as a checkable item in the HTML (see HTML structure below) — e.g. "BFSI Industry Deep-Dive — no recording or transcript found. Reply with a link or paste the transcript to process this." Include a `claude://claude.ai/new?q=` deep-link button on the item (see the Action Items note on this pattern below) so the person can click straight into a Claude Desktop conversation pre-filled with `/meeting-manager Run post-meeting notes for: [meeting] ([date])` and paste the transcript there. Also create the corresponding Asana task per the Action Items rule below — the "provide transcript" ask should itself be a real, linked Asana item, not just prose in this section. Once the user supplies the recording/transcript, run the meeting-manager skill's post-meeting agent on it in the same conversation rather than waiting for the next brief.
+**If recording/transcript can't be found for a meeting, all of the following are required, not optional — this is the complete checklist, and every item on it must actually happen, not just the first one:**
+1. Explicitly ask the user for a recording link or the full transcript text, so it can be run through the meeting-manager skill's post-meeting flow. Phrase this as a direct request in the chat response — e.g. "BFSI Industry Deep-Dive — no recording or transcript found. Reply with a link or paste the transcript to process this."
+2. Give the corresponding synced item the `bbad` badge and this same ask as its `subtitle` (see `references/item-sync.md` for the exact item shape — there is no separate "HTML structure" anymore since the Postgres/MCP-sync migration).
+3. Include a `claude://claude.ai/new?q=` deep-link button on that item so the person can click straight into a Claude Desktop conversation pre-filled with `/meeting-manager Run post-meeting notes for: [meeting] ([date])` and paste the transcript there.
+4. Create the corresponding Asana task per the Action Items rule below — the "provide transcript" ask must itself be a real, linked Asana item, not just prose in this section.
+
+Once the user supplies the recording/transcript, run the meeting-manager skill's post-meeting agent on it in the same conversation rather than waiting for the next brief.
 
 #### Part B: Account / Initiative Recap
 
