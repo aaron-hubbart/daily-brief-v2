@@ -32,6 +32,7 @@ current session's verified identity, never anything client-supplied. See
 db.py and db/README.md for the storage model.
 """
 import json
+import logging
 import os
 import re
 import secrets
@@ -190,9 +191,29 @@ def _fetch_live_action_items(pat, account_projects, exclude_gids):
                 'opt_fields': 'name,due_on,permalink_url,projects.name',
                 'limit': 100,
             })
-        except (urllib.error.URLError, json.JSONDecodeError):
+        except urllib.error.HTTPError as e:
+            body = ''
+            try:
+                body = e.read().decode('utf-8', errors='replace')[:500]
+            except Exception:
+                pass
+            logger.warning(
+                'live action items: Asana /tasks fetch failed for %s (account=%s): HTTP %s %s',
+                gid, ap.get('account_name'), e.code, body,
+            )
             continue
-        for task in data.get('data', []):
+        except (urllib.error.URLError, json.JSONDecodeError) as e:
+            logger.warning(
+                'live action items: Asana /tasks fetch failed for %s (account=%s): %s',
+                gid, ap.get('account_name'), e,
+            )
+            continue
+        fetched = data.get('data', [])
+        logger.info(
+            'live action items: %s (account=%s) returned %d task(s) assigned to me',
+            gid, ap.get('account_name'), len(fetched),
+        )
+        for task in fetched:
             task_gid = task.get('gid')
             if not task_gid or task_gid in seen_gids:
                 continue
@@ -341,6 +362,19 @@ AZURE_AUTHORITY = f'https://login.microsoftonline.com/{AZURE_TENANT_ID}'
 GRAPH_SCOPES = []  # no Graph calls made — sign-in identity only, nothing to scope
 
 app = Flask(__name__)
+
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    # Gunicorn doesn't attach a handler to arbitrary module loggers by
+    # default, only to its own 'gunicorn.error'/'gunicorn.access' loggers —
+    # without this, logger.info/.warning calls below silently go nowhere
+    # even though the process is otherwise logging fine. This mirrors them
+    # into gunicorn's own handlers so they land in the same stdout stream
+    # `kubectl logs` already shows, instead of requiring a separate log
+    # sink or config just for this module.
+    gunicorn_logger = logging.getLogger('gunicorn.error')
+    logger.handlers = gunicorn_logger.handlers
+    logger.setLevel(gunicorn_logger.level or logging.INFO)
 app.secret_key = FLASK_SECRET_KEY
 app.config.update(
     SESSION_COOKIE_SECURE=True,
@@ -776,9 +810,24 @@ def serve_brief(date_str):
             for it in postgres_action_items
             if it['item_key'].startswith(ASANA_ACTION_ITEM_PREFIX)
         }
+        if not account_projects:
+            logger.warning(
+                'live action items: user=%s has an asana_pat configured but zero rows in '
+                'account_projects — the skill\'s daily_brief_sync_account_projects call may '
+                'never have run for this user, or ran against a different user_id',
+                request.brief_user['email'],
+            )
         live_items = _fetch_live_action_items(asana_pat, account_projects, exclude_gids)
+        logger.info(
+            'live action items: user=%s account_projects=%d live_items=%d',
+            request.brief_user['email'], len(account_projects), len(live_items),
+        )
         action_subsections = _group_action_items(postgres_action_items + live_items, today_iso)
     else:
+        logger.info(
+            'live action items: user=%s has no asana_pat configured, skipping live pull',
+            request.brief_user['email'],
+        )
         # No Asana connection for this user — only ever show items this
         # brief run itself created and synced to Postgres, never any
         # stale non-new rows a pre-migration skill run may have left
