@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: daily-brief-mcp-server
-          image: us-central1-docker.pkg.dev/tam-aaron-hubbart/daily-brief/daily-brief-mcp-server@sha256:8981b4d4b84ae9472efc3551e776359753662697331622baed3083a8a29cd8e3
+          image: us-central1-docker.pkg.dev/tam-aaron-hubbart/daily-brief/daily-brief-mcp-server:latest
           ports:
             - containerPort: 3000
           envFrom:
