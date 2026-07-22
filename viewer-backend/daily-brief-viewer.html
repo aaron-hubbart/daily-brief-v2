@@ -188,68 +188,53 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
       <div class="modal-dots" id="setup-dots"></div>
 
       <div class="setup-step active" data-step="1">
-        <h3>1. Get your API token</h3>
-        <p>This token is how your daily-brief skill authenticates to sync briefs into this viewer. It's tied to your Camunda sign-in — never share it with anyone else.</p>
+        <h3>1. Link your Google Drive folder</h3>
+        <p>Your brief data lives entirely in a Google Drive folder you own — no database, no custom server. Create an empty folder in Drive (any name, e.g. "Daily Brief Data"), then copy its ID from the URL (<code>drive.google.com/drive/folders/&lt;this-part&gt;</code>) and paste it below.</p>
         <div class="copy-row">
-          <input class="copy-input" id="setup-token" readonly value="Loading…">
-          <button class="copy-btn" onclick="copyField('setup-token', this)">Copy</button>
+          <input class="text-input" id="setup-drive-folder" type="text" placeholder="Paste your Drive folder ID here" autocomplete="off">
+          <button class="copy-btn" id="setup-drive-folder-save" onclick="saveDriveFolderFromSetup()">Save</button>
         </div>
-        <p>Keep this handy — you'll paste it into a connector setting in the next step.</p>
+        <div class="account-msg" id="setup-drive-folder-msg"></div>
+        <p>Keep this same ID handy — you'll set it as <code>BRIEF_DATA_FOLDER_ID</code> in the next step.</p>
       </div>
 
       <div class="setup-step" data-step="2">
-        <h3>2. Add the daily-brief connector in Claude</h3>
-        <p>This is what actually lets your skill push brief items here — Claude's sandboxed tools can't reach this domain directly, so syncing goes through a dedicated MCP connector instead of a plain web request.</p>
-        <ol>
-          <li>In Claude, go to <strong>Settings &rarr; Connectors &rarr; Add custom connector</strong></li>
-          <li>URL:</li>
-        </ol>
-        <div class="copy-row">
-          <input class="copy-input" id="setup-mcp-url" readonly value="Loading…">
-          <button class="copy-btn" onclick="copyField('setup-mcp-url', this)">Copy</button>
-        </div>
-        <ol start="3">
-          <li>Auth type: <strong>static header</strong></li>
-          <li>Header name <code>Authorization</code>, value <code>Bearer &lt;your token from step 1&gt;</code></li>
-        </ol>
-        <p>If this token is ever rotated, update this connector's header with the new value — see the Account panel for rotating.</p>
+        <h3>2. Install the daily-brief-v2 skill</h3>
+        <p>Add the skill to a Claude project from <a href="https://github.com/aaron-hubbart/daily-brief-v2" target="_blank" rel="noopener">github.com/aaron-hubbart/daily-brief-v2</a> — copy <code>SKILL.md</code> and the <code>references/</code> folder in.</p>
+        <p>Then fill in your local copy's <strong>Admin Config</strong> block at the top of <code>SKILL.md</code>:</p>
+        <ul>
+          <li><code>BRIEF_DATA_FOLDER_ID</code> — the folder ID from step 1</li>
+          <li><code>MEETING_RUN_LOG_SHEET_ID</code> — your meeting-manager run log sheet ID</li>
+          <li><code>RECURRING_ACTIVITIES_PROJECT_GID</code> — your Asana recurring-activities project GID</li>
+          <li><code>STATUS_UPDATE_CACHE_FILE_ID</code> — Drive file ID of the Section 3/4 daily cache JSON</li>
+        </ul>
+        <p>There's no API token and nothing to paste into a connector — the skill writes brief JSON directly into your Drive folder using its own Google Drive connector.</p>
       </div>
 
       <div class="setup-step" data-step="3">
-        <h3>3. Install the daily-brief skill</h3>
-        <p>Add the skill to a Claude project from <a href="https://github.com/aaron-hubbart/daily-brief" target="_blank" rel="noopener">github.com/aaron-hubbart/daily-brief</a> — copy <code>SKILL.md</code> and the <code>references/</code> folder in.</p>
-        <p>Then set this in your local copy's <strong>Admin Config</strong> block at the top of <code>SKILL.md</code>:</p>
-        <div class="copy-row">
-          <input class="copy-input" id="setup-base-url" readonly value="Loading…">
-          <button class="copy-btn" onclick="copyField('setup-base-url', this)">Copy</button>
-        </div>
-        <p>That's <code>DAILY_BRIEF_API_BASE_URL</code> — reference only. Syncing itself goes through the connector from step 2, so there's no token value to store in this file.</p>
-      </div>
-
-      <div class="setup-step" data-step="4">
-        <h3>4. Connect your data sources</h3>
+        <h3>3. Connect your data sources</h3>
         <p>The skill pulls from these — enable whichever apply to you under Claude's <strong>Settings &rarr; Connectors</strong>:</p>
         <ul>
           <li><strong>Microsoft 365</strong> — Outlook calendar, email, availability</li>
           <li><strong>Slack</strong> — DMs, channel activity, mentions, posting status updates</li>
           <li><strong>Zoom</strong> — meeting summaries</li>
           <li><strong>Asana</strong> — task tracking</li>
-          <li><strong>Google Drive</strong> — meeting run log sheet and status-update cache</li>
+          <li><strong>Google Drive</strong> — writes your brief data folder (step 1), plus the meeting run log sheet and status-update cache</li>
         </ul>
         <p>Only connect what you actually use — the skill flags a source as "not found" rather than failing when one isn't hooked up.</p>
       </div>
 
-      <div class="setup-step" data-step="5">
-        <h3>5. A few other things</h3>
+      <div class="setup-step" data-step="4">
+        <h3>4. A few other things</h3>
         <ul>
           <li><strong>Claude Desktop</strong>, if you want the <code>claude://</code> refresh and meeting-manager deep links in your briefs to work</li>
-          <li>Your own Asana recurring-activities project GID (<code>RECURRING_ACTIVITIES_PROJECT_GID</code>) and a Drive sheet for the meeting run log (<code>MEETING_RUN_LOG_SHEET_ID</code>) — set these in Admin Config as you go</li>
+          <li>A <code>/config/account-config.json</code> file inside your Drive folder from step 1 — account name, Slack channel ID, and Asana project GID per account. See the skill repo's <code>references/item-sync.md</code> for the exact shape; you maintain this by hand as accounts are added or changed</li>
           <li>See the skill repo's <code>README.md</code> for the full prerequisites list</li>
         </ul>
       </div>
 
-      <div class="setup-step" data-step="6">
-        <h3>6. Connect Asana (optional)</h3>
+      <div class="setup-step" data-step="5">
+        <h3>5. Connect Asana (optional)</h3>
         <p>Adding your own Asana Personal Access Token lets this viewer pull your Overdue, Due Next 7 Days, and No Due Date tasks directly from Asana every time you load a brief — always current, not just whatever the skill saw on its last run. Only the New Items you saw above come from the brief run itself; this step is what turns on the other three.</p>
         <p>To create one: sign in to Asana, go to <strong>your profile photo &rarr; My Settings &rarr; Apps &rarr; Manage Developer Apps &rarr; Personal Access Tokens &rarr; Create new token</strong> (or go directly to <a href="https://app.asana.com/0/developer-console" target="_blank" rel="noopener">app.asana.com/0/developer-console</a>). Give it a name like "Daily Brief Viewer" and copy the token — Asana only shows it once.</p>
         <div class="copy-row">
@@ -271,17 +256,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 <div class="modal-overlay" id="account-overlay">
   <div class="modal" style="max-width:440px;">
     <div class="modal-head">
-      <h2>Account &amp; API token</h2>
+      <h2>Account &amp; Drive folder</h2>
       <button class="modal-close" onclick="closeAccount()" title="Close">&times;</button>
     </div>
     <div class="modal-body">
       <div class="account-row">Signed in as <strong id="account-email">…</strong></div>
       <div class="copy-row">
-        <input class="copy-input" id="account-token" readonly value="Loading…">
-        <button class="copy-btn" onclick="copyField('account-token', this)">Copy</button>
+        <input class="text-input" id="account-drive-folder" type="text" placeholder="Drive folder ID" autocomplete="off">
+        <button class="copy-btn" id="account-drive-folder-save" onclick="saveDriveFolderFromAccount()">Save</button>
       </div>
-      <button class="icon-btn" id="account-rotate" onclick="rotateToken()">Rotate token</button>
-      <p style="font-size:11.5px;color:var(--t3);margin-top:10px;line-height:1.5;">Rotating invalidates your current token immediately. Afterward, update the <code>Authorization</code> header on your daily-brief-mcp-server connector (Claude Settings &rarr; Connectors) with the new value — your skill can't sync again until you do.</p>
+      <p style="font-size:11.5px;color:var(--t3);margin-top:10px;line-height:1.5;">This must match the <code>BRIEF_DATA_FOLDER_ID</code> in your daily-brief-v2 skill's Admin Config — both this webapp and your skill need to agree on the same Drive folder.</p>
       <div class="account-msg" id="account-msg"></div>
       <hr class="account-hr">
       <div class="account-row" id="asana-status-row">Asana connection: <strong id="asana-status">checking…</strong></div>
@@ -1164,19 +1148,42 @@ document.getElementById('brief-select').addEventListener('change', function() {
 
 // ── Setup walkthrough + Account panel ──────────────────────────────
 
-let clientConfig = null; // {api_base_url, mcp_connector_url} — cached after first fetch
 let setupStepIndex = 1;
-const SETUP_STEP_COUNT = 6;
+const SETUP_STEP_COUNT = 5;
 
-async function getClientConfig() {
-  if (clientConfig) return clientConfig;
-  try {
-    const res = await fetch('api/client-config');
-    clientConfig = await res.json();
-  } catch (e) {
-    clientConfig = { api_base_url: null, mcp_connector_url: null };
+async function saveDriveFolder(inputId, msgId, onSuccess) {
+  const input = document.getElementById(inputId);
+  const msg = document.getElementById(msgId);
+  const folderId = input.value.trim();
+  if (!folderId) {
+    msg.className = 'account-msg err';
+    msg.textContent = 'Paste your Drive folder ID first.';
+    return;
   }
-  return clientConfig;
+  msg.className = 'account-msg';
+  msg.textContent = 'Saving…';
+  try {
+    const res = await fetch('api/drive-folder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder_id: folderId }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    msg.className = 'account-msg ok';
+    msg.textContent = 'Saved.';
+    if (onSuccess) onSuccess();
+  } catch (e) {
+    msg.className = 'account-msg err';
+    msg.textContent = 'Could not save — try again.';
+  }
+}
+
+function saveDriveFolderFromSetup() {
+  saveDriveFolder('setup-drive-folder', 'setup-drive-folder-msg');
+}
+
+function saveDriveFolderFromAccount() {
+  saveDriveFolder('account-drive-folder', 'account-msg');
 }
 
 async function saveAsanaPat(inputId, msgId, onSuccess) {
@@ -1276,14 +1283,12 @@ async function openSetup(fromReplay) {
   document.getElementById('setup-asana-pat').value = '';
   document.getElementById('setup-asana-msg').className = 'account-msg';
   document.getElementById('setup-asana-msg').textContent = '';
+  document.getElementById('setup-drive-folder-msg').className = 'account-msg';
+  document.getElementById('setup-drive-folder-msg').textContent = '';
 
-  fetch('api/token').then(r => r.json()).then(d => {
-    document.getElementById('setup-token').value = d.token || '(unavailable)';
-  }).catch(() => { document.getElementById('setup-token').value = '(unavailable)'; });
-
-  const cfg = await getClientConfig();
-  document.getElementById('setup-base-url').value = cfg.api_base_url || '(unavailable)';
-  document.getElementById('setup-mcp-url').value = cfg.mcp_connector_url || '(ask your admin for this URL)';
+  fetch('api/drive-folder').then(r => r.json()).then(d => {
+    document.getElementById('setup-drive-folder').value = d.folder_id || '';
+  }).catch(() => {});
 }
 
 function closeSetup() {
@@ -1299,12 +1304,17 @@ async function openAccount() {
   document.getElementById('account-asana-pat').value = '';
 
   try {
-    const res = await fetch('api/token');
+    const res = await fetch('api/whoami');
     const d = await res.json();
     document.getElementById('account-email').textContent = d.email || '';
-    document.getElementById('account-token').value = d.token || '(unavailable)';
+  } catch (e) { /* best-effort */ }
+
+  try {
+    const res2 = await fetch('api/drive-folder');
+    const d2 = await res2.json();
+    document.getElementById('account-drive-folder').value = d2.folder_id || '';
   } catch (e) {
-    document.getElementById('account-token').value = '(unavailable)';
+    document.getElementById('account-drive-folder').value = '';
   }
 
   refreshAsanaStatus();
@@ -1312,26 +1322,6 @@ async function openAccount() {
 
 function closeAccount() {
   document.getElementById('account-overlay').classList.remove('show');
-}
-
-async function rotateToken() {
-  if (!confirm('Rotate your API token? Your current token stops working immediately — update your daily-brief-mcp-server connector\'s Authorization header with the new value before your skill can sync again.')) {
-    return;
-  }
-  const msg = document.getElementById('account-msg');
-  msg.className = 'account-msg';
-  msg.textContent = 'Rotating…';
-  try {
-    const res = await fetch('api/token/rotate', { method: 'POST' });
-    if (!res.ok) throw new Error('status ' + res.status);
-    const d = await res.json();
-    document.getElementById('account-token').value = d.token;
-    msg.className = 'account-msg ok';
-    msg.textContent = 'Token rotated. Update your connector\'s Authorization header with this new value now.';
-  } catch (e) {
-    msg.className = 'account-msg err';
-    msg.textContent = 'Could not rotate token — try again in a moment.';
-  }
 }
 
 function copyField(inputId, btn) {
