@@ -52,11 +52,12 @@ import google_oauth
 import drive_store
 
 APP_DIR = Path(__file__).resolve().parent
-# In the VM deployment, app.py lives at viewer/webapp/app.py and the shared
-# daily-brief-viewer.html sits one level up at viewer/. The container image
-# flattens both into /app/ directly (see Dockerfile), so this is overridable
-# rather than hardcoded to the VM's directory nesting.
-VIEWER_HTML_DIR = Path(os.environ.get('VIEWER_HTML_DIR', str(APP_DIR.parent)))
+# Unlike v1's nested viewer/webapp/ (app.py) vs viewer/ (daily-brief-viewer.html)
+# split, this repo's viewer-backend/ is flat -- daily-brief-viewer.html lives
+# right next to app.py, and the Dockerfile's `COPY . .` carries both into the
+# same /app directory. Still overridable via env var for local dev setups
+# that keep the HTML file somewhere else.
+VIEWER_HTML_DIR = Path(os.environ.get('VIEWER_HTML_DIR', str(APP_DIR)))
 
 DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
