@@ -17,7 +17,7 @@ This file is the core: trigger, timing, and what to pull. Three things are delib
 - `references/item-sync.md` — item shape, section/item_key conventions, and the Google Drive writes that sync a run's content into this skill's `BRIEF_DATA_FOLDER_ID`. Used every run, but pulled out so this core file stays short for the earlier decision-making steps.
 - `references/status-updates.md` — Section 3/4 (Customer Updates, Manager Update) generation. **Read this file on every single brief run, with no exceptions** — including the first "brief me" of the day, which is exactly the case where every account and the manager entry are cache misses and need full generation. The per-account gate that decides reuse-vs-regenerate lives inside that file, not here; you cannot correctly skip Sections 3/4 without having read it first. Treating these sections as optional, or assuming a cache hit without checking, is the single most common failure mode of this skill — do not extrapolate "most runs reuse the cache" into "check is skippable."
 - `references/post-meeting-patch.md` — the post-meeting patch flow. Only read when that specific, infrequent trigger fires.
-- `references/section-refresh.md` — patches a single Customer Update or Manager Update card when its Refresh button is clicked. Only read when that trigger fires.
+- `references/section-refresh.md` — patches a single Customer Update or Manager Update card, or regenerates one of the other five sections in full, when a Refresh button is clicked. Only read when that trigger fires.
 
 ## Admin Config
 
@@ -239,7 +239,7 @@ Configure your primary accounts, key colleagues, and team members in the Admin C
 
 Use this context to prioritize and flag items — a Slack DM from your AE about a strategic account matters more than a general announcement channel.
 
-The Slack channel ID mapping for Customer Updates is read by the viewer app from `Meeting Manager Config.xlsx` — see the note in Section 3/4 above. Update the config sheet as accounts are added or changed; this skill does not maintain that mapping directly.
+The Slack channel ID mapping for Customer Updates is read from `/config/account-config.json` — see `references/item-sync.md` for its Drive location and shape, and the note in Section 3/4 above. Update that file by hand as accounts are added or changed; this skill reads it but never writes it.
 
 ---
 
@@ -260,7 +260,7 @@ Not part of the normal brief trigger. When meeting-manager's post-meeting agent 
 
 ## Section Refresh Runs
 
-Not part of the normal brief trigger. When a Customer Update or Manager Update card's Refresh button is clicked (or the user asks directly to refresh/regenerate one), read `references/section-refresh.md` and follow that flow to write a new version of the affected file(s) to Drive.
+Not part of the normal brief trigger. When a Customer Update or Manager Update card's Refresh button is clicked, a section's Refresh button is clicked (`refresh section:[slug]`), or the user asks directly to refresh/regenerate one of these, read `references/section-refresh.md` and follow that flow to write a new version of the affected file(s) to Drive.
 
 ---
 

@@ -18,7 +18,7 @@ Recognize close variations typed directly by the user the same way — match on 
 
 ## Card-level steps (Customer Update / Manager Update)
 
-1. **Identify the target.** One customer account by name, or the manager update. If the account name doesn't match anything in `Meeting Manager Config.xlsx` closely enough to be confident, ask which account rather than guessing.
+1. **Identify the target.** One customer account by name, or the manager update. If the account name doesn't match anything in `/config/account-config.json` (see `references/item-sync.md` for its shape) closely enough to be confident, ask which account rather than guessing.
 2. **Use `brief_date` from the command** (or the Timezone Resolution fallback above if absent). Customer Update and Manager Update items live under that date's files regardless of when they were last generated or refreshed.
 3. **Regenerate just that entry.** Run the Section 3 (or Section 4) generation process from `references/status-updates.md` for this one account/manager only — full Slack search and synthesis for that entry, nothing else. This is the only step in this flow that costs a real data-source call; every other account's Slack search is skipped entirely.
 4. **Update the cache.** Write the new `content` and `generated_at` (now) into that one entry in `STATUS_UPDATE_CACHE_FILE_ID`. Leave every other entry — every other account, and the manager entry if this was a customer refresh — byte-for-byte untouched.

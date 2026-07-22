@@ -8,7 +8,7 @@ A Claude skill that generates a personalized daily briefing. Pulls from Outlook 
 - `references/item-sync.md` — item shape and Drive-sync spec: section/item_key conventions, badge/link/content shape, and the `Google Drive: create_file` calls that write a run's content into `BRIEF_DATA_FOLDER_ID`. Read every run, but split out so `SKILL.md` doesn't carry it on every decision-making step.
 - `references/status-updates.md` — Section 3 (Customer Updates) and Section 4 (Manager Update) generation, plus the per-account daily cache that gates them. Read only for the accounts (or manager entry) that actually need generating on a given run.
 - `references/post-meeting-patch.md` — writes a new version of the affected Yesterday's Meetings item to Drive when meeting-manager finishes post-meeting processing. Read only when that trigger fires.
-- `references/section-refresh.md` — writes a new version of a single Customer Update or Manager Update card to Drive when its Refresh button is clicked. Read only when that trigger fires.
+- `references/section-refresh.md` — writes a new version of a single Customer Update or Manager Update card, or a full section (Yesterday's Meetings, Account/Initiative Recap, Today, Action Items, FYI), to Drive when its Refresh button is clicked. Read only when that trigger fires.
 
 ## Prerequisites
 
