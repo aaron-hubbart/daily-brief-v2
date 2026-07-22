@@ -1,5 +1,5 @@
 ---
-name: daily-brief
+name: daily-brief-v2
 description: >
   Generates a personalized daily briefing for Aaron Hubbart, Senior TAM at Camunda, pulling from Outlook calendar/email, Slack (DMs, account channels, tiger team, mentions), Zoom summaries, and Asana tasks. Produces a structured recap of the day so far and a plan ahead.
 
