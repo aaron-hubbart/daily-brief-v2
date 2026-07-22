@@ -23,6 +23,7 @@ def client(monkeypatch, token_db_path, encryption_key):
     ('/api/config/account-projects', 'POST'),
     ('/api/items/upsert', 'POST'),
     ('/api/items/batch-upsert', 'POST'),
+    ('/api/client-config', 'GET'),
 ])
 def test_skill_facing_routes_are_gone(client, path, method):
     resp = client.open(path, method=method)
