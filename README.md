@@ -37,7 +37,7 @@ See `viewer-backend/DEPLOYMENT.md` in this repo for deploying and linking the ho
 
 - A Google Sheet for tracking meeting-manager runs — copy its ID into `MEETING_RUN_LOG_SHEET_ID`
 - A small JSON file for the Section 3/4 daily cache — create an empty one (`{"customer_updates": {}, "manager_update": {}}` is a fine starting point) and copy its ID into `STATUS_UPDATE_CACHE_FILE_ID`. See `references/status-updates.md` for the schema.
-- A folder to hold this skill's brief-data output (`/briefs`, `/config`, `/state`) — copy its ID into `BRIEF_DATA_FOLDER_ID`. See `references/item-sync.md` for the layout.
+- A folder to hold `/briefs` (this skill's own output), `/config` (hand-maintained by you), and `/state` (written by the hosted webapp, not this skill) — copy its ID into `BRIEF_DATA_FOLDER_ID`. See `references/item-sync.md` for the layout.
 
 ### Asana
 
@@ -73,7 +73,7 @@ Set these values in the `## Admin Config` block at the top of your local `SKILL.
 
 | Key | Description |
 |-----|-------------|
-| `BRIEF_DATA_FOLDER_ID` | Drive folder ID that holds `/briefs`, `/config`, and `/state` for this skill's output — see `references/item-sync.md` for the layout. Create it once, then link the same folder ID in the webapp's Account panel |
+| `BRIEF_DATA_FOLDER_ID` | Drive folder ID that holds `/briefs` (this skill's own output), `/config` (hand-maintained by you), and `/state` (written by the hosted webapp, not this skill) — see `references/item-sync.md` for the layout. Create it once, then link the same folder ID in the webapp's Account panel |
 | `MEETING_RUN_LOG_SHEET_ID` | Google Sheet ID tracking meeting-manager runs |
 | `RECURRING_ACTIVITIES_PROJECT_GID` | Asana project GID for the recurring task board |
 | `STATUS_UPDATE_CACHE_FILE_ID` | Drive file ID of the Section 3/4 per-account daily cache — unchanged from before, still its own separate file, not inside `BRIEF_DATA_FOLDER_ID` — see `references/status-updates.md` |
