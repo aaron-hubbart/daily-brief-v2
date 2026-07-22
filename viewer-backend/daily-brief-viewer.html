@@ -123,12 +123,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 .setup-step ol,.setup-step ul{margin:0 0 9px 18px;font-size:12.5px;color:var(--t2);line-height:1.65;}
 .setup-step code{font-family:ui-monospace,"SF Mono","Cascadia Code",monospace;background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:11px;color:var(--t1);}
 .copy-row{display:flex;gap:6px;margin:8px 0 10px;}
-.copy-input{flex:1;height:32px;padding:0 9px;font-family:ui-monospace,"SF Mono","Cascadia Code",monospace;font-size:11px;background:var(--surface2);border:1px solid var(--border-strong);border-radius:var(--r);color:var(--t1);min-width:0;}
 .text-input{flex:1;height:32px;padding:0 9px;font-family:ui-monospace,"SF Mono","Cascadia Code",monospace;font-size:11px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r);color:var(--t1);min-width:0;}
 .text-input:focus{outline:2px solid var(--accent);outline-offset:-1px;}
 .copy-btn{height:32px;padding:0 12px;font-size:11.5px;font-weight:500;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t2);cursor:pointer;flex-shrink:0;}
 .copy-btn:hover{background:var(--surface2);color:var(--t1);}
-.copy-btn.copied{color:var(--accent-t);border-color:var(--accent);}
 .modal-foot{padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:var(--surface);}
 .icon-btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
 .account-row{font-size:12.5px;color:var(--t2);margin-bottom:10px;}
@@ -1322,27 +1320,6 @@ async function openAccount() {
 
 function closeAccount() {
   document.getElementById('account-overlay').classList.remove('show');
-}
-
-function copyField(inputId, btn) {
-  const input = document.getElementById(inputId);
-  const finish = () => {
-    const original = btn.textContent;
-    btn.textContent = 'Copied';
-    btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1400);
-  };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(input.value).then(finish).catch(() => {
-      input.select();
-      document.execCommand('copy');
-      finish();
-    });
-  } else {
-    input.select();
-    document.execCommand('copy');
-    finish();
-  }
 }
 
 async function checkOnboarding() {
