@@ -727,17 +727,6 @@ def api_onboarding_complete():
     return jsonify({'status': 'ok'})
 
 
-@app.route('/api/client-config')
-@login_required
-def api_client_config():
-    """Values the setup walkthrough and Account panel need. request.host_url
-    isn't reliable to derive client-side since this app is deployed at a
-    sub-path (see ForcePrefixMiddleware's docstring)."""
-    return jsonify({
-        'api_base_url': request.host_url.rstrip('/') + request.script_root,
-    })
-
-
 @app.route('/api/asana-pat')
 @login_required
 def api_asana_pat_status():
