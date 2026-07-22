@@ -201,5 +201,7 @@ def mark_onboarding_complete(entra_object_id: str) -> None:
 
 def list_users() -> list[dict]:
     with cursor() as cur:
-        cur.execute('SELECT entra_object_id, email, created_at FROM users ORDER BY email')
+        cur.execute(
+            'SELECT entra_object_id, email, created_at, brief_data_folder_id FROM users ORDER BY email'
+        )
         return [dict(row) for row in cur.fetchall()]

@@ -41,12 +41,6 @@ tr:last-child td{border-bottom:none;}
 .email{font-weight:500;}
 .slug{color:var(--t3);font-family:var(--mono);font-size:11px;}
 .muted{color:var(--t3);}
-.btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
-.btn:hover{filter:brightness(.95);}
-.btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
-.msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
-.msg.ok{color:var(--good-t);}
-.msg.err{color:var(--bad-t);}
 .empty{color:var(--t3);font-size:12px;padding:8px 0;}
 a.back{font-size:12px;color:var(--accent-t);text-decoration:none;}
 </style>
@@ -77,17 +71,13 @@ a.back{font-size:12px;color:var(--accent-t);text-decoration:none;}
         <thead>
           <tr>
             <th>Email</th>
-            <th>Slug</th>
             <th>Signed up</th>
-            <th>Active briefs</th>
-            <th>Last active</th>
-            <th></th>
+            <th>Drive folder</th>
           </tr>
         </thead>
         <tbody id="users-body"></tbody>
       </table>
       <div class="empty" id="users-loading">Loading…</div>
-      <div class="msg" id="users-msg"></div>
     </div>
   </div>
 
@@ -137,35 +127,16 @@ async function loadUsers() {
     }
     table.style.display = '';
     body.innerHTML = users.map(u => `
-      <tr data-id="${u.id}">
+      <tr data-id="${u.entra_object_id}">
         <td class="email">${u.email}</td>
-        <td class="slug">${u.slug}</td>
         <td>${fmtDate(u.created_at)}</td>
-        <td>${u.active_brief_count}</td>
-        <td>${fmtDate(u.last_active_at)}</td>
-        <td><button class="btn danger" onclick="rotateToken(${u.id}, '${u.email}')">Rotate token</button></td>
+        <td>${u.brief_data_folder_id
+          ? `<span class="slug">${u.brief_data_folder_id}</span>`
+          : `<span class="pill off">Not linked</span>`}</td>
       </tr>
     `).join('');
   } catch (e) {
     loading.textContent = 'Could not load users.';
-  }
-}
-
-async function rotateToken(userId, email) {
-  if (!confirm(`Rotate ${email}'s API token? Their existing token stops working immediately — they'll need to sign in and revisit /api/token to get the new one before their skill can sync again.`)) {
-    return;
-  }
-  const msg = document.getElementById('users-msg');
-  msg.className = 'msg';
-  msg.textContent = 'Rotating…';
-  try {
-    const res = await fetch(`api/admin/users/${userId}/rotate-token`, { method: 'POST' });
-    if (!res.ok) throw new Error('status ' + res.status);
-    msg.className = 'msg ok';
-    msg.textContent = `Token rotated for ${email}. They should revisit /api/token while signed in to get the new value.`;
-  } catch (e) {
-    msg.className = 'msg err';
-    msg.textContent = `Could not rotate token for ${email}.`;
   }
 }
 

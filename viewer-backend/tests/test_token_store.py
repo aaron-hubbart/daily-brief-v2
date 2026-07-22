@@ -88,3 +88,16 @@ def test_list_users(token_db_path, encryption_key):
     users = store.list_users()
     emails = sorted(u['email'] for u in users)
     assert emails == ['aaron@camunda.com', 'other@camunda.com']
+
+
+def test_list_users_includes_drive_folder_link_state(token_db_path, encryption_key):
+    """The admin panel needs to tell a linked user from a stuck one -- so
+    list_users must surface brief_data_folder_id per user, not just email."""
+    store = _fresh_store()
+    store.get_or_create_user('oid-1', 'aaron@camunda.com')
+    store.get_or_create_user('oid-2', 'other@camunda.com')
+    store.set_brief_data_folder_id('oid-1', 'drive-folder-abc')
+
+    users = {u['entra_object_id']: u for u in store.list_users()}
+    assert users['oid-1']['brief_data_folder_id'] == 'drive-folder-abc'
+    assert users['oid-2']['brief_data_folder_id'] is None
