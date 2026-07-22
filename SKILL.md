@@ -24,7 +24,7 @@ This file is the core: trigger, timing, and what to pull. Three things are delib
 Configure these in your local copy (not committed here, since they're account-specific):
 
 ```
-BRIEF_DATA_FOLDER_ID: <Drive folder ID that holds /briefs, /config, and /state for this skill's output — see references/item-sync.md for the layout. Create it once, then link the same folder ID in the webapp's Account panel>
+BRIEF_DATA_FOLDER_ID: <Drive folder ID that holds /briefs (this skill's own output), /config (hand-maintained by you), and /state (written by the hosted webapp, not this skill) — see references/item-sync.md for the layout. Create it once, then link the same folder ID in the webapp's Account panel>
 MEETING_RUN_LOG_SHEET_ID: <your meeting-manager run log sheet ID>
 RECURRING_ACTIVITIES_PROJECT_GID: <your Asana recurring-activities project GID>
 STATUS_UPDATE_CACHE_FILE_ID: <Drive file ID of the Section 3/4 daily cache JSON — unchanged from before, still its own separate file, not inside BRIEF_DATA_FOLDER_ID — see references/status-updates.md>
