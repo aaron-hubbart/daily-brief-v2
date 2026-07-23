@@ -21,19 +21,20 @@ This file is the core: trigger, timing, and what to pull. Three things are delib
 
 ## Admin Config
 
-Configure these in your local copy (not committed here, since they're account-specific):
+This skill keeps exactly one configuration value in your local copy of `SKILL.md` — a pointer to a single JSON config file on Google Drive that holds everything else. Set it here (this repo's committed copy keeps it as a placeholder, since the value is account-specific):
 
 ```
-BRIEF_DATA_FOLDER_ID: <Drive folder ID that holds /briefs (this skill's own output), /config (hand-maintained by you), and /state (written by the hosted webapp, not this skill) — see references/item-sync.md for the layout. Create it once, then link the same folder ID in the webapp's Account panel>
-MEETING_RUN_LOG_SHEET_ID: <your meeting-manager run log sheet ID>
-RECURRING_ACTIVITIES_PROJECT_GID: <your Asana recurring-activities project GID>
-STATUS_UPDATE_CACHE_FILE_ID: <Drive file ID of the Section 3/4 daily cache JSON — unchanged from before, still its own separate file, not inside BRIEF_DATA_FOLDER_ID — see references/status-updates.md>
-SKILL_SOURCE_SHA: <maintained automatically by the Skill Sync Check below>
-REFERENCES_SOURCE_SHA: <maintained automatically by the Skill Sync Check below — tree SHA of the whole references/ directory, catches drift in reference files even when SKILL.md itself hasn't changed>
-SYNC_CHECK_LAST_RUN: <ISO timestamp of the last time the Skill Sync Check actually hit the GitHub API — maintained automatically>
+CONFIG_FILE_ID: <Drive file ID of your config.json — created for you by the setup flow below>
 ```
 
-Item sync writes directly to Google Drive via the "Google Drive: create_file" connector — the same connector already used for the meeting-run-log sheet and status-update cache above. There is no separate connector to add for this, no bearer token, and no custom MCP server: this skill never calls any webapp directly. See references/item-sync.md for the file layout and write mechanics.
+Everything else (the brief-data folder ID, the meeting run-log sheet ID, the recurring-activities Asana GID, the status-update cache file ID, your Slack user ID, your key contacts, and the auto-maintained sync markers) lives inside `config.json`, not here. If `CONFIG_FILE_ID` is still the placeholder, run the setup flow (see "First-Run Setup" below) — don't hand-edit values into this file.
+
+### Loading config (do this at the start of every run, before the Skill Sync Check)
+
+1. If `CONFIG_FILE_ID` is empty or still the placeholder text, do not attempt a brief. Offer to run First-Run Setup instead (see that section).
+2. Otherwise, read `config.json` from Drive by that file ID (`Google Drive` connector — the same read path already used for `account-config.json` and the status-update cache). It provides, as top-level keys: `brief_data_folder_id`, `meeting_run_log_sheet_id`, `recurring_activities_project_gid`, `status_update_cache_file_id`, `slack_user_id`, `key_contacts`, and a `sync_state` object. Everywhere below that refers to one of the old Admin Config IDs (e.g. `BRIEF_DATA_FOLDER_ID`), use the corresponding value from `config.json`.
+
+Item sync writes brief JSON directly to Google Drive via the "Google Drive: create_file" connector — the same connector used for the meeting-run-log sheet, the status-update cache, and `config.json` itself. There is no separate connector to add, no bearer token, and no custom MCP server: this skill never calls any webapp directly. See references/item-sync.md for the file layout and write mechanics.
 
 ---
 
