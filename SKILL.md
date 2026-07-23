@@ -127,14 +127,14 @@ Run all data pulls in parallel where possible. Use the time windows below.
 - Recap window: emails received since EOD yesterday (or past 24 hours)
 - Ahead window: not applicable — omit from forward section unless there's a scheduled send or thread requiring same-day action
 - Focus on: unread, flagged, or emails from key contacts
-- Key contacts: Rodrigo Scaldaferri, Micah De Boer, David Paroulek, Colin Teubner, and any contact at BofA, JPMorgan Chase, Wells Fargo, Goldman Sachs, Optum, Blink Health
+- Key contacts: the names in `config.json`'s `key_contacts`, plus any contact at one of the accounts listed in `account-config.json` (matched by `account_name`)
 - Summarize threads, not individual messages — group by sender/topic
 
 ### Slack (Slack: slack_search_public_and_private)
 Consolidate what used to be five separate searches into fewer calls:
 
-1. **Mentions + DMs in one call.** `to:<@U0A0ZRB4JM8>` against `channel_types=public_channel,private_channel,mpim,im` covers both direct mentions and DM activity in a single query instead of two.
-2. **Account channels in one call where possible.** Slack's search syntax accepts multiple `in:` modifiers in a single query (e.g. `in:<#C0395GFC4PR> in:<#C044Q1241GC> in:<#C04DXPZD2KF> in:<#C030JHUA7B6> in:<#C03LYGJJ47M> in:<#C04L8Q21277> in:<#C07BHQ26EBC> in:<#C057WEDQYUE>` for BofA, JPMC, Wells Fargo, Goldman, Optum, Blink, ICON, and Total System Services). I believe this returns results across all listed channels in one call rather than one call per account, but verify this against actual results the first few times — if it silently narrows to only the first channel or otherwise behaves unexpectedly, fall back to per-channel calls and note that in the run.
+1. **Mentions + DMs in one call.** `to:<@{slack_user_id}>` (from `config.json`) against `channel_types=public_channel,private_channel,mpim,im` covers both direct mentions and DM activity in a single query instead of two.
+2. **Account channels in one call where possible.** Build a single query with one `in:<#CHANNEL_ID>` modifier per account, using the `slack_channel_id` values from `account-config.json` (never a hard-coded list here). Slack's search syntax accepts multiple `in:` modifiers in one query, which should return results across all listed channels in a single call rather than one call per account — but verify this against actual results the first few times; if it silently narrows to only the first channel or otherwise behaves unexpectedly, fall back to per-channel calls and note that in the run.
 3. **Tiger team / AI-First CS**: one query for tiger team / AI-first / CS tiger.
 4. Time-scope every query to the recap window via `after`/`before`.
 
@@ -258,7 +258,7 @@ Quick summary of the gate: each account (and the manager update) generates fresh
 
 ## Account and People Context
 
-Configure your primary accounts, key colleagues, and team members in the Admin Config block.
+Configure your primary accounts in `/config/account-config.json` and your key colleagues in `config.json`'s `key_contacts` (see the First-Run Setup section).
 
 Use this context to prioritize and flag items — a Slack DM from your AE about a strategic account matters more than a general announcement channel.
 
