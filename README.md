@@ -35,18 +35,18 @@ See `viewer-backend/DEPLOYMENT.md` in this repo for deploying and linking the ho
 
 ### Google Drive
 
-- A Google Sheet for tracking meeting-manager runs — copy its ID into `MEETING_RUN_LOG_SHEET_ID`
-- A small JSON file for the Section 3/4 daily cache — create an empty one (`{"customer_updates": {}, "manager_update": {}}` is a fine starting point) and copy its ID into `STATUS_UPDATE_CACHE_FILE_ID`. See `references/status-updates.md` for the schema.
-- A folder to hold `/briefs` (this skill's own output), `/config` (hand-maintained by you), and `/state` (written by the hosted webapp, not this skill) — copy its ID into `BRIEF_DATA_FOLDER_ID`. See `references/item-sync.md` for the layout.
+- A Google Sheet for tracking meeting-manager runs — its ID is collected by the setup flow and stored in the `meeting_run_log_sheet_id` field of `config.json`
+- A small JSON file for the Section 3/4 daily cache — create an empty one (`{"customer_updates": {}, "manager_update": {}}` is a fine starting point); its ID is collected by the setup flow and stored in the `status_update_cache_file_id` field of `config.json`. See `references/status-updates.md` for the schema.
+- A folder to hold `/briefs` (this skill's own output), `/config` (hand-maintained by you), and `/state` (written by the hosted webapp, not this skill) — its ID is collected by the setup flow and stored in the `brief_data_folder_id` field of `config.json`. See `references/item-sync.md` for the layout.
 
 ### Asana
 
-- A project for recurring task templates — copy its GID into `RECURRING_ACTIVITIES_PROJECT_GID` in your local `SKILL.md`
+- A project for recurring task templates — its GID is collected by the setup flow and stored in the `recurring_activities_project_gid` field of `config.json`
 - Recommended custom fields on that project: `Frequency`, `Day of Week`, `Week of Month`, `Day of Month`, `Month`, `Month of Quarter`, `Due Offset Days`, `Customer`, `Active`, `Snooze Until`, `Last Run`
 
 ### Slack
 
-- Your Slack user ID (format: `UXXXXXXXXXX`) — set it in the Slack search section of `SKILL.md` so direct mentions are correctly detected
+- Your Slack user ID (format: `UXXXXXXXXXX`) — it is collected by the setup flow and stored in the `slack_user_id` field of `config.json` so direct mentions are correctly detected
 - A DM or channel with your manager for Manager Update posts
 
 ## What it does
@@ -69,14 +69,24 @@ The hosted viewer is `viewer-backend/` in this same repo — a Flask app that us
 
 ## Configuration
 
-Set these values in the `## Admin Config` block at the top of your local `SKILL.md` (this repo's copy keeps that block as placeholders, since the values are account-specific):
+The skill keeps a single value in your local `SKILL.md` — a pointer to one JSON config file on Google Drive that holds everything else (this repo's copy keeps it as a placeholder, since the value is account-specific):
 
 | Key | Description |
 |-----|-------------|
-| `BRIEF_DATA_FOLDER_ID` | Drive folder ID that holds `/briefs` (this skill's own output), `/config` (hand-maintained by you), and `/state` (written by the hosted webapp, not this skill) — see `references/item-sync.md` for the layout. Create it once, then link the same folder ID in the webapp's Account panel |
-| `MEETING_RUN_LOG_SHEET_ID` | Google Sheet ID tracking meeting-manager runs |
-| `RECURRING_ACTIVITIES_PROJECT_GID` | Asana project GID for the recurring task board |
-| `STATUS_UPDATE_CACHE_FILE_ID` | Drive file ID of the Section 3/4 per-account daily cache — unchanged from before, still its own separate file, not inside `BRIEF_DATA_FOLDER_ID` — see `references/status-updates.md` |
-| `SKILL_SOURCE_SHA` | Blob SHA of the last-synced `SKILL.md` on `main`, maintained automatically by the Skill Sync Check |
-| `REFERENCES_SOURCE_SHA` | Tree SHA of the last-synced `references/` directory on `main`, maintained automatically by the Skill Sync Check — catches drift in reference files even when `SKILL.md` itself hasn't changed |
-| `SYNC_CHECK_LAST_RUN` | Timestamp of the last time the Skill Sync Check actually hit the GitHub API, maintained automatically |
+| `CONFIG_FILE_ID` | Drive file ID of your `config.json`. Created for you by the setup flow — run `/daily-brief setup` in Claude, then paste the reported ID here. |
+
+Everything else lives in `/config/config.json` inside your brief-data Drive folder, written by the setup flow (you don't hand-edit it for first-run setup):
+
+```json
+{
+  "brief_data_folder_id": "...",
+  "meeting_run_log_sheet_id": "...",
+  "recurring_activities_project_gid": "...",
+  "status_update_cache_file_id": "...",
+  "slack_user_id": "UXXXXXXXXXX",
+  "key_contacts": ["First Last", "..."],
+  "sync_state": { "skill_source_sha": "...", "references_source_sha": "...", "sync_check_last_run": "..." }
+}
+```
+
+`sync_state` is maintained automatically by the Skill Sync Check. `account-config.json` (the account → Slack channel → Asana project mapping) remains a separate hand-maintained file in the same `/config` folder — see `references/item-sync.md`.
