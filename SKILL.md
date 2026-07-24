@@ -293,7 +293,7 @@ Quick summary of the gate: each account (and the manager update) generates fresh
 
 ## Account and People Context
 
-Configure your primary accounts in `/config/account-config.json` and your key colleagues in `config.json`'s `key_contacts` (see the First-Run Setup section).
+Configure your accounts in `/config/account-config.json` and your key colleagues in `config.json`'s `key_contacts` (see the First-Run Setup section).
 
 Use this context to prioritize and flag items — a Slack DM from your AE about a strategic account matters more than a general announcement channel.
 
