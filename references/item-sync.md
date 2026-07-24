@@ -134,7 +134,7 @@ New Items' due date can still be edited directly from the webapp's due-date box 
 
 **FYI** — non-actionable signals worth knowing: post-meeting summaries generated, recurring tasks spawned, informational Slack threads, status summary highlights. Same link standard as Action Items — a real URL in `links` whenever one exists (Zoom summary/recording, Slack permalink, calendar `webLink`, Asana permalink for a spawned recurring task); omit when none exists.
 
-**Customer Updates** — `item_type: card`, one per assigned account (every account in `/config/account-config.json`, not just accounts with signals this run). `content.textarea` holds the generated update (see `references/status-updates.md`); `content.channel_id` the account's Slack channel ID; `content.last_posted_at` the timestamp of the last found `[TAM-UPDATE] #claude-brief-skill` post, or omit if none was found. Content is gated by the cache in `references/status-updates.md` — read that file before regenerating.
+**Customer Updates** — `item_type: card`, one per in-scope account (all primary accounts plus any in-scope secondary accounts — see Resolve In-Scope Accounts in `SKILL.md`; not just accounts with signals this run). `content.textarea` holds the generated update (see `references/status-updates.md`); `content.channel_id` the account's Slack channel ID; `content.last_posted_at` the timestamp of the last found `[TAM-UPDATE] #claude-brief-skill` post, or omit if none was found. Content is gated by the cache in `references/status-updates.md` — read that file before regenerating.
 
 **Manager Update** — `item_type: text-block`, always exactly one item, `item_key: mgr-update`. `content.textarea` holds the synthesized update. Same caching rule as Customer Updates.
 
