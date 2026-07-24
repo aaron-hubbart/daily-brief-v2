@@ -42,21 +42,40 @@ Item sync writes brief JSON directly to Google Drive via the "Google Drive: crea
 
 ## First-Run Setup
 
-Runs when the user explicitly asks (`/daily-brief setup`, "set up daily brief", etc.), and is auto-offered whenever a normal run finds `CONFIG_FILE_ID` still set to the placeholder (per the config-load step above — offer setup instead of erroring). Setup is interactive: the skill collects values and writes them into `config.json` on Drive via its Google Drive connector. The only thing the user ever hand-edits in `SKILL.md` is `CONFIG_FILE_ID`.
+Runs when the user explicitly asks (`/daily-brief setup`, "set up daily brief", etc.), and is auto-offered whenever a normal run finds `CONFIG_FILE_ID` still set to the placeholder (per the config-load step above — offer setup instead of erroring). Setup is interactive and **gathers everything before writing anything**: collect all values, confirm them with the user, then write each config file once. The only thing the user ever hand-edits in `SKILL.md` is `CONFIG_FILE_ID`.
 
-Run these steps in order:
+### Phase A — Gather global settings
 
-1. **Establish the config file location (first step, always).** Ask the user for their brief-data Drive folder ID — the folder that holds `/briefs`, `/config`, and `/state` (see references/item-sync.md). If they don't have one yet, tell them to create an empty Drive folder and paste its ID from the URL (`drive.google.com/drive/folders/<this-part>`). Then create `/config/config.json` inside that folder via `Google Drive: create_file`, containing a starter document with `brief_data_folder_id` set to that folder and every other top-level key present but empty (`sync_state` as an empty object). Report the new file's Drive ID to the user and instruct them to paste it into `CONFIG_FILE_ID` at the top of their local `SKILL.md`. This paste is the only manual edit.
-2. **Collect the remaining values.** Prompt for each, one at a time, and write them into `config.json` (read-modify-write a new version via the create connector):
-   - `meeting_run_log_sheet_id` — the meeting-manager run-log Google Sheet ID
-   - `recurring_activities_project_gid` — the Asana recurring-activities project GID
-   - `status_update_cache_file_id` — the Drive file ID of the Section 3/4 daily cache JSON (offer to create an empty `{"customer_updates": {}, "manager_update": {}}` file if they don't have one, and use the resulting ID)
-   - `slack_user_id` — their Slack user ID (format `UXXXXXXXXXX`), used to detect direct mentions
-   - `key_contacts` — the list of named individuals to prioritize in email/Slack scanning
-   Any value the user leaves blank stays empty; the skill degrades gracefully on empty config values the same way it does for an unavailable source.
-3. **Point at the remaining prerequisites (reference only, don't re-collect).** Remind the user to: enable the MCP connectors they use (Microsoft 365, Slack, Zoom, Asana, Google Drive) under Claude's Settings → Connectors; and hand-maintain `/config/account-config.json` (account → Slack channel ID → Asana project GID mapping — see references/item-sync.md), which stays a separate file from `config.json`.
+Ask for these and hold them in the conversation (do not write yet). Ask for the brief-data Drive folder ID first, since both config files live inside it — if the user doesn't have one, tell them to create an empty Drive folder and paste its ID from the URL (`drive.google.com/drive/folders/<this-part>`).
 
-**Re-running setup** reads the existing `config.json` first and edits only the values the user chooses to change, rather than recreating the file from scratch.
+- brief-data Drive folder ID → `brief_data_folder_id`
+- meeting-manager run-log Google Sheet ID → `meeting_run_log_sheet_id`
+- Asana recurring-activities project GID → `recurring_activities_project_gid`
+- status-update cache file ID → `status_update_cache_file_id` (offer to create an empty `{"customer_updates": {}, "manager_update": {}}` file and use its ID)
+- Slack user ID (`UXXXXXXXXXX`) → `slack_user_id`
+- key contacts (named individuals) → `key_contacts`
+
+### Phase B — Build the account list (discover → confirm)
+
+Produce the full account list before writing. Do not write to Drive during this phase.
+
+1. **Seed** from the existing `/config/account-config.json` if one exists in the folder (read it); otherwise start empty.
+2. **Propose additions** by scanning the user's Slack account channels and Asana projects for customer-account names not already in the list.
+3. **Draft each account's details by name-search:** the Slack channel(s) whose name matches the account (main + any supporting), the Asana board matching the name — resolved to its `project_gid` — and a Drive folder matching the name for `gdrive_folder_id`. Leave any detail you can't resolve blank.
+4. **Confirm with the user.** Present the whole draft and have them correct, fill gaps, add, or remove accounts. Always confirm `tier` (primary/secondary) and, for each secondary account, its `run_day` weekday — these are not discoverable. The result is the complete account list in the shape documented in `references/item-sync.md` (`account_name`, `tier`, `run_day`, `slack_channel_id`, `supporting_slack_channel_ids`, `project_gid`, `asana_board_name`, `gdrive_folder_id`), plus the top-level `internal_project_gid`.
+
+(Future: a per-person account-assignment CSV will become the seed in step 1 — the rest of the flow is unchanged when that lands.)
+
+### Phase C — Write once, then hand off the ID
+
+After the user confirms everything:
+
+1. Create `/config/config.json` in the folder via one `Google Drive: create_file`, containing all Phase A values and `sync_state: {}`.
+2. Create `/config/account-config.json` in the folder via one `Google Drive: create_file`, containing the full confirmed account list and `internal_project_gid`.
+3. Report the new `config.json` Drive file ID and instruct the user to paste it into `CONFIG_FILE_ID` at the top of their local `SKILL.md`. This paste is the only manual edit.
+4. Point at the remaining prerequisites (reference only): enable the MCP connectors they use (Microsoft 365, Slack, Zoom, Asana, Google Drive) under Claude's Settings → Connectors.
+
+**Re-running setup** loads both existing files first, uses them as the Phase A/B starting point, re-confirms, and writes a fresh version of each file once — never a per-key incremental write.
 
 ---
 
