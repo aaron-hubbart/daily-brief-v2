@@ -30,6 +30,7 @@ Evaluate this **per account** (and separately for the manager update), not once 
 4. **Explicit refresh request** ("refresh the AcmeFin update," "regenerate manager update," or a click on a card's Refresh button — see `references/section-refresh.md`) forces regeneration for that one named entry regardless of its `generated_at` date, and overwrites only that entry.
 5. **Cache read fails** (Drive error, file missing and can't be created): treat every entry as a miss for this run — generate fresh for all of them, and note in the brief that the cache couldn't be read. Don't block the brief on this.
 6. **New account not yet in the cache file:** treat as a miss, generate, add its entry.
+7. **Tier / scope:** generate cards only for in-scope accounts (Resolve In-Scope Accounts in `SKILL.md`). Primary accounts follow the daily gate above. A secondary account is only reached on a run where it is in scope (its run-day or a catch-up); on that run the same per-account `generated_at`-vs-today gate applies, so it generates at most once on its weekly run day. Off-day secondary accounts produce no card.
 
 This gate only affects Sections 3/4. Sections 1, 2, and the other synced sections (Yesterday's Meetings, Today, Action Items, FYI) still run in full on every brief, regardless of cache state.
 
@@ -39,7 +40,7 @@ A card's Refresh button (see `references/section-refresh.md`) is the normal path
 
 ## Section 3: Customer Updates
 
-One collapsible card per customer account on your assigned list — every account listed in `/config/account-config.json` (see `references/item-sync.md` for its Drive location and shape), not just accounts with signals in the current pull. Read the account list fresh from that file each time this section is actually generated (i.e., on a cache miss or explicit refresh) — do not rely on a previously-known or hardcoded list, since accounts can be added or removed in the config independent of this skill. The entire section is also collapsed by default.
+One collapsible card per customer account on your assigned list — every in-scope account (all primary accounts plus any in-scope secondary accounts — see the Resolve In-Scope Accounts step in `SKILL.md`) (see `references/item-sync.md` for its Drive location and shape), not just accounts with signals in the current pull. Read the account list fresh from that file each time this section is actually generated (i.e., on a cache miss or explicit refresh) — do not rely on a previously-known or hardcoded list, since accounts can be added or removed in the config independent of this skill. The entire section is also collapsed by default.
 
 If an account has no new activity in the update window, still generate its card — state plainly that there's nothing new to report since the last update rather than omitting the account. Order cards with active-signal accounts first, then quiet ones.
 
