@@ -42,21 +42,40 @@ Item sync writes brief JSON directly to Google Drive via the "Google Drive: crea
 
 ## First-Run Setup
 
-Runs when the user explicitly asks (`/daily-brief setup`, "set up daily brief", etc.), and is auto-offered whenever a normal run finds `CONFIG_FILE_ID` still set to the placeholder (per the config-load step above — offer setup instead of erroring). Setup is interactive: the skill collects values and writes them into `config.json` on Drive via its Google Drive connector. The only thing the user ever hand-edits in `SKILL.md` is `CONFIG_FILE_ID`.
+Runs when the user explicitly asks (`/daily-brief setup`, "set up daily brief", etc.), and is auto-offered whenever a normal run finds `CONFIG_FILE_ID` still set to the placeholder (per the config-load step above — offer setup instead of erroring). Setup is interactive and **gathers everything before writing anything**: collect all values, confirm them with the user, then write each config file once. The only thing the user ever hand-edits in `SKILL.md` is `CONFIG_FILE_ID`.
 
-Run these steps in order:
+### Phase A — Gather global settings
 
-1. **Establish the config file location (first step, always).** Ask the user for their brief-data Drive folder ID — the folder that holds `/briefs`, `/config`, and `/state` (see references/item-sync.md). If they don't have one yet, tell them to create an empty Drive folder and paste its ID from the URL (`drive.google.com/drive/folders/<this-part>`). Then create `/config/config.json` inside that folder via `Google Drive: create_file`, containing a starter document with `brief_data_folder_id` set to that folder and every other top-level key present but empty (`sync_state` as an empty object). Report the new file's Drive ID to the user and instruct them to paste it into `CONFIG_FILE_ID` at the top of their local `SKILL.md`. This paste is the only manual edit.
-2. **Collect the remaining values.** Prompt for each, one at a time, and write them into `config.json` (read-modify-write a new version via the create connector):
-   - `meeting_run_log_sheet_id` — the meeting-manager run-log Google Sheet ID
-   - `recurring_activities_project_gid` — the Asana recurring-activities project GID
-   - `status_update_cache_file_id` — the Drive file ID of the Section 3/4 daily cache JSON (offer to create an empty `{"customer_updates": {}, "manager_update": {}}` file if they don't have one, and use the resulting ID)
-   - `slack_user_id` — their Slack user ID (format `UXXXXXXXXXX`), used to detect direct mentions
-   - `key_contacts` — the list of named individuals to prioritize in email/Slack scanning
-   Any value the user leaves blank stays empty; the skill degrades gracefully on empty config values the same way it does for an unavailable source.
-3. **Point at the remaining prerequisites (reference only, don't re-collect).** Remind the user to: enable the MCP connectors they use (Microsoft 365, Slack, Zoom, Asana, Google Drive) under Claude's Settings → Connectors; and hand-maintain `/config/account-config.json` (account → Slack channel ID → Asana project GID mapping — see references/item-sync.md), which stays a separate file from `config.json`.
+Ask for these and hold them in the conversation (do not write yet). Ask for the brief-data Drive folder ID first, since both config files live inside it — if the user doesn't have one, tell them to create an empty Drive folder and paste its ID from the URL (`drive.google.com/drive/folders/<this-part>`).
 
-**Re-running setup** reads the existing `config.json` first and edits only the values the user chooses to change, rather than recreating the file from scratch.
+- brief-data Drive folder ID → `brief_data_folder_id`
+- meeting-manager run-log Google Sheet ID → `meeting_run_log_sheet_id`
+- Asana recurring-activities project GID → `recurring_activities_project_gid`
+- status-update cache file ID → `status_update_cache_file_id` (offer to create an empty `{"customer_updates": {}, "manager_update": {}}` file and use its ID)
+- Slack user ID (`UXXXXXXXXXX`) → `slack_user_id`
+- key contacts (named individuals) → `key_contacts`
+
+### Phase B — Build the account list (discover → confirm)
+
+Produce the full account list before writing. Do not write to Drive during this phase.
+
+1. **Seed** from the existing `/config/account-config.json` if one exists in the folder (read it); otherwise start empty.
+2. **Propose additions** by scanning the user's Slack account channels and Asana projects for customer-account names not already in the list.
+3. **Draft each account's details by name-search:** the Slack channel(s) whose name matches the account (main + any supporting), the Asana board matching the name — resolved to its `project_gid` — and a Drive folder matching the name for `gdrive_folder_id`. Leave any detail you can't resolve blank.
+4. **Confirm with the user.** Present the whole draft and have them correct, fill gaps, add, or remove accounts. Always confirm `tier` (primary/secondary) and, for each secondary account, its `run_day` weekday — these are not discoverable. The result is the complete account list in the shape documented in `references/item-sync.md` (`account_name`, `tier`, `run_day`, `slack_channel_id`, `supporting_slack_channel_ids`, `project_gid`, `asana_board_name`, `gdrive_folder_id`), plus the top-level `internal_project_gid`.
+
+(Future: a per-person account-assignment CSV will become the seed in step 1 — the rest of the flow is unchanged when that lands.)
+
+### Phase C — Write once, then hand off the ID
+
+After the user confirms everything:
+
+1. Create `/config/config.json` in the folder via one `Google Drive: create_file`, containing all Phase A values and `sync_state: {}`.
+2. Create `/config/account-config.json` in the folder via one `Google Drive: create_file`, containing the full confirmed account list and `internal_project_gid`.
+3. Report the new `config.json` Drive file ID and instruct the user to paste it into `CONFIG_FILE_ID` at the top of their local `SKILL.md`. This paste is the only manual edit.
+4. Point at the remaining prerequisites (reference only): enable the MCP connectors they use (Microsoft 365, Slack, Zoom, Asana, Google Drive) under Claude's Settings → Connectors.
+
+**Re-running setup** loads both existing files first, uses them as the Phase A/B starting point, re-confirms, and writes a fresh version of each file once — never a per-key incremental write.
 
 ---
 
@@ -112,6 +131,18 @@ State the timing assumption briefly at the top of the brief (e.g., "Morning brie
 
 ---
 
+## Resolve In-Scope Accounts
+
+Before pulling data, read `/config/account-config.json` and compute which accounts this run processes. Today's weekday and the start of the current week are in the user's local timezone (from Timezone Resolution above); the week starts Monday 00:00 local.
+
+- Every `primary` account is in scope.
+- A `secondary` account is in scope if its `run_day` equals today's weekday, OR (catch-up) its `run_day` falls on-or-before today within the current week AND it has not run this week. "Has not run this week" means its `customer_updates[account_name].generated_at` in the status-update cache (`STATUS_UPDATE_CACHE_FILE_ID`) is missing or earlier than this week's Monday 00:00 local.
+- A `secondary` account that is not in scope is omitted entirely from this run — no recap entry, no Customer Update card, no Slack pull.
+
+Carry two groups forward: **primary in-scope** and **secondary in-scope**. Every later step that iterates accounts (the account/initiative recap, the Slack pull, Sections 3/4) uses these groups, not the raw file. If reading `account-config.json` fails, note it under Unavailable Sources and treat the account list as empty rather than blocking the brief.
+
+---
+
 ## Data Sources and What to Pull
 
 Run all data pulls in parallel where possible. Use the time windows below.
@@ -134,7 +165,7 @@ Run all data pulls in parallel where possible. Use the time windows below.
 Consolidate what used to be five separate searches into fewer calls:
 
 1. **Mentions + DMs in one call.** `to:<@{slack_user_id}>` (from `config.json`) against `channel_types=public_channel,private_channel,mpim,im` covers both direct mentions and DM activity in a single query instead of two.
-2. **Account channels in one call where possible.** Build a single query with one `in:<#CHANNEL_ID>` modifier per account, using the `slack_channel_id` values from `account-config.json` (never a hard-coded list here). Slack's search syntax accepts multiple `in:` modifiers in one query, which should return results across all listed channels in a single call rather than one call per account — but verify this against actual results the first few times; if it silently narrows to only the first channel or otherwise behaves unexpectedly, fall back to per-channel calls and note that in the run.
+2. **Account channels in one call where possible.** Build a single query with one `in:<#CHANNEL_ID>` modifier per in-scope account (primary + in-scope secondary from Resolve In-Scope Accounts), including each account's `slack_channel_id` plus every ID in its `supporting_slack_channel_ids`. Never hard-code a channel list here. Slack's search syntax accepts multiple `in:` modifiers in one query, which should return results across all listed channels in a single call rather than one call per account — but verify this against actual results the first few times; if it silently narrows to only the first channel or otherwise behaves unexpectedly, fall back to per-channel calls and note that in the run.
 3. **Tiger team / AI-First CS**: one query for tiger team / AI-first / CS tiger.
 4. Time-scope every query to the recap window via `after`/`before`.
 
@@ -202,6 +233,8 @@ After pulling all data sources, consolidate everything by **customer account or 
 
 Order subsections by priority: customer accounts with active signals first (in rough order of urgency), then internal initiatives, then a mandatory catch-all "General / Admin" bucket for anything that doesn't fit elsewhere (personal calendar blocks, admin tasks, notifications with no clear account/initiative tie). Every item pulled from a data source must land in exactly one bucket — nothing gets silently dropped for lack of a clean category.
 
+In-scope secondary accounts (see Resolve In-Scope Accounts) are grouped into a dedicated "Secondary Accounts" subsection placed after the primary customer-account and internal-initiative subsections and before the General / Admin bucket. Secondary accounts that are not in scope this run do not appear at all. Primary accounts are grouped as usual above.
+
 For each account or initiative subsection, include only what's relevant:
 - Meetings that occurred (time, who attended, outcome or Zoom summary if available) — this can reference the same meetings as Part A, but focus here is narrative content, not processing status
 - Email threads needing attention or follow-up
@@ -225,6 +258,8 @@ Example structure (only include sections with content):
 ### Section 2: Today / Tomorrow Ahead
 
 Same structure: organize by **customer account or internal initiative**, not by source.
+
+Only in-scope accounts appear (all primary, plus secondary accounts scheduled or caught-up for today per Resolve In-Scope Accounts); in-scope secondary accounts go in the same "Secondary Accounts" subsection used in Section 1.
 
 For each, include:
 - Upcoming meetings (time, attendees, prep needed)
@@ -258,11 +293,11 @@ Quick summary of the gate: each account (and the manager update) generates fresh
 
 ## Account and People Context
 
-Configure your primary accounts in `/config/account-config.json` and your key colleagues in `config.json`'s `key_contacts` (see the First-Run Setup section).
+Configure your accounts in `/config/account-config.json` and your key colleagues in `config.json`'s `key_contacts` (see the First-Run Setup section).
 
 Use this context to prioritize and flag items — a Slack DM from your AE about a strategic account matters more than a general announcement channel.
 
-The Slack channel ID mapping for Customer Updates is read from `/config/account-config.json` — see `references/item-sync.md` for its Drive location and shape, and the note in Section 3/4 above. Update that file by hand as accounts are added or changed; this skill reads it but never writes it.
+The Slack channel ID mapping for Customer Updates is read from `/config/account-config.json` — see `references/item-sync.md` for its Drive location and shape, and the note in Section 3/4 above. The First-Run Setup flow builds and updates this file (discover → confirm — see the First-Run Setup section); this skill reads it on every run but never writes it during a normal brief.
 
 ---
 

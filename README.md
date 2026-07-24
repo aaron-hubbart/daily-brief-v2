@@ -55,7 +55,7 @@ See `viewer-backend/DEPLOYMENT.md` in this repo for deploying and linking the ho
 - **Forward look** — lists every meeting for the current day with prep status, due tasks, and flagged items
 - **Meeting manager deep-links** — every meeting gets pre-meeting-prep and post-meeting-notes `claude://` deep-links, no qualifying filter; when a recording/transcript is missing, the person is asked directly and can paste a transcript to trigger post-meeting processing in that same conversation, which patches the existing Yesterday's Meetings item by writing a new version to Drive rather than waiting for the next scheduled brief
 - **Recurring task evaluation** — reads a TAM Recurring Activities Asana board and spawns due tasks on schedule
-- **Status summary** — one editable, postable update per assigned account plus a manager rollup. Each generates once per day per entry (not once per brief run) and is cached; a Refresh button on each card forces an immediate single-entry regeneration that writes just that one item to Drive, without touching any other account or re-running a full brief
+- **Status summary** — one editable, postable update per in-scope account (all primary accounts, plus secondary accounts on their weekly run day) plus a manager rollup. Each generates once per day per entry (not once per brief run) and is cached; a Refresh button on each card forces an immediate single-entry regeneration that writes just that one item to Drive, without touching any other account or re-running a full brief
 
 ## Output
 
@@ -89,4 +89,4 @@ Everything else lives in `/config/config.json` inside your brief-data Drive fold
 }
 ```
 
-`sync_state` is maintained automatically by the Skill Sync Check. `account-config.json` (the account → Slack channel → Asana project mapping) remains a separate hand-maintained file in the same `/config` folder — see `references/item-sync.md`.
+`sync_state` is maintained automatically by the Skill Sync Check. `account-config.json` is a separate file in the same `/config` folder holding the per-account mapping (name, tier, run day, main + supporting Slack channels, Asana board, docs folder); the First-Run Setup flow builds and updates it for you (discover → confirm) — see `references/item-sync.md`. Accounts are tiered: primary accounts run every day; secondary accounts run one configured weekday per week (with catch-up if a run day is missed) and appear in their own brief subsection, hidden on other days.

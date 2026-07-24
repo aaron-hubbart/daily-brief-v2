@@ -36,13 +36,40 @@ The one-file-per-account sections (`accounts/{slug}.json`, `updates/{slug}.json`
 
 ## Account/Asana project config
 
-The `/config` folder inside `BRIEF_DATA_FOLDER_ID` holds two hand-relevant files: `config.json` (the skill's own settings, created and written by the First-Run Setup flow — see `SKILL.md`) and `account-config.json` (below, hand-maintained). The skill reads `config.json` at the start of every run to resolve `BRIEF_DATA_FOLDER_ID` and its other settings.
+The `/config` folder inside `BRIEF_DATA_FOLDER_ID` holds two hand-relevant files: `config.json` (the skill's own settings, created and written by the First-Run Setup flow — see `SKILL.md`) and `account-config.json` (below, built and updated by the First-Run Setup flow). The skill reads `config.json` at the start of every run to resolve `BRIEF_DATA_FOLDER_ID` and its other settings.
 
 `/config/account-config.json` (inside `BRIEF_DATA_FOLDER_ID`) replaces this skill's reliance on `Meeting Manager Config.xlsx` for the account → Slack channel ID → Asana project GID mapping used below and in Action Items. Shape:
 ```json
-{"accounts": [{"account_name": "Acme Financial", "slack_channel_id": "C0XXXXXXX", "project_gid": "111222333"}, ...], "internal_project_gid": "444555666"}
+{
+  "accounts": [
+    {
+      "account_name": "Acme Financial",
+      "tier": "primary",
+      "run_day": null,
+      "slack_channel_id": "C0XXXXXXX",
+      "supporting_slack_channel_ids": ["C0XXXXXXX"],
+      "project_gid": "111222333",
+      "asana_board_name": "Acme Financial",
+      "gdrive_folder_id": "1AbCdEf..."
+    },
+    {
+      "account_name": "Acme Financial",
+      "tier": "secondary",
+      "run_day": "Wednesday",
+      "slack_channel_id": "C0YYYYYYY",
+      "supporting_slack_channel_ids": [],
+      "project_gid": "222333444",
+      "asana_board_name": "Acme Financial",
+      "gdrive_folder_id": null
+    }
+  ],
+  "internal_project_gid": "444555666"
+}
 ```
-You maintain this file by hand (same as the .xlsx is maintained today for the equivalent columns) — this skill reads it, never writes it. The hosted webapp also reads it directly (its own Drive access), which is what lets it poll Asana live for Overdue/Due Next 7 Days/No Due Date without this skill syncing anything to it — there is no `daily_brief_sync_account_projects`-equivalent call in v2; that entire sync step is gone.
+
+Field semantics: `tier` is `primary` or `secondary`. `run_day` is a weekday name (`Monday`…`Sunday`) for secondary accounts, `null` for primary. `slack_channel_id` is the account's main Slack channel; `supporting_slack_channel_ids` lists additional channels to include in that account's Slack pull (may be empty). `project_gid` is the Asana board's GID (required — the webapp reads it); `asana_board_name` is the human-facing board name the setup flow resolves to that GID. `gdrive_folder_id` is the account's docs folder ID or `null` (stored only; the brief does not act on it yet).
+
+The First-Run Setup flow builds and updates this file (discover → confirm — see `SKILL.md`). The skill reads it on every run but never writes it during a normal brief. The hosted webapp also reads it directly (its own Drive access) to poll Asana live for Overdue/Due Next 7 Days/No Due Date — it uses only `account_name` and `project_gid` and ignores the other keys, so those two keys must always be present. There is no `daily_brief_sync_account_projects`-equivalent call in v2; that entire sync step is gone.
 
 ### Sections, in order
 
@@ -107,7 +134,7 @@ New Items' due date can still be edited directly from the webapp's due-date box 
 
 **FYI** — non-actionable signals worth knowing: post-meeting summaries generated, recurring tasks spawned, informational Slack threads, status summary highlights. Same link standard as Action Items — a real URL in `links` whenever one exists (Zoom summary/recording, Slack permalink, calendar `webLink`, Asana permalink for a spawned recurring task); omit when none exists.
 
-**Customer Updates** — `item_type: card`, one per assigned account (every account in `/config/account-config.json`, not just accounts with signals this run). `content.textarea` holds the generated update (see `references/status-updates.md`); `content.channel_id` the account's Slack channel ID; `content.last_posted_at` the timestamp of the last found `[TAM-UPDATE] #claude-brief-skill` post, or omit if none was found. Content is gated by the cache in `references/status-updates.md` — read that file before regenerating.
+**Customer Updates** — `item_type: card`, one per in-scope account (all primary accounts plus any in-scope secondary accounts — see Resolve In-Scope Accounts in `SKILL.md`; not just accounts with signals this run). `content.textarea` holds the generated update (see `references/status-updates.md`); `content.channel_id` the account's Slack channel ID; `content.last_posted_at` the timestamp of the last found `[TAM-UPDATE] #claude-brief-skill` post, or omit if none was found. Content is gated by the cache in `references/status-updates.md` — read that file before regenerating.
 
 **Manager Update** — `item_type: text-block`, always exactly one item, `item_key: mgr-update`. `content.textarea` holds the synthesized update. Same caching rule as Customer Updates.
 
