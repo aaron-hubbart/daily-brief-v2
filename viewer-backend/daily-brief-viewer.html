@@ -220,7 +220,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
         <h3>4. A few other things</h3>
         <ul>
           <li><strong>Claude Desktop</strong>, if you want the <code>claude://</code> refresh and meeting-manager deep links in your briefs to work</li>
-          <li>A <code>/config/account-config.json</code> file inside your Drive folder from step 1 — account name, Slack channel ID, and Asana project GID per account. See the skill repo's <code>references/item-sync.md</code> for the exact shape; you maintain this by hand as accounts are added or changed</li>
+          <li>Your <code>/config/account-config.json</code> — the per-account mapping (name, tier, run day, Slack channels, Asana board, docs folder). You don't hand-build this: <code>/daily-brief setup</code> discovers your accounts and details, then asks you to confirm and fill gaps. See the skill repo's <code>references/item-sync.md</code> for the shape</li>
           <li>See the skill repo's <code>README.md</code> for the full prerequisites list</li>
         </ul>
       </div>
