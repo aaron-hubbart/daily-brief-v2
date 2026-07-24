@@ -297,7 +297,7 @@ Configure your primary accounts in `/config/account-config.json` and your key co
 
 Use this context to prioritize and flag items — a Slack DM from your AE about a strategic account matters more than a general announcement channel.
 
-The Slack channel ID mapping for Customer Updates is read from `/config/account-config.json` — see `references/item-sync.md` for its Drive location and shape, and the note in Section 3/4 above. Update that file by hand as accounts are added or changed; this skill reads it but never writes it.
+The Slack channel ID mapping for Customer Updates is read from `/config/account-config.json` — see `references/item-sync.md` for its Drive location and shape, and the note in Section 3/4 above. The First-Run Setup flow builds and updates this file (discover → confirm — see the First-Run Setup section); this skill reads it on every run but never writes it during a normal brief.
 
 ---
 
