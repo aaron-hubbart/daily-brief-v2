@@ -131,6 +131,18 @@ State the timing assumption briefly at the top of the brief (e.g., "Morning brie
 
 ---
 
+## Resolve In-Scope Accounts
+
+Before pulling data, read `/config/account-config.json` and compute which accounts this run processes. Today's weekday and the start of the current week are in the user's local timezone (from Timezone Resolution above); the week starts Monday 00:00 local.
+
+- Every `primary` account is in scope.
+- A `secondary` account is in scope if its `run_day` equals today's weekday, OR (catch-up) its `run_day` falls on-or-before today within the current week AND it has not run this week. "Has not run this week" means its `customer_updates[account_name].generated_at` in the status-update cache (`STATUS_UPDATE_CACHE_FILE_ID`) is missing or earlier than this week's Monday 00:00 local.
+- A `secondary` account that is not in scope is omitted entirely from this run — no recap entry, no Customer Update card, no Slack pull.
+
+Carry two groups forward: **primary in-scope** and **secondary in-scope**. Every later step that iterates accounts (the account/initiative recap, the Slack pull, Sections 3/4) uses these groups, not the raw file. If reading `account-config.json` fails, note it under Unavailable Sources and treat the account list as empty rather than blocking the brief.
+
+---
+
 ## Data Sources and What to Pull
 
 Run all data pulls in parallel where possible. Use the time windows below.
