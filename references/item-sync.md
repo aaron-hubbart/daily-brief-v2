@@ -36,6 +36,8 @@ The one-file-per-account sections (`accounts/{slug}.json`, `updates/{slug}.json`
 
 ## Account/Asana project config
 
+The `/config` folder inside `BRIEF_DATA_FOLDER_ID` holds two hand-relevant files: `config.json` (the skill's own settings, created and written by the First-Run Setup flow — see `SKILL.md`) and `account-config.json` (below, hand-maintained). The skill reads `config.json` at the start of every run to resolve `BRIEF_DATA_FOLDER_ID` and its other settings.
+
 `/config/account-config.json` (inside `BRIEF_DATA_FOLDER_ID`) replaces this skill's reliance on `Meeting Manager Config.xlsx` for the account → Slack channel ID → Asana project GID mapping used below and in Action Items. Shape:
 ```json
 {"accounts": [{"account_name": "Bank of America", "slack_channel_id": "C0395GFC4PR", "project_gid": "111222333"}, ...], "internal_project_gid": "444555666"}
@@ -119,4 +121,4 @@ If a Drive write fails (the `create_file` call errors, or `BRIEF_DATA_FOLDER_ID`
 
 ### Repo hygiene
 
-Never commit a real token value, real payload content (real names, meeting titles, account data), or this skill's local Admin Config values to the public repo. The `example/` folder is for sanitized demo content only, with fictional names and companies (e.g. "Acme Financial", "Pinnacle Health", "Meridian Bank") — never real account names, email addresses, Slack user IDs, Asana GIDs, Zoom meeting IDs, or calendar event IDs.
+Never commit a real token value, real payload content (real names, meeting titles, account data), or this skill's local `CONFIG_FILE_ID` value to the public repo. The `example/` folder is for sanitized demo content only, with fictional names and companies (e.g. "Acme Financial", "Pinnacle Health", "Meridian Bank") — never real account names, email addresses, Slack user IDs, Asana GIDs, Zoom meeting IDs, or calendar event IDs.
