@@ -60,9 +60,9 @@ Run these steps in order:
 
 ---
 
-## Skill Sync Check (run this first, every time, before anything else)
+## Skill Sync Check (run this right after loading config, before any brief work)
 
-This skill's canonical source of truth is this file and the `references/` directory on `main` in `aaron-hubbart/daily-brief-v2`. Any environment that loads a local copy of this skill (e.g. a persistent runtime skill directory) can silently fall behind if `main` is updated without that local copy being refreshed. Check for that drift before doing anything else, every time this skill fires — but rate-limit the check itself, since hitting the GitHub API on every single brief run is pure overhead for a condition that's only ever true right after a PR merges.
+This skill's canonical source of truth is this file and the `references/` directory on `main` in `aaron-hubbart/daily-brief-v2`. Any environment that loads a local copy of this skill (e.g. a persistent runtime skill directory) can silently fall behind if `main` is updated without that local copy being refreshed. Check for that drift before any brief work, every time this skill fires (right after loading config) — but rate-limit the check itself, since hitting the GitHub API on every single brief run is pure overhead for a condition that's only ever true right after a PR merges.
 
 Two things are tracked separately, since a PR can change one without the other (most reference-only changes never touch this file's own content): `sync_state.skill_source_sha` (this file's own blob SHA) and `sync_state.references_source_sha` (the `references/` directory's tree SHA — a single value that changes whenever any file inside that directory changes, anywhere in it, without needing to check each reference file individually). Checking `SKILL.md` alone is not sufficient: several past changes touched only `references/item-sync.md` and left this file's own content untouched, which a `SKILL.md`-only check would have reported as "Match" while the loaded reference files quietly went stale.
 

@@ -257,7 +257,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
         <input class="text-input" id="account-drive-folder" type="text" placeholder="Drive folder ID" autocomplete="off">
         <button class="copy-btn" id="account-drive-folder-save" onclick="saveDriveFolderFromAccount()">Save</button>
       </div>
-      <p style="font-size:11.5px;color:var(--t3);margin-top:10px;line-height:1.5;">This must match the <code>BRIEF_DATA_FOLDER_ID</code> in your daily-brief-v2 skill's Admin Config — both this webapp and your skill need to agree on the same Drive folder.</p>
+      <p style="font-size:11.5px;color:var(--t3);margin-top:10px;line-height:1.5;">This must match the brief-data folder your skill writes to — the <code>brief_data_folder_id</code> in your <code>config.json</code> (set during <code>/daily-brief setup</code>). Both this webapp and your skill need to agree on the same Drive folder.</p>
       <div class="account-msg" id="account-msg"></div>
       <hr class="account-hr">
       <div class="account-row" id="asana-status-row">Asana connection: <strong id="asana-status">checking…</strong></div>
