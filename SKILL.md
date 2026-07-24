@@ -7,6 +7,8 @@ description: >
 
   Also trigger on "refresh the [account] update", "regenerate manager update", "redo the [account] card", "refresh section:[slug]", or any message starting with "/daily-brief Refresh" — these patch a single card/section, not a full brief.
 
+  Also trigger the setup flow on "/daily-brief setup", "set up daily brief", "configure daily brief", or "daily brief setup" — see the First-Run Setup section.
+
   Don't require morning vs. evening — infer from context or current time. Always run without asking for confirmation first.
 ---
 
@@ -21,35 +23,56 @@ This file is the core: trigger, timing, and what to pull. Three things are delib
 
 ## Admin Config
 
-Configure these in your local copy (not committed here, since they're account-specific):
+This skill keeps exactly one configuration value in your local copy of `SKILL.md` — a pointer to a single JSON config file on Google Drive that holds everything else. Set it here (this repo's committed copy keeps it as a placeholder, since the value is account-specific):
 
 ```
-BRIEF_DATA_FOLDER_ID: <Drive folder ID that holds /briefs (this skill's own output), /config (hand-maintained by you), and /state (written by the hosted webapp, not this skill) — see references/item-sync.md for the layout. Create it once, then link the same folder ID in the webapp's Account panel>
-MEETING_RUN_LOG_SHEET_ID: <your meeting-manager run log sheet ID>
-RECURRING_ACTIVITIES_PROJECT_GID: <your Asana recurring-activities project GID>
-STATUS_UPDATE_CACHE_FILE_ID: <Drive file ID of the Section 3/4 daily cache JSON — unchanged from before, still its own separate file, not inside BRIEF_DATA_FOLDER_ID — see references/status-updates.md>
-SKILL_SOURCE_SHA: <maintained automatically by the Skill Sync Check below>
-REFERENCES_SOURCE_SHA: <maintained automatically by the Skill Sync Check below — tree SHA of the whole references/ directory, catches drift in reference files even when SKILL.md itself hasn't changed>
-SYNC_CHECK_LAST_RUN: <ISO timestamp of the last time the Skill Sync Check actually hit the GitHub API — maintained automatically>
+CONFIG_FILE_ID: <Drive file ID of your config.json — created for you by the setup flow below>
 ```
 
-Item sync writes directly to Google Drive via the "Google Drive: create_file" connector — the same connector already used for the meeting-run-log sheet and status-update cache above. There is no separate connector to add for this, no bearer token, and no custom MCP server: this skill never calls any webapp directly. See references/item-sync.md for the file layout and write mechanics.
+Everything else (the brief-data folder ID, the meeting run-log sheet ID, the recurring-activities Asana GID, the status-update cache file ID, your Slack user ID, your key contacts, and the auto-maintained sync markers) lives inside `config.json`, not here. If `CONFIG_FILE_ID` is still the placeholder, run the setup flow (see "First-Run Setup" below) — don't hand-edit values into this file.
+
+### Loading config (do this at the start of every run, before the Skill Sync Check)
+
+1. If `CONFIG_FILE_ID` is empty or still the placeholder text, do not attempt a brief. Offer to run First-Run Setup instead (see that section).
+2. Otherwise, read `config.json` from Drive by that file ID (`Google Drive` connector — the same read path already used for `account-config.json` and the status-update cache). It provides, as top-level keys: `brief_data_folder_id`, `meeting_run_log_sheet_id`, `recurring_activities_project_gid`, `status_update_cache_file_id`, `slack_user_id`, `key_contacts`, and a `sync_state` object. Everywhere below that refers to one of the old Admin Config IDs (e.g. `BRIEF_DATA_FOLDER_ID`), use the corresponding value from `config.json`.
+
+Item sync writes brief JSON directly to Google Drive via the "Google Drive: create_file" connector — the same connector used for the meeting-run-log sheet, the status-update cache, and `config.json` itself. There is no separate connector to add, no bearer token, and no custom MCP server: this skill never calls any webapp directly. See references/item-sync.md for the file layout and write mechanics.
 
 ---
 
-## Skill Sync Check (run this first, every time, before anything else)
+## First-Run Setup
 
-This skill's canonical source of truth is this file and the `references/` directory on `main` in `aaron-hubbart/daily-brief-v2`. Any environment that loads a local copy of this skill (e.g. a persistent runtime skill directory) can silently fall behind if `main` is updated without that local copy being refreshed. Check for that drift before doing anything else, every time this skill fires — but rate-limit the check itself, since hitting the GitHub API on every single brief run is pure overhead for a condition that's only ever true right after a PR merges.
+Runs when the user explicitly asks (`/daily-brief setup`, "set up daily brief", etc.), and is auto-offered whenever a normal run finds `CONFIG_FILE_ID` still set to the placeholder (per the config-load step above — offer setup instead of erroring). Setup is interactive: the skill collects values and writes them into `config.json` on Drive via its Google Drive connector. The only thing the user ever hand-edits in `SKILL.md` is `CONFIG_FILE_ID`.
 
-Two things are tracked separately, since a PR can change one without the other (most reference-only changes never touch this file's own content): `SKILL_SOURCE_SHA` (this file's own blob SHA) and `REFERENCES_SOURCE_SHA` (the `references/` directory's tree SHA — a single value that changes whenever any file inside that directory changes, anywhere in it, without needing to check each reference file individually). Checking `SKILL.md` alone is not sufficient: several past changes touched only `references/item-sync.md` and left this file's own content untouched, which a `SKILL.md`-only check would have reported as "Match" while the loaded reference files quietly went stale.
+Run these steps in order:
 
-1. **Rate-limit gate:** compare the current time to `SYNC_CHECK_LAST_RUN`. If less than 4 hours have passed, skip straight to step 2's "Match" behavior without calling the GitHub API at all. If 4+ hours have passed (or the marker is missing), proceed to the actual check and update `SYNC_CHECK_LAST_RUN` to now regardless of the check's outcome.
-2. **Check:** fetch the current blob SHA for `SKILL.md` on `main` (`GET /repos/aaron-hubbart/daily-brief-v2/contents/SKILL.md`, or equivalent) and separately fetch the current tree SHA for the `references/` directory (`GET /repos/aaron-hubbart/daily-brief-v2/git/trees/main`, then read the `sha` of the entry whose `path` is `references`). Compare both against the `SKILL_SOURCE_SHA` and `REFERENCES_SOURCE_SHA` markers in this local copy's Admin Config block (both markers are local-only; neither is part of this repo file).
+1. **Establish the config file location (first step, always).** Ask the user for their brief-data Drive folder ID — the folder that holds `/briefs`, `/config`, and `/state` (see references/item-sync.md). If they don't have one yet, tell them to create an empty Drive folder and paste its ID from the URL (`drive.google.com/drive/folders/<this-part>`). Then create `/config/config.json` inside that folder via `Google Drive: create_file`, containing a starter document with `brief_data_folder_id` set to that folder and every other top-level key present but empty (`sync_state` as an empty object). Report the new file's Drive ID to the user and instruct them to paste it into `CONFIG_FILE_ID` at the top of their local `SKILL.md`. This paste is the only manual edit.
+2. **Collect the remaining values.** Prompt for each, one at a time, and write them into `config.json` (read-modify-write a new version via the create connector):
+   - `meeting_run_log_sheet_id` — the meeting-manager run-log Google Sheet ID
+   - `recurring_activities_project_gid` — the Asana recurring-activities project GID
+   - `status_update_cache_file_id` — the Drive file ID of the Section 3/4 daily cache JSON (offer to create an empty `{"customer_updates": {}, "manager_update": {}}` file if they don't have one, and use the resulting ID)
+   - `slack_user_id` — their Slack user ID (format `UXXXXXXXXXX`), used to detect direct mentions
+   - `key_contacts` — the list of named individuals to prioritize in email/Slack scanning
+   Any value the user leaves blank stays empty; the skill degrades gracefully on empty config values the same way it does for an unavailable source.
+3. **Point at the remaining prerequisites (reference only, don't re-collect).** Remind the user to: enable the MCP connectors they use (Microsoft 365, Slack, Zoom, Asana, Google Drive) under Claude's Settings → Connectors; and hand-maintain `/config/account-config.json` (account → Slack channel ID → Asana project GID mapping — see references/item-sync.md), which stays a separate file from `config.json`.
+
+**Re-running setup** reads the existing `config.json` first and edits only the values the user chooses to change, rather than recreating the file from scratch.
+
+---
+
+## Skill Sync Check (run this right after loading config, before any brief work)
+
+This skill's canonical source of truth is this file and the `references/` directory on `main` in `aaron-hubbart/daily-brief-v2`. Any environment that loads a local copy of this skill (e.g. a persistent runtime skill directory) can silently fall behind if `main` is updated without that local copy being refreshed. Check for that drift before any brief work, every time this skill fires (right after loading config) — but rate-limit the check itself, since hitting the GitHub API on every single brief run is pure overhead for a condition that's only ever true right after a PR merges.
+
+Two things are tracked separately, since a PR can change one without the other (most reference-only changes never touch this file's own content): `sync_state.skill_source_sha` (this file's own blob SHA) and `sync_state.references_source_sha` (the `references/` directory's tree SHA — a single value that changes whenever any file inside that directory changes, anywhere in it, without needing to check each reference file individually). Checking `SKILL.md` alone is not sufficient: several past changes touched only `references/item-sync.md` and left this file's own content untouched, which a `SKILL.md`-only check would have reported as "Match" while the loaded reference files quietly went stale.
+
+1. **Rate-limit gate:** compare the current time to `sync_state.sync_check_last_run` in `config.json`. If less than 4 hours have passed, skip straight to step 2's "Match" behavior without calling the GitHub API at all. If 4+ hours have passed (or the marker is missing), proceed to the actual check and update `sync_state.sync_check_last_run` to now (writing a new version of `config.json`) regardless of the check's outcome.
+2. **Check:** fetch the current blob SHA for `SKILL.md` on `main` (`GET /repos/aaron-hubbart/daily-brief-v2/contents/SKILL.md`, or equivalent) and separately fetch the current tree SHA for the `references/` directory (`GET /repos/aaron-hubbart/daily-brief-v2/git/trees/main`, then read the `sha` of the entry whose `path` is `references`). Compare both against `sync_state.skill_source_sha` and `sync_state.references_source_sha` in `config.json`.
 3. **Match:** both SHAs match their markers — proceed with the brief normally.
-4. **Mismatch (either one):** the repo has moved ahead of the loaded copy — this applies even if only `REFERENCES_SOURCE_SHA` differs and `SKILL_SOURCE_SHA` still matches. Self-heal: fetch `SKILL.md` and the full `references/` directory fresh from `main`, re-insert the local copy's real values into the `## Admin Config` block (this repo file keeps that block as generic placeholders for public-repo hygiene — the structure is version-controlled, only the literal IDs are local), update both the `SKILL_SOURCE_SHA` and `REFERENCES_SOURCE_SHA` markers, overwrite the local copy, and note briefly in the brief output that the skill definition was auto-synced.
+4. **Mismatch (either one):** the repo has moved ahead of the loaded copy — this applies even if only `references_source_sha` differs and `skill_source_sha` still matches. Self-heal: fetch `SKILL.md` and the full `references/` directory fresh from `main`, re-insert this local copy's real `CONFIG_FILE_ID` value into the fetched `SKILL.md`'s `## Admin Config` block (the repo file keeps it as a placeholder for public-repo hygiene; `CONFIG_FILE_ID` is now the only local-only value to preserve), overwrite the local copy, then update `sync_state.skill_source_sha` and `sync_state.references_source_sha` in `config.json` and write it back. Note briefly in the brief output that the skill definition was auto-synced.
 5. **Fetch fails:** skip silently and proceed with the current local copy. Never block the brief on this check.
 
-This makes drift self-correcting without paying for an API round trip on every single invocation — and, as of the two-marker check above, without a reference-only update silently going undetected.
+This makes drift self-correcting without paying for an API round trip on every single invocation, without a reference-only update silently going undetected, and — now that the markers live in `config.json` rather than `SKILL.md` — the self-heal only has to carry the one `CONFIG_FILE_ID` value across a re-fetch, and the markers survive even a full overwrite of the local copy.
 
 ---
 
@@ -104,14 +127,14 @@ Run all data pulls in parallel where possible. Use the time windows below.
 - Recap window: emails received since EOD yesterday (or past 24 hours)
 - Ahead window: not applicable — omit from forward section unless there's a scheduled send or thread requiring same-day action
 - Focus on: unread, flagged, or emails from key contacts
-- Key contacts: Rodrigo Scaldaferri, Micah De Boer, David Paroulek, Colin Teubner, and any contact at AcmeFin, Zebra Financial, Umbrella Financial, Initech Financial, Acme Health, Zebra Health
+- Key contacts: the names in `config.json`'s `key_contacts`, plus any contact at one of the accounts listed in `account-config.json` (matched by `account_name`)
 - Summarize threads, not individual messages — group by sender/topic
 
 ### Slack (Slack: slack_search_public_and_private)
 Consolidate what used to be five separate searches into fewer calls:
 
-1. **Mentions + DMs in one call.** `to:<@U0A0ZRB4JM8>` against `channel_types=public_channel,private_channel,mpim,im` covers both direct mentions and DM activity in a single query instead of two.
-2. **Account channels in one call where possible.** Slack's search syntax accepts multiple `in:` modifiers in a single query (e.g. `in:<#C0XXXXXXX> in:<#C0XXXXXXX> in:<#C0XXXXXXX> in:<#C0XXXXXXX> in:<#C0XXXXXXX> in:<#C0XXXXXXX> in:<#C0XXXXXXX> in:<#C0XXXXXXX>` for AcmeFin, Zebra Financial, Umbrella Financial, Initech Financial, Acme Health, Zebra Health, Umbrella Clinical Research, and Globex System Services). I believe this returns results across all listed channels in one call rather than one call per account, but verify this against actual results the first few times — if it silently narrows to only the first channel or otherwise behaves unexpectedly, fall back to per-channel calls and note that in the run.
+1. **Mentions + DMs in one call.** `to:<@{slack_user_id}>` (from `config.json`) against `channel_types=public_channel,private_channel,mpim,im` covers both direct mentions and DM activity in a single query instead of two.
+2. **Account channels in one call where possible.** Build a single query with one `in:<#CHANNEL_ID>` modifier per account, using the `slack_channel_id` values from `account-config.json` (never a hard-coded list here). Slack's search syntax accepts multiple `in:` modifiers in one query, which should return results across all listed channels in a single call rather than one call per account — but verify this against actual results the first few times; if it silently narrows to only the first channel or otherwise behaves unexpectedly, fall back to per-channel calls and note that in the run.
 3. **Tiger team / AI-First CS**: one query for tiger team / AI-first / CS tiger.
 4. Time-scope every query to the recap window via `after`/`before`.
 
@@ -235,7 +258,7 @@ Quick summary of the gate: each account (and the manager update) generates fresh
 
 ## Account and People Context
 
-Configure your primary accounts, key colleagues, and team members in the Admin Config block.
+Configure your primary accounts in `/config/account-config.json` and your key colleagues in `config.json`'s `key_contacts` (see the First-Run Setup section).
 
 Use this context to prioritize and flag items — a Slack DM from your AE about a strategic account matters more than a general announcement channel.
 

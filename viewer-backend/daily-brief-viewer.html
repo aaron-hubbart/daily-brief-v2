@@ -193,19 +193,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
           <button class="copy-btn" id="setup-drive-folder-save" onclick="saveDriveFolderFromSetup()">Save</button>
         </div>
         <div class="account-msg" id="setup-drive-folder-msg"></div>
-        <p>Keep this same ID handy — you'll set it as <code>BRIEF_DATA_FOLDER_ID</code> in the next step.</p>
+        <p>Keep this same ID handy — the skill's setup flow asks for it in the next step to create your config file.</p>
       </div>
 
       <div class="setup-step" data-step="2">
-        <h3>2. Install the daily-brief-v2 skill</h3>
+        <h3>2. Install daily-brief-v2 and run setup</h3>
         <p>Add the skill to a Claude project from <a href="https://github.com/aaron-hubbart/daily-brief-v2" target="_blank" rel="noopener">github.com/aaron-hubbart/daily-brief-v2</a> — copy <code>SKILL.md</code> and the <code>references/</code> folder in.</p>
-        <p>Then fill in your local copy's <strong>Admin Config</strong> block at the top of <code>SKILL.md</code>:</p>
-        <ul>
-          <li><code>BRIEF_DATA_FOLDER_ID</code> — the folder ID from step 1</li>
-          <li><code>MEETING_RUN_LOG_SHEET_ID</code> — your meeting-manager run log sheet ID</li>
-          <li><code>RECURRING_ACTIVITIES_PROJECT_GID</code> — your Asana recurring-activities project GID</li>
-          <li><code>STATUS_UPDATE_CACHE_FILE_ID</code> — Drive file ID of the Section 3/4 daily cache JSON</li>
-        </ul>
+        <p>Then run <code>/daily-brief setup</code> in Claude. It creates a <code>config.json</code> in your Drive folder from step 1 and walks you through the rest of your settings, writing them there for you. When it reports the new config file's ID, paste that one value into <code>CONFIG_FILE_ID</code> at the top of your local <code>SKILL.md</code> — that's the only thing you hand-edit.</p>
         <p>There's no API token and nothing to paste into a connector — the skill writes brief JSON directly into your Drive folder using its own Google Drive connector.</p>
       </div>
 
@@ -263,7 +257,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
         <input class="text-input" id="account-drive-folder" type="text" placeholder="Drive folder ID" autocomplete="off">
         <button class="copy-btn" id="account-drive-folder-save" onclick="saveDriveFolderFromAccount()">Save</button>
       </div>
-      <p style="font-size:11.5px;color:var(--t3);margin-top:10px;line-height:1.5;">This must match the <code>BRIEF_DATA_FOLDER_ID</code> in your daily-brief-v2 skill's Admin Config — both this webapp and your skill need to agree on the same Drive folder.</p>
+      <p style="font-size:11.5px;color:var(--t3);margin-top:10px;line-height:1.5;">This must match the brief-data folder your skill writes to — the <code>brief_data_folder_id</code> in your <code>config.json</code> (set during <code>/daily-brief setup</code>). Both this webapp and your skill need to agree on the same Drive folder.</p>
       <div class="account-msg" id="account-msg"></div>
       <hr class="account-hr">
       <div class="account-row" id="asana-status-row">Asana connection: <strong id="asana-status">checking…</strong></div>
