@@ -74,6 +74,29 @@ def test_create_json_file_sends_multipart_post(mocker):
     assert b'folder-1' in request_obj.data
 
 
+def test_drive_request_raises_drive_api_error_carrying_status_reason_and_body(mocker):
+    import io
+    import urllib.error
+
+    import drive_store
+
+    body = json.dumps({'error': {
+        'code': 403,
+        'message': 'The user does not have sufficient permissions for this file.',
+        'errors': [{'reason': 'insufficientFilePermissions',
+                    'message': 'The user does not have sufficient permissions for this file.'}],
+    }}).encode('utf-8')
+    mocker.patch('urllib.request.urlopen', side_effect=urllib.error.HTTPError(
+        'https://www.googleapis.com/drive/v3/files', 403, 'Forbidden', {}, io.BytesIO(body)))
+
+    with pytest.raises(drive_store.DriveApiError) as exc:
+        drive_store._drive_request('tok', 'GET', 'https://www.googleapis.com/drive/v3/files')
+
+    assert exc.value.status == 403
+    assert 'insufficientFilePermissions' in exc.value.reason
+    assert 'sufficient permissions' in exc.value.body
+
+
 def test_create_folder_sends_plain_post_with_folder_mimetype(mocker):
     import drive_store
 
