@@ -5,7 +5,7 @@ Read this file when you reach the sync step in a brief run. It is used on every 
 ## Drive data layout
 
 Every brief run writes JSON files into `BRIEF_DATA_FOLDER_ID` (your own Drive
-folder, configured in SKILL.md's Admin Config) via the native
+folder, its ID stored in `config.json`) via the native
 `Google Drive: create_file` connector — the same one already used for the
 meeting-run-log sheet and status-update cache. There is no API to call and
 no separate connector to add.
