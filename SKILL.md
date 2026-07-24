@@ -165,7 +165,7 @@ Run all data pulls in parallel where possible. Use the time windows below.
 Consolidate what used to be five separate searches into fewer calls:
 
 1. **Mentions + DMs in one call.** `to:<@{slack_user_id}>` (from `config.json`) against `channel_types=public_channel,private_channel,mpim,im` covers both direct mentions and DM activity in a single query instead of two.
-2. **Account channels in one call where possible.** Build a single query with one `in:<#CHANNEL_ID>` modifier per account, using the `slack_channel_id` values from `account-config.json` (never a hard-coded list here). Slack's search syntax accepts multiple `in:` modifiers in one query, which should return results across all listed channels in a single call rather than one call per account — but verify this against actual results the first few times; if it silently narrows to only the first channel or otherwise behaves unexpectedly, fall back to per-channel calls and note that in the run.
+2. **Account channels in one call where possible.** Build a single query with one `in:<#CHANNEL_ID>` modifier per in-scope account (primary + in-scope secondary from Resolve In-Scope Accounts), including each account's `slack_channel_id` plus every ID in its `supporting_slack_channel_ids`. Never hard-code a channel list here. Slack's search syntax accepts multiple `in:` modifiers in one query, which should return results across all listed channels in a single call rather than one call per account — but verify this against actual results the first few times; if it silently narrows to only the first channel or otherwise behaves unexpectedly, fall back to per-channel calls and note that in the run.
 3. **Tiger team / AI-First CS**: one query for tiger team / AI-first / CS tiger.
 4. Time-scope every query to the recap window via `after`/`before`.
 
@@ -233,6 +233,8 @@ After pulling all data sources, consolidate everything by **customer account or 
 
 Order subsections by priority: customer accounts with active signals first (in rough order of urgency), then internal initiatives, then a mandatory catch-all "General / Admin" bucket for anything that doesn't fit elsewhere (personal calendar blocks, admin tasks, notifications with no clear account/initiative tie). Every item pulled from a data source must land in exactly one bucket — nothing gets silently dropped for lack of a clean category.
 
+In-scope secondary accounts (see Resolve In-Scope Accounts) are grouped into a dedicated "Secondary Accounts" subsection placed after the primary customer-account and internal-initiative subsections and before the General / Admin bucket. Secondary accounts that are not in scope this run do not appear at all. Primary accounts are grouped as usual above.
+
 For each account or initiative subsection, include only what's relevant:
 - Meetings that occurred (time, who attended, outcome or Zoom summary if available) — this can reference the same meetings as Part A, but focus here is narrative content, not processing status
 - Email threads needing attention or follow-up
@@ -256,6 +258,8 @@ Example structure (only include sections with content):
 ### Section 2: Today / Tomorrow Ahead
 
 Same structure: organize by **customer account or internal initiative**, not by source.
+
+Only in-scope accounts appear (all primary, plus secondary accounts scheduled or caught-up for today per Resolve In-Scope Accounts); in-scope secondary accounts go in the same "Secondary Accounts" subsection used in Section 1.
 
 For each, include:
 - Upcoming meetings (time, attendees, prep needed)
