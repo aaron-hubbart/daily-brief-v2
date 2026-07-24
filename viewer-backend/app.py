@@ -684,6 +684,26 @@ def handle_google_auth_required(error):
     return redirect(url_for('google_login'))
 
 
+@app.errorhandler(drive_store.DriveApiError)
+def handle_drive_api_error(error):
+    """A Google Drive REST call refused (403/404/etc.). Without this handler
+    the raw HTTPError collapses into an opaque 500 with no reason. Log the
+    full body server-side and return the parsed reason to the client so a
+    Drive-side problem is diagnosable instead of silent. 502: the failure is
+    an upstream dependency (Drive), not a bug in this request."""
+    app.logger.error('Drive API %s on %s: %s', error.status, request.path, error.body)
+    if error.status == 403:
+        msg = (f'Google Drive denied access to your linked brief folder ({error.reason or "forbidden"}). '
+               'Confirm the viewer is signed in with the Google account that owns the folder, that the '
+               'Drive API is enabled for the viewer\'s OAuth client, then re-link the folder or re-consent.')
+    elif error.status == 404:
+        msg = (f'The linked Drive folder or file was not found ({error.reason or "not found"}). '
+               'Re-link the correct folder ID in the Account panel.')
+    else:
+        msg = f'Google Drive returned an error ({error.status} {error.reason}). See server logs for details.'
+    return jsonify({'error': msg, 'drive_status': error.status}), 502
+
+
 @app.route('/logout')
 def logout():
     session.clear()

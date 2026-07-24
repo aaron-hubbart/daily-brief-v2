@@ -64,3 +64,19 @@ def test_set_item_checked_calls_drive_store(client, mocker):
     resp = client.patch('/api/items/yesterday-meetings/ym-0900-bofa/checked?date=2026-07-21', json={'checked': True})
     assert resp.status_code == 200
     write_spy.assert_called_once_with('access-tok', 'folder-xyz', '2026-07-21', 'yesterday-meetings', 'ym-0900-bofa', True)
+
+
+def test_api_briefs_surfaces_drive_error_reason_instead_of_opaque_500(client, mocker):
+    _link_google_and_folder(client)
+    import drive_store
+    mocker.patch('drive_store.list_active_briefs', side_effect=drive_store.DriveApiError(
+        403,
+        'insufficientFilePermissions: The user does not have sufficient permissions for this file.',
+        '{"error": {"code": 403}}',
+    ))
+
+    resp = client.get('/api/briefs')
+    assert resp.status_code == 502
+    payload = resp.get_json()
+    assert payload['drive_status'] == 403
+    assert 'insufficientFilePermissions' in payload['error'] or 'access' in payload['error'].lower()

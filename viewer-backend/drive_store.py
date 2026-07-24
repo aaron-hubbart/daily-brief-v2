@@ -24,13 +24,48 @@ DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3'
 DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3'
 
 
+class DriveApiError(Exception):
+    """A Google Drive REST call returned an HTTP error status. Carries the
+    status code, a short machine reason parsed from the response, and the raw
+    body -- so callers can surface *why* Drive refused (insufficient
+    permissions, API not enabled, folder not found) instead of letting the
+    error collapse into an opaque 500 with no detail."""
+
+    def __init__(self, status, reason, body):
+        self.status = status
+        self.reason = reason
+        self.body = body
+        super().__init__(f'Drive API {status}: {reason or (body[:200] if body else "")}')
+
+
+def _extract_drive_reason(body):
+    """Pull a short 'reason: message' string out of a Drive v3 JSON error
+    body (shape: {"error": {"message": ..., "errors": [{"reason": ...}]}}).
+    Returns '' if the body isn't the expected shape."""
+    try:
+        err = json.loads(body)['error']
+        message = err.get('message', '')
+        errors = err.get('errors') or []
+        reason = errors[0].get('reason', '') if errors else ''
+        return f'{reason}: {message}' if reason else message
+    except (ValueError, KeyError, IndexError, TypeError, AttributeError):
+        return ''
+
+
 def _drive_request(access_token, method, url, body_bytes=None, content_type=None):
     headers = {'Authorization': f'Bearer {access_token}'}
     if content_type:
         headers['Content-Type'] = content_type
     req = urllib.request.Request(url, data=body_bytes, method=method, headers=headers)
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        return resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as e:
+        try:
+            body = e.read().decode('utf-8', 'replace')
+        except Exception:
+            body = ''
+        raise DriveApiError(e.code, _extract_drive_reason(body), body) from e
 
 
 def _list_children(access_token, parent_id, name=None):
