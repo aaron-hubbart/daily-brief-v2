@@ -3,11 +3,11 @@ name: daily-brief-v2
 description: >
   Generates a personalized daily briefing for Aaron Hubbart, Senior TAM at Camunda, pulling from Outlook calendar/email, Slack (DMs, account channels, tiger team, mentions), Zoom summaries, and Asana tasks. Produces a structured recap of the day so far and a plan ahead.
 
-  Trigger on: "daily brief", "morning brief", "evening brief", "brief me", "what's my day look like", "catch me up", "day ahead", "what happened today", "end of day summary", "start of day", "eod brief", "sod brief", "what do I have today", "what's on my plate", "run my brief", "give me my brief", or "brief" alone. Also trigger when asked to catch up on the day, communications, or schedule.
+  Trigger on: "daily brief", "morning brief", "evening brief", "brief me", "catch me up", "what's my day look like", "what happened today", "eod brief", "sod brief", or "brief" alone. Also trigger when asked to catch up on the day, communications, or schedule.
 
-  Also trigger on "refresh the [account] update", "regenerate manager update", "redo the [account] card", "refresh section:[slug]", or any message starting with "/daily-brief Refresh" — these patch a single card/section, not a full brief.
+  Also trigger on "refresh the [account] update", "regenerate manager update", "refresh section:[slug]", or any message starting with "/daily-brief Refresh" — these patch a single card/section, not a full brief.
 
-  Also trigger the setup flow on "/daily-brief setup", "set up daily brief", "configure daily brief", or "daily brief setup" — see the First-Run Setup section.
+  Also trigger the setup flow on "/daily-brief setup", "set up daily brief", or "configure daily brief" — see the First-Run Setup section.
 
   Don't require morning vs. evening — infer from context or current time. Always run without asking for confirmation first.
 ---
