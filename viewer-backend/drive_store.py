@@ -248,6 +248,8 @@ def get_items_for_day(access_token, brief_data_folder_id, brief_date):
 
     state = _read_state(access_token, brief_data_folder_id, brief_date)
     for item in items:
+        if 'item_key' not in item:
+            continue
         key = f"{item['section']}:{item['item_key']}"
         override = state.get(key)
         if not override:
