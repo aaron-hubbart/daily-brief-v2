@@ -325,6 +325,21 @@ Before writing files to `BRIEF_DATA_FOLDER_ID`, check whether the necessary fold
 
 ---
 
+## Brief Completion Checklist — sync is mandatory
+
+**BEFORE COMPLETING ANY BRIEF RUN:**
+
+1. ✓ Generate brief content (Sections 1–4).
+2. ✓ Read `references/item-sync.md` for the file layout, item shape, and Google Drive write specs.
+3. ✓ Run the Folder Existence Check (per `references/item-sync.md`) to resolve or create the `/briefs/{date}` hierarchy and its `accounts/` and `updates/` subfolders, and capture their folder IDs.
+4. ✓ Write ALL section JSON files to Google Drive via `create_file` calls:
+   - One file per section, using the exact paths in `references/item-sync.md` — `manifest.json`, `meetings.json`, `today.json`, `action-items.json`, `fyi.json`, `accounts/{slug}.json`, `updates/{slug}.json`.
+   - Use the resolved folder IDs from step 3.
+   - Include all item shapes, badges, links, and content per the `item-sync.md` spec (and honor the `action-items.json` read-merge-rewrite rule).
+5. ✓ Update `STATUS_UPDATE_CACHE_FILE_ID` with new `generated_at` timestamps for each account/manager entry generated this run.
+
+**IF ANY SYNC STEP IS SKIPPED, THE BRIEF IS INCOMPLETE.** Sync is not optional — it is the single write operation that persists the brief to the persistent store; the in-chat response alone does not.
+
 ## Data Sync
 
 Every brief run writes its content as JSON files into `BRIEF_DATA_FOLDER_ID` on Google Drive, in addition to the in-chat response, per the full spec in `references/item-sync.md`. Read that file when you reach the sync step in a run — it covers the file layout, section/item_key conventions, badge/link/content shape, and the exact `Google Drive: create_file` calls to make.
