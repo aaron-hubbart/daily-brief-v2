@@ -308,9 +308,27 @@ If a data source is unavailable (connector auth issue, timeout), note it briefly
 If there is genuinely nothing to report in a section, omit it silently.
 
 
+## Folder Existence Check
+
+Before writing files to `BRIEF_DATA_FOLDER_ID`, check whether the necessary folder hierarchy already exists. This prevents duplicate folder creation on subsequent brief runs.
+
+**Process:**
+
+1. **Query for `/briefs` folder** — Use `Google Drive: list_files` (or equivalent) to search for a folder named "briefs" inside `BRIEF_DATA_FOLDER_ID`. If found, use its ID; if not, create it.
+2. **Query for `/config` folder** — Use `Google Drive: list_files` to search for a folder named "config" inside `BRIEF_DATA_FOLDER_ID`. If found, use its ID; if not, create it. This folder holds `config.json` and `account-config.json`.
+3. **Query for `/{date}` folder** — Inside the `/briefs` folder (using the ID from step 1), search for a folder matching today's date in `YYYY-MM-DD` format. If found, use its ID; if not, create it.
+4. **Query for `/accounts` subfolder** — Inside the `/{date}` folder (using the ID from step 3), search for a folder named "accounts". If found, use its ID; if not, create it.
+5. **Query for `/updates` subfolder** — Inside the `/{date}` folder (using the ID from step 3), search for a folder named "updates". If found, use its ID; if not, create it.
+
+**Use existing folder IDs for all file writes** — Once this check is complete, use the resolved folder IDs (whether newly created or existing) for all subsequent `Google Drive: create_file` calls to write section JSON files. This ensures files go to the correct locations without re-creating folders that already exist.
+
+---
+
 ## Data Sync
 
 Every brief run writes its content as JSON files into `BRIEF_DATA_FOLDER_ID` on Google Drive, in addition to the in-chat response, per the full spec in `references/item-sync.md`. Read that file when you reach the sync step in a run — it covers the file layout, section/item_key conventions, badge/link/content shape, and the exact `Google Drive: create_file` calls to make.
+
+**Before writing any files, complete the Folder Existence Check above to resolve or create the necessary folder hierarchy and obtain their IDs.** Then use those folder IDs for all subsequent file writes.
 
 ## Post-Meeting Patch Runs
 
