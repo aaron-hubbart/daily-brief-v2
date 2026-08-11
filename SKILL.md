@@ -16,7 +16,7 @@ description: >
 
 This file is the core: trigger, timing, and what to pull. Three things are deliberately kept in separate reference files in this same skill directory so they don't get read on every run when they don't apply:
 
-- `references/item-sync.md` — item shape, section/item_key conventions, and the Google Drive writes that sync a run's content into this skill's `BRIEF_DATA_FOLDER_ID`. Used every run, but pulled out so this core file stays short for the earlier decision-making steps.
+- `references/item-sync.md` — **MANDATORY ON EVERY RUN; read before generating content.** Item shape, section/item_key conventions, folder hierarchy, and the Google Drive writes that sync a run's content into this skill's `BRIEF_DATA_FOLDER_ID`. This is Step 1 of the Mandatory Sync Flow (see "MANDATORY SYNC FLOW" section below). You must read this file BEFORE generating Sections 1–4, not after.
 - `references/status-updates.md` — Section 3/4 (Customer Updates, Manager Update) generation. **Read this file on every single brief run, with no exceptions** — including the first "brief me" of the day, which is exactly the case where every account and the manager entry are cache misses and need full generation. The per-account gate that decides reuse-vs-regenerate lives inside that file, not here; you cannot correctly skip Sections 3/4 without having read it first. Treating these sections as optional, or assuming a cache hit without checking, is the single most common failure mode of this skill — do not extrapolate "most runs reuse the cache" into "check is skippable."
 - `references/post-meeting-patch.md` — the post-meeting patch flow. Only read when that specific, infrequent trigger fires.
 - `references/section-refresh.md` — patches a single Customer Update or Manager Update card, or regenerates one of the other five sections in full, when a Refresh button is clicked. Only read when that trigger fires.
@@ -103,6 +103,38 @@ Produce a structured daily briefing that covers:
 - A forward look at the upcoming day or remainder of today
 
 The brief is always split into two sections: **Yesterday / Today So Far** and **Today / Tomorrow**.
+
+---
+
+## MANDATORY SYNC FLOW — Every Run Without Exception
+
+**This skill does not complete until all sync steps below are finished. The in-chat response alone does not constitute a complete brief.** Sync is not optional, conditional, or deferred — it is the write operation that persists the brief to Google Drive; skipping any step leaves the brief incomplete.
+
+**BEFORE generating any content, read `references/item-sync.md` in full.** This reference file documents the authoritative file layout, folder specifications, item shapes, and all Google Drive write operations. You cannot correctly structure the brief output without having read this file first. Do not wait until the end of the run to read it.
+
+### Mandatory Sync Flow (Five Sequential Steps)
+
+**Step 1: Read `references/item-sync.md`** — Understand the file layout, folder hierarchy, item schema (item_key conventions, field shapes, badges, links, content), and Google Drive connector mechanics. This is a prerequisite for understanding Steps 2–5. This reference also documents the Folder Existence Check requirements (Step 2 below).
+
+**Step 2: Run Folder Existence Check** — Before writing any files, query `BRIEF_DATA_FOLDER_ID` to check whether `/briefs`, `/config`, `/{date}`, `/accounts`, and `/updates` folders already exist. Use existing folder IDs; create new ones only if they don't exist. Capture the resolved IDs for Step 4.
+
+**Step 3: Generate Brief Content** — Pull all data sources (Outlook, Slack, Zoom, Asana) and synthesize Sections 1–4. See "Data Sources and What to Pull" below for specifics.
+
+**Step 4: Write ALL Section JSON Files to Google Drive** — Using the folder IDs from Step 2, write the complete section JSON files via `Google Drive: create_file`:
+- `/briefs/{date}/manifest.json`
+- `/briefs/{date}/meetings.json`
+- `/briefs/{date}/accounts/{slug}.json` (one per account/initiative with content)
+- `/briefs/{date}/today.json`
+- `/briefs/{date}/action-items.json` (read-merge-rewrite; see `references/item-sync.md`)
+- `/briefs/{date}/updates/{slug}.json` (one per in-scope account)
+- `/briefs/{date}/manager-update.json`
+- `/briefs/{date}/fyi.json`
+
+See `references/item-sync.md` for the exact item shape, field requirements, and all write mechanics.
+
+**Step 5: Update Status Cache** — Write new `generated_at` timestamps to `STATUS_UPDATE_CACHE_FILE_ID` for each account and the manager entry generated this run. This timestamp is checked on the next run to determine cache reuse vs. regeneration.
+
+**All five steps are mandatory on every run.** A brief run that completes steps 1–3 but skips 4–5 has produced an in-chat response but NO persistent brief — the webapp has no files to read. Always finish all five steps before ending the run. If a Drive write fails, note it in the brief output and do not move on as though sync succeeded.
 
 ---
 
@@ -308,10 +340,11 @@ If a data source is unavailable (connector auth issue, timeout), note it briefly
 
 If there is genuinely nothing to report in a section, omit it silently.
 
+---
 
-## Folder Existence Check
+## Folder Existence Check Details
 
-Before writing files to `BRIEF_DATA_FOLDER_ID`, check whether the necessary folder hierarchy already exists. This prevents duplicate folder creation on subsequent brief runs.
+This is Step 2 of the Mandatory Sync Flow (see above). Before writing any files to `BRIEF_DATA_FOLDER_ID`, check whether the necessary folder hierarchy already exists. This prevents duplicate folder creation on subsequent brief runs.
 
 **Process:**
 
@@ -321,30 +354,7 @@ Before writing files to `BRIEF_DATA_FOLDER_ID`, check whether the necessary fold
 4. **Query for `/accounts` subfolder** — Inside the `/{date}` folder (using the ID from step 3), search for a folder named "accounts". If found, use its ID; if not, create it.
 5. **Query for `/updates` subfolder** — Inside the `/{date}` folder (using the ID from step 3), search for a folder named "updates". If found, use its ID; if not, create it.
 
-**Use existing folder IDs for all file writes** — Once this check is complete, use the resolved folder IDs (whether newly created or existing) for all subsequent `Google Drive: create_file` calls to write section JSON files. This ensures files go to the correct locations without re-creating folders that already exist.
-
----
-
-## Brief Completion Checklist — sync is mandatory
-
-**BEFORE COMPLETING ANY BRIEF RUN:**
-
-1. ✓ Generate brief content (Sections 1–4).
-2. ✓ Read `references/item-sync.md` for the file layout, item shape, and Google Drive write specs.
-3. ✓ Run the Folder Existence Check (per `references/item-sync.md`) to resolve or create the `/briefs/{date}` hierarchy and its `accounts/` and `updates/` subfolders, and capture their folder IDs.
-4. ✓ Write ALL section JSON files to Google Drive via `create_file` calls:
-   - One file per section, using the exact paths in `references/item-sync.md` — `manifest.json`, `meetings.json`, `today.json`, `action-items.json`, `fyi.json`, `accounts/{slug}.json`, `updates/{slug}.json`.
-   - Use the resolved folder IDs from step 3.
-   - Include all item shapes, badges, links, and content per the `item-sync.md` spec (and honor the `action-items.json` read-merge-rewrite rule).
-5. ✓ Update `STATUS_UPDATE_CACHE_FILE_ID` with new `generated_at` timestamps for each account/manager entry generated this run.
-
-**IF ANY SYNC STEP IS SKIPPED, THE BRIEF IS INCOMPLETE.** Sync is not optional — it is the single write operation that persists the brief to the persistent store; the in-chat response alone does not.
-
-## Data Sync
-
-Every brief run writes its content as JSON files into `BRIEF_DATA_FOLDER_ID` on Google Drive, in addition to the in-chat response, per the full spec in `references/item-sync.md`. Read that file when you reach the sync step in a run — it covers the file layout, section/item_key conventions, badge/link/content shape, and the exact `Google Drive: create_file` calls to make.
-
-**Before writing any files, complete the Folder Existence Check above to resolve or create the necessary folder hierarchy and obtain their IDs.** Then use those folder IDs for all subsequent file writes.
+**Capture and use folder IDs for all writes** — Once this check is complete, use the resolved folder IDs (whether newly created or existing) for all subsequent `Google Drive: create_file` calls in Steps 4–5. This ensures files go to the correct locations without re-creating folders that already exist.
 
 ## Post-Meeting Patch Runs
 
