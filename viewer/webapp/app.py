@@ -834,7 +834,7 @@ def serve_brief(date_str):
     checkable_count = 0
     for item in items:
         items_by_section.setdefault(item['section'], []).append(item)
-        if item['item_type'] in ('checkable', 'fyi') and item['checked'] is not None:
+        if item['item_type'] == 'checkable' and item.get('checked') is not None:
             checkable_count += 1
 
     # Action Items renders as four fixed subsections (New Items, Overdue,
