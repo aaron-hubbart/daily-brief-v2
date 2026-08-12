@@ -223,6 +223,48 @@ details.sec>.sec-body{padding:4px 14px 10px;}
           </div>
         </details>
         {% endfor %}
+      {% elif section.slug == 'account-recap' %}
+        {% for item in section_items %}
+        {% if item.item_type == 'card' %}
+        <details class="acct-card" data-id="{{ item.item_key }}">
+          <summary>
+            <span class="acct-card-name">{{ item.title }}</span>
+            {% if item.content.get('status') %}<span class="acct-card-meta">{{ item.content.get('status')|capitalize }}</span>{% endif %}
+          </summary>
+          <div class="acct-card-body">
+            {% if item.content.get('html_content') %}<div style="line-height:1.5;color:var(--t1);">{{ item.content.get('html_content')|safe }}</div>{% endif %}
+            {% if item.content.get('action_items') %}
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+              <div style="font-size:10px;font-weight:700;color:var(--accent-t);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Action Items</div>
+              <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--t2);line-height:1.5;">
+                {% for action in item.content.get('action_items', []) %}
+                <li>{{ action }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+            {% if section.slug == 'account-recap' %}
+            <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh section:' + section.slug + ' account:' + (item.title|replace(' & ', '-')|replace('.', '')|replace(',', '')|replace(' ', '-')|lower) + ' date:' + brief_date)|urlencode }}" target="_blank" style="margin-top:8px;display:inline-block;">Refresh</a>
+            {% endif %}
+          </div>
+        </details>
+        {% else %}
+        <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}">
+          <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
+          <div class="ibody">
+            <div class="ititle">{{ item.title }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
+            {% if item.subtitle %}<div class="isub">{{ item.subtitle }}</div>{% endif %}
+            {% if item.links %}
+            <div class="ilinks">
+              {% for link in item.links %}
+              <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url }}" target="_blank">{{ link.label }}</a>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+        {% endfor %}
       {% else %}
         {% for item in section_items %}
         <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}">
