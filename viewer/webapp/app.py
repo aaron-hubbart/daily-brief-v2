@@ -1072,6 +1072,13 @@ def serve_brief(date_str):
     # only Action Items needs the override.
     action_items_displayed = sum(len(g['items']) for g in action_subsections)
 
+    # Count checkable items across all sections
+    checkable_count = 0
+    for section_slug, items in items_by_section.items():
+        for item in items:
+            if item.get('item_type') == 'checkable' and item.get('checked') is not None:
+                checkable_count += 1
+
     sections = []
     for s in SECTIONS:
         section_items = items_by_section.get(s['slug'], [])
