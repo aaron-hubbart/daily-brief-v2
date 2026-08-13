@@ -29,15 +29,42 @@ This skill keeps exactly one configuration value in your local copy of `SKILL.md
 CONFIG_FILE_ID: <Drive file ID of your config.json — created for you by the setup flow below>
 ```
 
-Everything else (the brief-data folder ID, the meeting run-log sheet ID, the recurring-activities Asana GID, the status-update cache file ID, your Slack user ID, your key contacts, and the auto-maintained sync markers) lives inside `config.json`, not here. If `CONFIG_FILE_ID` is still the placeholder, run the setup flow (see "First-Run Setup" below) — don't hand-edit values into this file. In a multi-user install, leave this line a placeholder and put each user's `CONFIG_FILE_ID` in their own project instructions instead (see the resolution rule below) — that keeps this shared skill definition free of any one user's data.
+Everything else (the brief-data folder ID, the meeting run-log sheet ID, the recurring-activities Asana GID, the status-update cache file ID, your Slack user ID, and your key contacts) lives inside `config.json`, not here. If `CONFIG_FILE_ID` is still the placeholder, run the setup flow (see "First-Run Setup" below) — don't hand-edit values into this file. In a multi-user install, leave this line a placeholder and put each user's `CONFIG_FILE_ID` in their own project instructions instead (see the resolution rule below) — that keeps this shared skill definition free of any one user's data.
 
-### Loading config (do this at the start of every run, before the Skill Sync Check)
+### Loading config (do this at the start of every run)
 
 1. **Resolve `CONFIG_FILE_ID`.** If your project instructions (project-folder instructions / Claude Project custom instructions) define a `CONFIG_FILE_ID`, use that value — it takes precedence. The `CONFIG_FILE_ID` line in the Admin Config block above is only a fallback for a single-user local copy.
 2. If the resolved `CONFIG_FILE_ID` is empty or still the placeholder text, do not attempt a brief. Offer to run First-Run Setup instead (see that section).
-3. Otherwise, read `config.json` from Drive by that file ID (`Google Drive` connector — the same read path already used for `account-config.json` and the status-update cache). It provides, as top-level keys: `brief_data_folder_id`, `meeting_run_log_sheet_id`, `recurring_activities_project_gid`, `status_update_cache_file_id`, `slack_user_id`, `key_contacts`, and a `sync_state` object. Everywhere below that refers to one of the old Admin Config IDs (e.g. `BRIEF_DATA_FOLDER_ID`), use the corresponding value from `config.json`.
+3. Otherwise, read `config.json` from Drive by that file ID (`Google Drive` connector — the same read path already used for `account-config.json` and the status-update cache). It provides, as top-level keys: `brief_data_folder_id`, `meeting_run_log_sheet_id`, `recurring_activities_project_gid`, `status_update_cache_file_id`, `slack_user_id`, `key_contacts`, and optionally a `google_drive_pat_file_id`. Everywhere below that refers to one of the old Admin Config IDs (e.g. `BRIEF_DATA_FOLDER_ID`), use the corresponding value from `config.json`.
 
-Item sync writes brief JSON directly to Google Drive via the "Google Drive: create_file" connector — the same connector used for the meeting-run-log sheet, the status-update cache, and `config.json` itself. There is no separate connector to add, no bearer token, and no custom MCP server: this skill never calls any webapp directly. See references/item-sync.md for the file layout and write mechanics.
+### Google Drive write mechanics
+
+This skill uses two distinct write paths depending on whether the target file needs to be **created** or **updated in place**:
+
+1. **New files** (brief section JSON, new folders): use the `Google Drive: create_file` connector as before. This is correct for section files in `/briefs/{date}/` since those are always new per-date.
+
+2. **Existing files that must be updated in place** (`config.json` and the status-update cache file referenced by `status_update_cache_file_id`): use the **Google Drive REST API v3** via `bash_tool` with a Google Cloud OAuth2 access token. The `Google Drive: create_file` connector cannot update an existing file — it always creates a new file, which changes the file ID and breaks any pointer to the old one. For these two files, the file ID is the stable reference that other parts of the system depend on, so in-place update is required.
+
+**How to update an existing Drive file via the API:**
+
+```bash
+# 1. Read the PAT from Drive (stored base64-encoded with BOM)
+#    google_drive_pat_file_id is in config.json, or passed via project instructions
+PAT=$(Google Drive: download_file_content → base64 -d | sed 's/^\xef\xbb\xbf//')
+
+# 2. PATCH the file content
+curl -s -X PATCH \
+  "https://www.googleapis.com/upload/drive/v3/files/{FILE_ID}?uploadType=media" \
+  -H "Authorization: Bearer $PAT" \
+  -H "Content-Type: application/json" \
+  --data-binary @updated_file.json
+```
+
+In practice, since `bash_tool` has network egress restrictions, the PAT-based update must go through a helper that has access to `googleapis.com`. If the bash egress allowlist does not include `googleapis.com`, fall back to writing a new file via the connector and note that the file ID has changed — the caller's project instructions or config will need the new ID.
+
+**When this matters:** Step 5 of the Mandatory Sync Flow (Update Status Cache) and any run that writes back to `config.json`. Both files are referenced by stable file IDs that must not change between runs.
+
+See references/item-sync.md for the file layout and folder hierarchy.
 
 ---
 
@@ -71,7 +98,7 @@ Produce the full account list before writing. Do not write to Drive during this 
 
 After the user confirms everything:
 
-1. Create `/config/config.json` in the folder via one `Google Drive: create_file`, containing all Phase A values and `sync_state: {}`.
+1. Create `/config/config.json` in the folder via one `Google Drive: create_file`, containing all Phase A values.
 2. Create `/config/account-config.json` in the folder via one `Google Drive: create_file`, containing the full confirmed account list and `internal_project_gid`.
 3. Report the new `config.json` Drive file ID and instruct the user to paste it into `CONFIG_FILE_ID` at the top of their local `SKILL.md`. This paste is the only manual edit.
 4. Point at the remaining prerequisites (reference only): enable the MCP connectors they use (Microsoft 365, Slack, Zoom, Asana, Google Drive) under Claude's Settings → Connectors.
@@ -79,20 +106,6 @@ After the user confirms everything:
 **Re-running setup** loads both existing files first, uses them as the Phase A/B starting point, re-confirms, and writes a fresh version of each file once — never a per-key incremental write.
 
 ---
-
-## Skill Sync Check (run this right after loading config, before any brief work)
-
-This skill's canonical source of truth is this file and the `references/` directory on `main` in `aaron-hubbart/daily-brief-v2`. Any environment that loads a local copy of this skill (e.g. a persistent runtime skill directory) can silently fall behind if `main` is updated without that local copy being refreshed. Check for that drift before any brief work, every time this skill fires (right after loading config) — but rate-limit the check itself, since hitting the GitHub API on every single brief run is pure overhead for a condition that's only ever true right after a PR merges.
-
-Two things are tracked separately, since a PR can change one without the other (most reference-only changes never touch this file's own content): `sync_state.skill_source_sha` (this file's own blob SHA) and `sync_state.references_source_sha` (the `references/` directory's tree SHA — a single value that changes whenever any file inside that directory changes, anywhere in it, without needing to check each reference file individually). Checking `SKILL.md` alone is not sufficient: several past changes touched only `references/item-sync.md` and left this file's own content untouched, which a `SKILL.md`-only check would have reported as "Match" while the loaded reference files quietly went stale.
-
-1. **Rate-limit gate:** compare the current time to `sync_state.sync_check_last_run` in `config.json`. If less than 4 hours have passed, skip straight to step 2's "Match" behavior without calling the GitHub API at all. If 4+ hours have passed (or the marker is missing), proceed to the actual check and update `sync_state.sync_check_last_run` to now (writing a new version of `config.json`) regardless of the check's outcome.
-2. **Check:** fetch the current blob SHA for `SKILL.md` on `main` (`GET /repos/aaron-hubbart/daily-brief-v2/contents/SKILL.md`, or equivalent) and separately fetch the current tree SHA for the `references/` directory (`GET /repos/aaron-hubbart/daily-brief-v2/git/trees/main`, then read the `sha` of the entry whose `path` is `references`). Compare both against `sync_state.skill_source_sha` and `sync_state.references_source_sha` in `config.json`.
-3. **Match:** both SHAs match their markers — proceed with the brief normally.
-4. **Mismatch (either one):** the repo has moved ahead of the loaded copy — this applies even if only `references_source_sha` differs and `skill_source_sha` still matches. Self-heal: fetch `SKILL.md` and the full `references/` directory fresh from `main`, re-insert this local copy's real `CONFIG_FILE_ID` value into the fetched `SKILL.md`'s `## Admin Config` block (the repo file keeps it as a placeholder for public-repo hygiene; `CONFIG_FILE_ID` is now the only local-only value to preserve), overwrite the local copy, then update `sync_state.skill_source_sha` and `sync_state.references_source_sha` in `config.json` and write it back. Note briefly in the brief output that the skill definition was auto-synced.
-5. **Fetch fails:** skip silently and proceed with the current local copy. Never block the brief on this check.
-
-This makes drift self-correcting without paying for an API round trip on every single invocation, without a reference-only update silently going undetected, and — now that the markers live in `config.json` rather than `SKILL.md` — the self-heal only has to carry the one `CONFIG_FILE_ID` value across a re-fetch, and the markers survive even a full overwrite of the local copy.
 
 ---
 
@@ -132,7 +145,7 @@ The brief is always split into two sections: **Yesterday / Today So Far** and **
 
 See `references/item-sync.md` for the exact item shape, field requirements, and all write mechanics.
 
-**Step 5: Update Status Cache** — Write new `generated_at` timestamps to `STATUS_UPDATE_CACHE_FILE_ID` for each account and the manager entry generated this run. This timestamp is checked on the next run to determine cache reuse vs. regeneration.
+**Step 5: Update Status Cache In Place** — Update `STATUS_UPDATE_CACHE_FILE_ID` with new `generated_at` timestamps for each account and the manager entry generated this run. **This must be an in-place update of the existing file, not a new file creation**, because the file ID is a stable reference stored in `config.json`. Use the Google Drive REST API v3 PATCH method described in "Google Drive write mechanics" above. If the API update fails (e.g. network egress restriction), fall back to writing via the connector's `create_file` and note in the brief output that the status cache file ID has changed and `config.json` needs updating.
 
 **All five steps are mandatory on every run.** A brief run that completes steps 1–3 but skips 4–5 has produced an in-chat response but NO persistent brief — the webapp has no files to read. Always finish all five steps before ending the run. If a Drive write fails, note it in the brief output and do not move on as though sync succeeded.
 
@@ -216,7 +229,7 @@ Consolidate into a single Slack section. Surface only items that need attention 
 - Group by: overdue, due today, due tomorrow (for evening brief)
 - Omit tasks with no due date unless they appear high priority from the name
 - For correlating action items to a specific call (Section 1, Part A): first check the Meeting Manager Run Log sheet (`MEETING_RUN_LOG_SHEET_ID`) for a row matching the meeting (by title and date). If no matching row exists there — which is expected right now, since post-meeting processing isn't yet writing to that log — fall back to searching the relevant account's Asana project for tasks created on or shortly after the meeting's date. Report whichever check found something; if neither does, say so plainly rather than guessing.
-- When new action-item tasks need creating (see `references/item-sync.md`, Action Items), batch them into one `Asana:create_tasks` call rather than creating one at a time — it accepts up to 50 tasks per call.
+- **Action item creation is mandatory on every run, never deferred.** After generating all sections, collect every actionable item surfaced by the brief (from Zoom meeting next steps, "recording not found" follow-ups, overdue items needing attention, email threads requiring response, and any other item that warrants tracking). Search Asana first for each one to avoid duplicates, then batch-create all missing tasks in a single `Asana:create_tasks` call (accepts 1-50 tasks per call). Do not skip this step, do not defer it to a follow-up message, and do not ask the user whether to create them. See `references/item-sync.md`, Action Items, for the full task-creation and project-routing rules.
 
 ---
 
