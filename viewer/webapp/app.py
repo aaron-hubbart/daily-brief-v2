@@ -822,13 +822,10 @@ def admin_config_status():
 @app.route('/api/briefs')
 @login_required
 def api_briefs():
-    days = db.list_active_briefs(request.brief_user['id'])
-    # 'name' and 'label' are what the existing viewer JS actually reads
-    # (see daily-brief-viewer.html) — everything else from the old
-    # file-listing response (size, mtime) was never used by the frontend,
-    # so it's fine that a DB row doesn't have a natural equivalent for them.
+    # List briefs from Google Drive
+    days = gdrive_briefs.list_available_briefs()
     return jsonify([
-        {'name': d['brief_date'].isoformat(), 'label': d['brief_date'].isoformat()}
+        {'name': d, 'label': d}
         for d in days
     ])
 
@@ -839,28 +836,8 @@ def serve_brief(date_str):
     if not DATE_RE.match(date_str):
         abort(400)
     
-    # Try to read from Google Drive first (if configured)
+    # Read from Google Drive only - no database fallback
     brief_data = gdrive_briefs.read_brief_manifest(date_str)
-    
-    # Fall back to database if Google Drive is not available
-    if not brief_data and db.DATABASE_URL:
-        brief_day = db.get_brief_day(request.brief_user['id'], date_str)
-        if not brief_day:
-            abort(404)
-        
-        items = db.get_items_for_day(brief_day['id'])
-        items_by_section = {}
-        checkable_count = 0
-        for item in items:
-            items_by_section.setdefault(item['section'], []).append(item)
-            if item['item_type'] == 'checkable' and item.get('checked') is not None:
-                checkable_count += 1
-        
-        # Construct brief_data from database items (same structure as manifest.json)
-        brief_data = {
-            'date': date_str,
-            'sections': items_by_section,
-        }
     
     if not brief_data:
         abort(404)
