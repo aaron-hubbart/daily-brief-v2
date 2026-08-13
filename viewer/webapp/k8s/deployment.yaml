@@ -25,25 +25,21 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: daily-brief-secrets
-                  namespace: daily-brief
                   key: FLASK_SECRET_KEY
             - name: AZURE_CLIENT_ID
               valueFrom:
                 secretKeyRef:
                   name: daily-brief-secrets
-                  namespace: daily-brief
                   key: AZURE_CLIENT_ID
             - name: AZURE_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: daily-brief-secrets
-                  namespace: daily-brief
                   key: AZURE_CLIENT_SECRET
             - name: AZURE_TENANT_ID
               valueFrom:
                 secretKeyRef:
                   name: daily-brief-secrets
-                  namespace: daily-brief
                   key: AZURE_TENANT_ID
             # Plain value, not a secret — matches the dashboard app's own
             # pattern of keeping the redirect URI as a visible env value.
@@ -72,19 +68,16 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: postgres-credentials
-                  namespace: daily-brief
                   key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: postgres-credentials
-                  namespace: daily-brief
                   key: POSTGRES_PASSWORD
             - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
                   name: postgres-credentials
-                  namespace: daily-brief
                   key: POSTGRES_DB
             - name: DATABASE_URL
               value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.daily-brief:5432/$(POSTGRES_DB)"
