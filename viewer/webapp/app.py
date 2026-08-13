@@ -662,7 +662,7 @@ def logout():
 def auth_google():
     """Initiate Google OAuth 2.0 flow for Drive access."""
     try:
-        from google_auth_oauthlib.flow import InstalledAppFlow
+        from google_auth_oauthlib.flow import Flow
     except ImportError:
         return 'Google OAuth library not available', 500
     
@@ -672,22 +672,24 @@ def auth_google():
     # Store the redirect URI
     redirect_uri = url_for('auth_google_callback', _external=True)
     
-    # Create OAuth 2.0 flow
-    flow = InstalledAppFlow.from_client_config(
+    # Create OAuth 2.0 flow with proper web app config
+    flow = Flow.from_client_config(
         {
-            'installed': {
+            'web': {
                 'client_id': GOOGLE_CLIENT_ID,
                 'client_secret': GOOGLE_CLIENT_SECRET,
+                'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+                'token_uri': 'https://oauth2.googleapis.com/token',
                 'redirect_uris': [redirect_uri],
             }
         },
         scopes=['https://www.googleapis.com/auth/drive.readonly'],
+        redirect_uri=redirect_uri,
     )
     
-    # Store flow in session
+    # Generate authorization URL
     auth_url, state = flow.authorization_url(access_type='offline', prompt='consent')
     session['google_oauth_state'] = state
-    session['google_oauth_flow_state'] = flow.to_json()
     
     return redirect(auth_url)
 
@@ -697,7 +699,7 @@ def auth_google():
 def auth_google_callback():
     """Handle Google OAuth 2.0 callback."""
     try:
-        from google_auth_oauthlib.flow import InstalledAppFlow
+        from google_auth_oauthlib.flow import Flow
     except ImportError:
         return 'Google OAuth library not available', 500
     
@@ -713,21 +715,26 @@ def auth_google_callback():
         return f'Google auth failed: {error}', 400
     
     try:
-        # Restore flow from session
-        flow = InstalledAppFlow.from_client_config(
+        # Create flow again with same config
+        redirect_uri = url_for('auth_google_callback', _external=True)
+        flow = Flow.from_client_config(
             {
-                'installed': {
+                'web': {
                     'client_id': GOOGLE_CLIENT_ID,
                     'client_secret': GOOGLE_CLIENT_SECRET,
-                    'redirect_uris': [url_for('auth_google_callback', _external=True)],
+                    'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+                    'token_uri': 'https://oauth2.googleapis.com/token',
+                    'redirect_uris': [redirect_uri],
                 }
             },
             scopes=['https://www.googleapis.com/auth/drive.readonly'],
+            redirect_uri=redirect_uri,
         )
         
         # Exchange code for token
-        credentials = flow.fetch_token(code=code)
-        refresh_token = credentials.get('refresh_token')
+        flow.fetch_token(authorization_response=request.url)
+        credentials = flow.credentials
+        refresh_token = credentials.refresh_token
         
         if not refresh_token:
             return 'No refresh token received from Google', 400
@@ -740,7 +747,6 @@ def auth_google_callback():
         
         # Redirect back to index
         session.pop('google_oauth_state', None)
-        session.pop('google_oauth_flow_state', None)
         return redirect(url_for('index'))
     
     except Exception as e:
