@@ -501,6 +501,15 @@ def current_user():
     u = session.get('user')
     if not u or not u.get('email') or not u.get('oid') or not u.get('id'):
         return None
+    
+    # Validate that 'id' is an integer, not a UUID string (old session format).
+    # If it's a UUID string, the session is stale — clear it and force re-login.
+    user_id = u.get('id')
+    if isinstance(user_id, str) and '-' in user_id:
+        # Looks like a UUID (old format) — invalidate the session
+        session.clear()
+        return None
+    
     return u
 
 
