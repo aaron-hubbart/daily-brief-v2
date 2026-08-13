@@ -22,9 +22,9 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 def get_conn():
     if 'db_conn' not in g:
         if not DATABASE_URL:
-            raise RuntimeError(
-                'DATABASE_URL is not set. See DEPLOYMENT.md for the Postgres connection string format.'
-            )
+            # No database configured - app runs in read-only mode
+            # Data should be read from Google Drive instead
+            return None
         g.db_conn = psycopg2.connect(DATABASE_URL)
     return g.db_conn
 
