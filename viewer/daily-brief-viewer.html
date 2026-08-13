@@ -1266,7 +1266,8 @@ async function refreshGoogleStatus() {
     if (data.connected) {
       statusEl.textContent = 'Connected';
       statusEl.parentElement.style.color = 'var(--t2)';
-      connectBtn.style.display = 'none';
+      connectBtn.textContent = 'Reconnect Google Drive';
+      connectBtn.style.display = 'inline-block';
       disconnectBtn.style.display = 'inline-block';
       topbarBtn.style.display = 'none';
       // Show folder ID input when connected
@@ -1275,6 +1276,7 @@ async function refreshGoogleStatus() {
     } else {
       statusEl.textContent = 'Not connected';
       statusEl.parentElement.style.color = 'var(--bad-t)';
+      connectBtn.textContent = 'Connect Google Drive';
       connectBtn.style.display = 'inline-block';
       disconnectBtn.style.display = 'none';
       topbarBtn.style.display = 'inline-block';
