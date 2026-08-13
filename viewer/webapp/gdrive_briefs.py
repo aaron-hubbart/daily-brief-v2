@@ -65,14 +65,14 @@ def read_brief_manifest(brief_date: str, refresh_token: str, folder_id: Optional
     Args:
         brief_date: Date string like "2026-08-13"
         refresh_token: User's Google refresh token
-        folder_id: User's Google Drive folder ID (defaults to env var GOOGLE_DRIVE_BRIEFS_FOLDER_ID)
+        folder_id: User's Google Drive parent folder ID (briefs are in folder_id/briefs/)
         
     Returns:
         Parsed JSON dict, or None if not found
     """
     # Use provided folder_id, fall back to env var
-    briefs_folder = folder_id or BRIEFS_FOLDER_ID
-    if not briefs_folder or not refresh_token:
+    parent_folder = folder_id or BRIEFS_FOLDER_ID
+    if not parent_folder or not refresh_token:
         return None
     
     try:
@@ -81,8 +81,24 @@ def read_brief_manifest(brief_date: str, refresh_token: str, folder_id: Optional
             logger.error(f'read_brief_manifest: Could not authenticate with Google Drive')
             return None
         
-        # Find the date folder
-        query = f"parents='{briefs_folder}' and name='{brief_date}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        # First, find the /briefs/ folder inside the parent folder
+        query = f"parents='{parent_folder}' and name='briefs' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        results = drive.files().list(
+            q=query,
+            spaces='drive',
+            pageSize=1,
+            fields='files(id)',
+        ).execute()
+        
+        files = results.get('files', [])
+        if not files:
+            logger.warning(f'read_brief_manifest: No briefs folder found in parent folder {parent_folder}')
+            return None
+        
+        briefs_folder_id = files[0]['id']
+        
+        # Find the date folder inside /briefs/
+        query = f"parents='{briefs_folder_id}' and name='{brief_date}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
         results = drive.files().list(
             q=query,
             spaces='drive',
@@ -128,8 +144,8 @@ def read_brief_manifest(brief_date: str, refresh_token: str, folder_id: Optional
 def list_available_briefs(refresh_token: str, folder_id: Optional[str] = None) -> List[str]:
     """List all available brief dates from Google Drive in descending order."""
     # Use provided folder_id, fall back to env var
-    briefs_folder = folder_id or BRIEFS_FOLDER_ID
-    if not briefs_folder or not refresh_token:
+    parent_folder = folder_id or BRIEFS_FOLDER_ID
+    if not parent_folder or not refresh_token:
         return []
     
     try:
@@ -138,10 +154,27 @@ def list_available_briefs(refresh_token: str, folder_id: Optional[str] = None) -
             logger.error('list_available_briefs: Could not authenticate with Google Drive')
             return []
         
-        logger.info(f'list_available_briefs: Querying folder {briefs_folder}')
+        logger.info(f'list_available_briefs: Querying parent folder {parent_folder}')
         
-        # List all folders in briefs folder
-        query = f"parents='{briefs_folder}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        # First, find the /briefs/ folder inside the parent folder
+        query = f"parents='{parent_folder}' and name='briefs' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        results = drive.files().list(
+            q=query,
+            spaces='drive',
+            pageSize=1,
+            fields='files(id)',
+        ).execute()
+        
+        files = results.get('files', [])
+        if not files:
+            logger.warning(f'list_available_briefs: No briefs folder found in parent folder {parent_folder}')
+            return []
+        
+        briefs_folder_id = files[0]['id']
+        logger.info(f'list_available_briefs: Found briefs folder {briefs_folder_id}')
+        
+        # List all folders in /briefs/ folder
+        query = f"parents='{briefs_folder_id}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
         results = drive.files().list(
             q=query,
             spaces='drive',
