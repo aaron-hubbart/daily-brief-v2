@@ -662,7 +662,7 @@ def logout():
 def auth_google():
     """Initiate Google OAuth 2.0 flow for Drive access."""
     try:
-        from google.oauth2.oauthlib.flow import InstalledAppFlow
+        from google_auth_oauthlib.flow import InstalledAppFlow
     except ImportError:
         return 'Google OAuth library not available', 500
     
@@ -697,7 +697,7 @@ def auth_google():
 def auth_google_callback():
     """Handle Google OAuth 2.0 callback."""
     try:
-        from google.oauth2.oauthlib.flow import InstalledAppFlow
+        from google_auth_oauthlib.flow import InstalledAppFlow
     except ImportError:
         return 'Google OAuth library not available', 500
     
