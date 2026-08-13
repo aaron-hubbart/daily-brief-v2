@@ -375,3 +375,30 @@ def set_google_refresh_token(user_id: int, refresh_token: Optional[str]) -> bool
         return True
     except Exception:
         return False
+
+
+def get_google_drive_folder_id(user_id: int) -> Optional[str]:
+    """Get the user's Google Drive folder ID for storing briefs."""
+    if not DATABASE_URL:
+        return None
+    
+    with cursor() as cur:
+        cur.execute('SELECT google_drive_folder_id FROM users WHERE id = %s', (user_id,))
+        row = cur.fetchone()
+        return row['google_drive_folder_id'] if row else None
+
+
+def set_google_drive_folder_id(user_id: int, folder_id: Optional[str]) -> bool:
+    """Store or clear the user's Google Drive folder ID."""
+    if not DATABASE_URL:
+        return False
+    
+    try:
+        with cursor(commit=True) as cur:
+            cur.execute(
+                'UPDATE users SET google_drive_folder_id = %s WHERE id = %s',
+                (folder_id, user_id),
+            )
+        return True
+    except Exception:
+        return False
