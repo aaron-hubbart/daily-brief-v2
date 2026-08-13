@@ -83,6 +83,8 @@ spec:
               value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.daily-brief:5432/$(POSTGRES_DB)"
             - name: APP_PATH_PREFIX
               value: "/daily-brief-v2"
+            - name: GOOGLE_DRIVE_BRIEFS_FOLDER_ID
+              value: "1ZSSTt1qPtukG_hgYsv3MLvFkUsk7_A2t"
           resources:
             requests:
               cpu: 50m

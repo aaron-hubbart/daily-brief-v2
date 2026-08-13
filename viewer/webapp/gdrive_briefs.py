@@ -1,61 +1,132 @@
 """
-Read daily briefs from Google Drive instead of database.
+Read daily briefs from Google Drive JSON files.
 
-This is for read-only access when DATABASE_URL is not configured.
-Reads manifest.json files from the /briefs/{date}/ folder structure
-that the daily-brief skill creates.
+The daily-brief skill writes manifest.json files to:
+  /briefs/{brief_date}/manifest.json
+
+This module reads those files and parses them for display.
 """
 import json
 import os
-from datetime import datetime
+from typing import Optional, Dict, List
+
+try:
+    from google.auth.transport.requests import Request
+    from google.oauth2.service_account import Credentials as ServiceAccountCredentials
+    from google.auth import default as auth_default
+    from googleapiclient.discovery import build
+    from googleapiclient.errors import HttpError
+    GDRIVE_AVAILABLE = True
+except ImportError:
+    GDRIVE_AVAILABLE = False
 
 
-def read_brief_from_gdrive(brief_date_str: str) -> dict:
+BRIEFS_FOLDER_ID = os.environ.get('GOOGLE_DRIVE_BRIEFS_FOLDER_ID')
+
+
+def _get_drive_service():
+    """Get Google Drive service using Application Default Credentials."""
+    if not GDRIVE_AVAILABLE or not BRIEFS_FOLDER_ID:
+        return None
+    
+    try:
+        credentials, _ = auth_default(scopes=['https://www.googleapis.com/auth/drive.readonly'])
+        return build('drive', 'v3', credentials=credentials)
+    except Exception:
+        return None
+
+
+def read_brief_manifest(brief_date: str) -> Optional[Dict]:
     """
-    Read a brief's manifest.json from Google Drive.
-    
-    For now, returns a placeholder since we'd need the Google Drive API
-    credentials to actually read files. In production, this would:
-    
-    1. Use google-auth + google-api-python-client
-    2. Read from GOOGLE_DRIVE_BRIEFS_FOLDER_ID/{brief_date_str}/manifest.json
-    3. Parse and return the JSON
+    Read and parse manifest.json from /briefs/{brief_date}/ in Google Drive.
     
     Args:
-        brief_date_str: Date string like "2026-08-13"
+        brief_date: Date string like "2026-08-13"
         
     Returns:
-        Brief data dict with structure matching what the skill writes
+        Parsed JSON dict, or None if not found
     """
-    gdrive_folder_id = os.environ.get('GOOGLE_DRIVE_BRIEFS_FOLDER_ID')
+    if not BRIEFS_FOLDER_ID:
+        return None
     
-    if not gdrive_folder_id:
-        return {
-            'error': 'GOOGLE_DRIVE_BRIEFS_FOLDER_ID not configured',
-            'message': 'Configure Google Drive folder ID to read briefs',
-            'date': brief_date_str,
-        }
+    try:
+        drive = _get_drive_service()
+        if not drive:
+            return None
+        
+        # Find the date folder
+        query = f"parents='{BRIEFS_FOLDER_ID}' and name='{brief_date}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        results = drive.files().list(
+            q=query,
+            spaces='drive',
+            pageSize=1,
+            fields='files(id)',
+        ).execute()
+        
+        files = results.get('files', [])
+        if not files:
+            return None
+        
+        date_folder_id = files[0]['id']
+        
+        # Find manifest.json in that folder
+        query = f"parents='{date_folder_id}' and name='manifest.json' and trashed=false"
+        results = drive.files().list(
+            q=query,
+            spaces='drive',
+            pageSize=1,
+            fields='files(id)',
+        ).execute()
+        
+        files = results.get('files', [])
+        if not files:
+            return None
+        
+        manifest_id = files[0]['id']
+        
+        # Download and parse the manifest
+        request = drive.files().get_media(fileId=manifest_id)
+        content = request.execute()
+        
+        return json.loads(content)
     
-    # TODO: Implement actual Google Drive reading via google-api-python-client
-    # For now, return placeholder that indicates the system is in Google Drive mode
-    return {
-        'status': 'gdrive_mode',
-        'date': brief_date_str,
-        'message': 'Google Drive reader not yet implemented. Update to use google-auth + google-api-python-client.',
-        'folder_id': gdrive_folder_id,
-    }
+    except Exception:
+        return None
 
 
-def list_briefs_from_gdrive() -> list:
-    """
-    List available brief dates from Google Drive folder.
-    
-    Would use google-api-python-client to list folders in the briefs folder.
-    """
-    gdrive_folder_id = os.environ.get('GOOGLE_DRIVE_BRIEFS_FOLDER_ID')
-    
-    if not gdrive_folder_id:
+def list_available_briefs() -> List[str]:
+    """List all available brief dates from Google Drive in descending order."""
+    if not BRIEFS_FOLDER_ID:
         return []
     
-    # TODO: Implement actual Google Drive listing
-    return []
+    try:
+        drive = _get_drive_service()
+        if not drive:
+            return []
+        
+        # List all folders in briefs folder
+        query = f"parents='{BRIEFS_FOLDER_ID}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        results = drive.files().list(
+            q=query,
+            spaces='drive',
+            pageSize=100,
+            fields='files(name)',
+            orderBy='name desc',
+        ).execute()
+        
+        # Extract valid date-like names (YYYY-MM-DD)
+        dates = []
+        for f in results.get('files', []):
+            name = f['name']
+            if len(name) == 10 and name[4] == '-' and name[7] == '-':
+                try:
+                    from datetime import datetime
+                    datetime.strptime(name, '%Y-%m-%d')
+                    dates.append(name)
+                except ValueError:
+                    pass
+        
+        return sorted(dates, reverse=True)
+    
+    except Exception:
+        return []
