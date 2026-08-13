@@ -381,8 +381,10 @@ FLASK_SECRET_KEY = _require_env('FLASK_SECRET_KEY')
 AZURE_TENANT_ID = _require_env('AZURE_TENANT_ID')
 AZURE_CLIENT_ID = _require_env('AZURE_CLIENT_ID')
 AZURE_CLIENT_SECRET = _require_env('AZURE_CLIENT_SECRET')
-# postgresql://user:password@host:5432/dbname — see DEPLOYMENT.md / db/README.md
-_require_env('DATABASE_URL')
+# Optional — if set, read briefs from Google Drive instead of database
+GOOGLE_DRIVE_BRIEFS_FOLDER_ID = os.environ.get('GOOGLE_DRIVE_BRIEFS_FOLDER_ID')
+# If DATABASE_URL is not set, operate in read-only mode from Google Drive
+DATABASE_URL = os.environ.get('DATABASE_URL')
 # Full callback URL Azure AD redirects back to, e.g.
 # https://dashboard.es-sandbox.com/daily-brief/auth/callback — must exactly
 # match a Redirect URI registered on the app registration in the Portal.
