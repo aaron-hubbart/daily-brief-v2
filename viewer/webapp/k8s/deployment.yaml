@@ -81,6 +81,8 @@ spec:
                   key: POSTGRES_DB
             - name: DATABASE_URL
               value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.daily-brief:5432/$(POSTGRES_DB)"
+            - name: APP_PATH_PREFIX
+              value: "/daily-brief-v2"
           resources:
             requests:
               cpu: 50m
