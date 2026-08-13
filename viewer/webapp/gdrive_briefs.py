@@ -1,10 +1,8 @@
 """
-Read daily briefs from Google Drive JSON files.
+Read daily briefs from Google Drive JSON files using per-user OAuth 2.0 tokens.
 
-The daily-brief skill writes manifest.json files to:
-  /briefs/{brief_date}/manifest.json
-
-This module reads those files and parses them for display.
+Each user authenticates with Google Drive and stores a refresh token.
+This module uses that token to access their briefs.
 """
 import json
 import logging
@@ -13,8 +11,7 @@ from typing import Optional, Dict, List
 
 try:
     from google.auth.transport.requests import Request
-    from google.oauth2.service_account import Credentials as ServiceAccountCredentials
-    from google.auth import default as auth_default
+    from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
     from googleapiclient.errors import HttpError
     GDRIVE_AVAILABLE = True
@@ -24,43 +21,61 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 BRIEFS_FOLDER_ID = os.environ.get('GOOGLE_DRIVE_BRIEFS_FOLDER_ID')
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
 
-logger.info(f'gdrive_briefs: GDRIVE_AVAILABLE={GDRIVE_AVAILABLE}, BRIEFS_FOLDER_ID={BRIEFS_FOLDER_ID}')
+logger.info(f'gdrive_briefs: GDRIVE_AVAILABLE={GDRIVE_AVAILABLE}, BRIEFS_FOLDER_ID={BRIEFS_FOLDER_ID}, HAS_OAUTH_CREDS={bool(GOOGLE_CLIENT_ID)}')
 
 
-def _get_drive_service():
-    """Get Google Drive service using Application Default Credentials."""
-    if not GDRIVE_AVAILABLE or not BRIEFS_FOLDER_ID:
-        logger.warning(f'_get_drive_service: GDRIVE_AVAILABLE={GDRIVE_AVAILABLE}, BRIEFS_FOLDER_ID={bool(BRIEFS_FOLDER_ID)}')
+def _get_drive_service(refresh_token: str):
+    """Get Google Drive service using user's refresh token."""
+    if not GDRIVE_AVAILABLE or not refresh_token:
+        return None
+    
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        logger.error('_get_drive_service: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set')
         return None
     
     try:
-        credentials, _ = auth_default(scopes=['https://www.googleapis.com/auth/drive.readonly'])
-        logger.info('_get_drive_service: Successfully obtained credentials')
+        # Build credentials from refresh token
+        credentials = Credentials(
+            token=None,  # Will be fetched using refresh_token
+            refresh_token=refresh_token,
+            token_uri='https://oauth2.googleapis.com/token',
+            client_id=GOOGLE_CLIENT_ID,
+            client_secret=GOOGLE_CLIENT_SECRET,
+        )
+        
+        # Refresh the token to get a valid access token
+        request = Request()
+        credentials.refresh(request)
+        
+        logger.info('_get_drive_service: Successfully authenticated with user refresh token')
         return build('drive', 'v3', credentials=credentials)
+    
     except Exception as e:
-        logger.error(f'_get_drive_service: Failed to get Google Drive service: {e}', exc_info=True)
+        logger.error(f'_get_drive_service: Failed to build Drive service: {e}', exc_info=True)
         return None
 
 
-def read_brief_manifest(brief_date: str) -> Optional[Dict]:
+def read_brief_manifest(brief_date: str, refresh_token: str) -> Optional[Dict]:
     """
     Read and parse manifest.json from /briefs/{brief_date}/ in Google Drive.
     
     Args:
         brief_date: Date string like "2026-08-13"
+        refresh_token: User's Google refresh token
         
     Returns:
         Parsed JSON dict, or None if not found
     """
-    if not BRIEFS_FOLDER_ID:
-        logger.warning(f'read_brief_manifest: BRIEFS_FOLDER_ID not set')
+    if not BRIEFS_FOLDER_ID or not refresh_token:
         return None
     
     try:
-        drive = _get_drive_service()
+        drive = _get_drive_service(refresh_token)
         if not drive:
-            logger.error(f'read_brief_manifest: Could not get Drive service')
+            logger.error(f'read_brief_manifest: Could not authenticate with Google Drive')
             return None
         
         # Find the date folder
@@ -107,16 +122,15 @@ def read_brief_manifest(brief_date: str) -> Optional[Dict]:
         return None
 
 
-def list_available_briefs() -> List[str]:
+def list_available_briefs(refresh_token: str) -> List[str]:
     """List all available brief dates from Google Drive in descending order."""
-    if not BRIEFS_FOLDER_ID:
-        logger.warning('list_available_briefs: BRIEFS_FOLDER_ID not set')
+    if not BRIEFS_FOLDER_ID or not refresh_token:
         return []
     
     try:
-        drive = _get_drive_service()
+        drive = _get_drive_service(refresh_token)
         if not drive:
-            logger.error('list_available_briefs: Could not get Drive service')
+            logger.error('list_available_briefs: Could not authenticate with Google Drive')
             return []
         
         logger.info(f'list_available_briefs: Querying folder {BRIEFS_FOLDER_ID}')
@@ -143,9 +157,8 @@ def list_available_briefs() -> List[str]:
                     from datetime import datetime
                     datetime.strptime(name, '%Y-%m-%d')
                     dates.append(name)
-                    logger.debug(f'list_available_briefs: Found valid date folder: {name}')
                 except ValueError:
-                    logger.debug(f'list_available_briefs: Skipped invalid date folder: {name}')
+                    pass
         
         logger.info(f'list_available_briefs: Returning {len(dates)} valid dates')
         return sorted(dates, reverse=True)

@@ -347,3 +347,30 @@ def set_item_due_date(brief_day_id: int, section: str, item_key: str, due_on) ->
             (due_on, brief_day_id, section, item_key),
         )
         return cur.rowcount > 0
+
+
+def get_google_refresh_token(user_id: int) -> Optional[str]:
+    """Get the user's stored Google refresh token."""
+    if not DATABASE_URL:
+        return None
+    
+    with cursor() as cur:
+        cur.execute('SELECT google_refresh_token FROM users WHERE id = %s', (user_id,))
+        row = cur.fetchone()
+        return row['google_refresh_token'] if row else None
+
+
+def set_google_refresh_token(user_id: int, refresh_token: str) -> bool:
+    """Store the user's Google refresh token."""
+    if not DATABASE_URL:
+        return False
+    
+    try:
+        with cursor(commit=True) as cur:
+            cur.execute(
+                'UPDATE users SET google_refresh_token = %s WHERE id = %s',
+                (refresh_token, user_id),
+            )
+        return True
+    except Exception:
+        return False
