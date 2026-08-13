@@ -441,7 +441,7 @@ app.config.update(
     # again and bounced back to /login. Scoping both name and path to this
     # app's mount point keeps the two cookies distinct.
     SESSION_COOKIE_NAME='daily_brief_session',
-    SESSION_COOKIE_PATH='/daily-brief',
+    SESSION_COOKIE_PATH=os.environ.get('APP_PATH_PREFIX', '/daily-brief'),
 )
 
 class ForcePrefixMiddleware:
@@ -474,9 +474,10 @@ class ForcePrefixMiddleware:
 # Trust nginx's forwarded headers for scheme, host, and client IP; the path
 # prefix is hardcoded above instead of trusted from a header (see
 # ForcePrefixMiddleware) since nginx never actually sends one for this app.
+_app_path_prefix = os.environ.get('APP_PATH_PREFIX', '/daily-brief')
 app.wsgi_app = ForcePrefixMiddleware(
     ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1),
-    '/daily-brief',
+    _app_path_prefix,
 )
 app.teardown_appcontext(db.close_conn)
 
