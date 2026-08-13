@@ -48,6 +48,7 @@ from flask import Flask, Response, abort, jsonify, redirect, render_template, re
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import db
+import gdrive_briefs
 
 APP_DIR = Path(__file__).resolve().parent
 # In the VM deployment, app.py lives at viewer/webapp/app.py and the shared
@@ -837,17 +838,35 @@ def api_briefs():
 def serve_brief(date_str):
     if not DATE_RE.match(date_str):
         abort(400)
-    brief_day = db.get_brief_day(request.brief_user['id'], date_str)
-    if not brief_day:
+    
+    # Try to read from Google Drive first (if configured)
+    brief_data = gdrive_briefs.read_brief_manifest(date_str)
+    
+    # Fall back to database if Google Drive is not available
+    if not brief_data and db.DATABASE_URL:
+        brief_day = db.get_brief_day(request.brief_user['id'], date_str)
+        if not brief_day:
+            abort(404)
+        
+        items = db.get_items_for_day(brief_day['id'])
+        items_by_section = {}
+        checkable_count = 0
+        for item in items:
+            items_by_section.setdefault(item['section'], []).append(item)
+            if item['item_type'] == 'checkable' and item.get('checked') is not None:
+                checkable_count += 1
+        
+        # Construct brief_data from database items (same structure as manifest.json)
+        brief_data = {
+            'date': date_str,
+            'sections': items_by_section,
+        }
+    
+    if not brief_data:
         abort(404)
-
-    items = db.get_items_for_day(brief_day['id'])
-    items_by_section = {}
-    checkable_count = 0
-    for item in items:
-        items_by_section.setdefault(item['section'], []).append(item)
-        if item['item_type'] == 'checkable' and item.get('checked') is not None:
-            checkable_count += 1
+    
+    # Extract items by section from brief_data
+    items_by_section = brief_data.get('sections', {})
 
     # Action Items renders as four fixed subsections (New Items, Overdue,
     # Due Next 7 Days, No Due Date) rather than one flat list. New Items is
