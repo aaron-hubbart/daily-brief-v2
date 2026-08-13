@@ -58,18 +58,21 @@ def _get_drive_service(refresh_token: str):
         return None
 
 
-def read_brief_manifest(brief_date: str, refresh_token: str) -> Optional[Dict]:
+def read_brief_manifest(brief_date: str, refresh_token: str, folder_id: Optional[str] = None) -> Optional[Dict]:
     """
     Read and parse manifest.json from /briefs/{brief_date}/ in Google Drive.
     
     Args:
         brief_date: Date string like "2026-08-13"
         refresh_token: User's Google refresh token
+        folder_id: User's Google Drive folder ID (defaults to env var GOOGLE_DRIVE_BRIEFS_FOLDER_ID)
         
     Returns:
         Parsed JSON dict, or None if not found
     """
-    if not BRIEFS_FOLDER_ID or not refresh_token:
+    # Use provided folder_id, fall back to env var
+    briefs_folder = folder_id or BRIEFS_FOLDER_ID
+    if not briefs_folder or not refresh_token:
         return None
     
     try:
@@ -79,7 +82,7 @@ def read_brief_manifest(brief_date: str, refresh_token: str) -> Optional[Dict]:
             return None
         
         # Find the date folder
-        query = f"parents='{BRIEFS_FOLDER_ID}' and name='{brief_date}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        query = f"parents='{briefs_folder}' and name='{brief_date}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
         results = drive.files().list(
             q=query,
             spaces='drive',
@@ -122,9 +125,11 @@ def read_brief_manifest(brief_date: str, refresh_token: str) -> Optional[Dict]:
         return None
 
 
-def list_available_briefs(refresh_token: str) -> List[str]:
+def list_available_briefs(refresh_token: str, folder_id: Optional[str] = None) -> List[str]:
     """List all available brief dates from Google Drive in descending order."""
-    if not BRIEFS_FOLDER_ID or not refresh_token:
+    # Use provided folder_id, fall back to env var
+    briefs_folder = folder_id or BRIEFS_FOLDER_ID
+    if not briefs_folder or not refresh_token:
         return []
     
     try:
@@ -133,10 +138,10 @@ def list_available_briefs(refresh_token: str) -> List[str]:
             logger.error('list_available_briefs: Could not authenticate with Google Drive')
             return []
         
-        logger.info(f'list_available_briefs: Querying folder {BRIEFS_FOLDER_ID}')
+        logger.info(f'list_available_briefs: Querying folder {briefs_folder}')
         
         # List all folders in briefs folder
-        query = f"parents='{BRIEFS_FOLDER_ID}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        query = f"parents='{briefs_folder}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
         results = drive.files().list(
             q=query,
             spaces='drive',

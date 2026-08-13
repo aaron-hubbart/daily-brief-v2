@@ -771,6 +771,35 @@ def delete_google_token():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/google-drive/folder-id', methods=['GET'])
+@login_required
+def get_folder_id():
+    """Get user's current Google Drive folder ID."""
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    return jsonify({'folder_id': folder_id})
+
+
+@app.route('/api/google-drive/folder-id', methods=['POST'])
+@login_required
+def set_folder_id():
+    """Set user's Google Drive folder ID."""
+    data = request.get_json() or {}
+    folder_id = data.get('folder_id')
+    
+    if not folder_id:
+        return jsonify({'error': 'folder_id is required'}), 400
+    
+    try:
+        if db.set_google_drive_folder_id(request.brief_user['id'], folder_id):
+            logger.info(f'Set Google Drive folder ID for user {request.brief_user["email"]}')
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Failed to set folder ID'}), 500
+    except Exception as e:
+        logger.error(f'Failed to set folder ID: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 # ── App routes ────────────────────────────────────────────────────────────
 
 @app.route('/')
@@ -942,15 +971,16 @@ def admin_config_status():
 @app.route('/api/briefs')
 @login_required
 def api_briefs():
-    # Get user's Google refresh token from database
+    # Get user's Google refresh token and folder ID from database
     google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
     
     if not google_token:
         # User hasn't connected Google Drive yet
         return jsonify([])
     
-    # List briefs from Google Drive using user's token
-    days = gdrive_briefs.list_available_briefs(google_token)
+    # List briefs from Google Drive using user's token and folder ID
+    days = gdrive_briefs.list_available_briefs(google_token, folder_id)
     return jsonify([
         {'name': d, 'label': d}
         for d in days
@@ -963,14 +993,15 @@ def serve_brief(date_str):
     if not DATE_RE.match(date_str):
         abort(400)
     
-    # Get user's Google refresh token from database
+    # Get user's Google refresh token and folder ID from database
     google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
     
     if not google_token:
         abort(403)  # User hasn't connected Google Drive yet
     
-    # Read from Google Drive using user's token
-    brief_data = gdrive_briefs.read_brief_manifest(date_str, google_token)
+    # Read from Google Drive using user's token and folder ID
+    brief_data = gdrive_briefs.read_brief_manifest(date_str, google_token, folder_id)
     
     if not brief_data:
         abort(404)
