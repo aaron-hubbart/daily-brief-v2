@@ -391,6 +391,10 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 # match a Redirect URI registered on the app registration in the Portal.
 AZURE_REDIRECT_URI = _require_env('AZURE_REDIRECT_URI')
 
+# Google Drive OAuth credentials (from secrets, optional)
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
+
 # Optional, inactive by default — comma-separated Azure AD group object IDs.
 # If set, sign-in additionally requires the user's token to include one of
 # these group IDs in its `groups` claim (requires enabling group claims on
@@ -651,6 +655,107 @@ def logout():
     return redirect(logout_url)
 
 
+# ── Google Drive OAuth ────────────────────────────────────────────────────────
+
+@app.route('/auth/google')
+@login_required
+def auth_google():
+    """Initiate Google OAuth 2.0 flow for Drive access."""
+    try:
+        from google.oauth2.oauthlib.flow import InstalledAppFlow
+    except ImportError:
+        return 'Google OAuth library not available', 500
+    
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        return 'Google OAuth not configured', 500
+    
+    # Store the redirect URI
+    redirect_uri = url_for('auth_google_callback', _external=True)
+    
+    # Create OAuth 2.0 flow
+    flow = InstalledAppFlow.from_client_config(
+        {
+            'installed': {
+                'client_id': GOOGLE_CLIENT_ID,
+                'client_secret': GOOGLE_CLIENT_SECRET,
+                'redirect_uris': [redirect_uri],
+            }
+        },
+        scopes=['https://www.googleapis.com/auth/drive.readonly'],
+    )
+    
+    # Store flow in session
+    auth_url, state = flow.authorization_url(access_type='offline', prompt='consent')
+    session['google_oauth_state'] = state
+    session['google_oauth_flow_state'] = flow.to_json()
+    
+    return redirect(auth_url)
+
+
+@app.route('/auth/google/callback')
+@login_required
+def auth_google_callback():
+    """Handle Google OAuth 2.0 callback."""
+    try:
+        from google.oauth2.oauthlib.flow import InstalledAppFlow
+    except ImportError:
+        return 'Google OAuth library not available', 500
+    
+    # Verify state
+    state = request.args.get('state')
+    if state != session.get('google_oauth_state'):
+        return 'Invalid OAuth state', 400
+    
+    # Get authorization code
+    code = request.args.get('code')
+    if not code:
+        error = request.args.get('error', 'unknown')
+        return f'Google auth failed: {error}', 400
+    
+    try:
+        # Restore flow from session
+        flow = InstalledAppFlow.from_client_config(
+            {
+                'installed': {
+                    'client_id': GOOGLE_CLIENT_ID,
+                    'client_secret': GOOGLE_CLIENT_SECRET,
+                    'redirect_uris': [url_for('auth_google_callback', _external=True)],
+                }
+            },
+            scopes=['https://www.googleapis.com/auth/drive.readonly'],
+        )
+        
+        # Exchange code for token
+        credentials = flow.fetch_token(code=code)
+        refresh_token = credentials.get('refresh_token')
+        
+        if not refresh_token:
+            return 'No refresh token received from Google', 400
+        
+        # Store refresh token for this user
+        if not db.set_google_refresh_token(request.brief_user['id'], refresh_token):
+            return 'Failed to store Google token', 500
+        
+        logger.info(f'Stored Google refresh token for user {request.brief_user["email"]}')
+        
+        # Redirect back to index
+        session.pop('google_oauth_state', None)
+        session.pop('google_oauth_flow_state', None)
+        return redirect(url_for('index'))
+    
+    except Exception as e:
+        logger.error(f'Google OAuth callback failed: {e}', exc_info=True)
+        return f'Google auth failed: {e}', 500
+
+
+@app.route('/api/google-token/status')
+@login_required
+def google_token_status():
+    """Check if user has connected Google Drive."""
+    has_token = bool(db.get_google_refresh_token(request.brief_user['id']))
+    return jsonify({'connected': has_token})
+
+
 # ── App routes ────────────────────────────────────────────────────────────
 
 @app.route('/')
@@ -822,8 +927,15 @@ def admin_config_status():
 @app.route('/api/briefs')
 @login_required
 def api_briefs():
-    # List briefs from Google Drive
-    days = gdrive_briefs.list_available_briefs()
+    # Get user's Google refresh token from database
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    
+    if not google_token:
+        # User hasn't connected Google Drive yet
+        return jsonify([])
+    
+    # List briefs from Google Drive using user's token
+    days = gdrive_briefs.list_available_briefs(google_token)
     return jsonify([
         {'name': d, 'label': d}
         for d in days
@@ -836,8 +948,14 @@ def serve_brief(date_str):
     if not DATE_RE.match(date_str):
         abort(400)
     
-    # Read from Google Drive only - no database fallback
-    brief_data = gdrive_briefs.read_brief_manifest(date_str)
+    # Get user's Google refresh token from database
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    
+    if not google_token:
+        abort(403)  # User hasn't connected Google Drive yet
+    
+    # Read from Google Drive using user's token
+    brief_data = gdrive_briefs.read_brief_manifest(date_str, google_token)
     
     if not brief_data:
         abort(404)
