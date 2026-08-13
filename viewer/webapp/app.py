@@ -756,6 +756,21 @@ def google_token_status():
     return jsonify({'connected': has_token})
 
 
+@app.route('/api/google-token', methods=['DELETE'])
+@login_required
+def delete_google_token():
+    """Disconnect user's Google Drive."""
+    try:
+        if db.set_google_refresh_token(request.brief_user['id'], None):
+            logger.info(f'Removed Google token for user {request.brief_user["email"]}')
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Failed to remove token'}), 500
+    except Exception as e:
+        logger.error(f'Failed to delete Google token: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 # ── App routes ────────────────────────────────────────────────────────────
 
 @app.route('/')

@@ -168,6 +168,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
     <button class="icon-btn" id="refresh-btn" onclick="loadBriefList()">Refresh</button>
     <span class="brief-count" id="brief-count"></span>
   </div>
+  <button class="icon-btn" id="google-connect-btn" onclick="connectGoogleDrive()" style="display:none;" title="Connect Google Drive to view briefs">Connect Google Drive</button>
   <button class="icon-btn" id="setup-btn" onclick="openSetup()" title="Setup guide">Setup</button>
   <button class="icon-btn" id="account-btn" onclick="openAccount()" title="Account & token">Account</button>
   <button class="mode-btn" id="mode-btn" onclick="toggleMode()" title="Toggle light/dark mode">☀</button>
@@ -283,6 +284,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
       <button class="icon-btn" id="account-rotate" onclick="rotateToken()">Rotate token</button>
       <p style="font-size:11.5px;color:var(--t3);margin-top:10px;line-height:1.5;">Rotating invalidates your current token immediately. Afterward, update the <code>Authorization</code> header on your daily-brief-mcp-server connector (Claude Settings &rarr; Connectors) with the new value — your skill can't sync again until you do.</p>
       <div class="account-msg" id="account-msg"></div>
+      <hr class="account-hr">
+      <div class="account-row" id="google-status-row">Google Drive: <strong id="google-status">checking…</strong></div>
+      <button class="icon-btn" id="account-google-connect" onclick="connectGoogleDrive()" style="display:none;">Connect Google Drive</button>
+      <button class="icon-btn" id="account-google-disconnect" onclick="disconnectGoogleDrive()" style="display:none;">Disconnect Google Drive</button>
+      <div class="account-msg" id="account-google-msg"></div>
       <hr class="account-hr">
       <div class="account-row" id="asana-status-row">Asana connection: <strong id="asana-status">checking…</strong></div>
       <div class="copy-row">
@@ -1240,6 +1246,51 @@ async function disconnectAsana() {
   refreshAsanaStatus();
 }
 
+async function refreshGoogleStatus() {
+  try {
+    const res = await fetch('api/google-token/status');
+    const data = await res.json();
+    const statusEl = document.getElementById('google-status');
+    const connectBtn = document.getElementById('account-google-connect');
+    const disconnectBtn = document.getElementById('account-google-disconnect');
+    const topbarBtn = document.getElementById('google-connect-btn');
+    
+    if (data.connected) {
+      statusEl.textContent = 'Connected';
+      statusEl.parentElement.style.color = 'var(--t2)';
+      connectBtn.style.display = 'none';
+      disconnectBtn.style.display = 'inline-block';
+      topbarBtn.style.display = 'none';
+    } else {
+      statusEl.textContent = 'Not connected';
+      statusEl.parentElement.style.color = 'var(--bad-t)';
+      connectBtn.style.display = 'inline-block';
+      disconnectBtn.style.display = 'none';
+      topbarBtn.style.display = 'inline-block';
+    }
+  } catch (e) {
+    console.error('Failed to check Google status:', e);
+    document.getElementById('google-status').textContent = 'Error checking status';
+  }
+}
+
+function connectGoogleDrive() {
+  window.location.href = '/auth/google';
+}
+
+async function disconnectGoogleDrive() {
+  if (!confirm('Disconnect Google Drive? You won\'t be able to view briefs until you reconnect.')) {
+    return;
+  }
+  try {
+    await fetch('api/google-token', { method: 'DELETE' });
+    refreshGoogleStatus();
+  } catch (e) {
+    document.getElementById('account-google-msg').className = 'account-msg err';
+    document.getElementById('account-google-msg').textContent = 'Failed to disconnect: ' + e.message;
+  }
+}
+
 function renderSetupDots() {
   const dots = document.getElementById('setup-dots');
   dots.innerHTML = '';
@@ -1296,6 +1347,8 @@ async function openAccount() {
   document.getElementById('account-msg').textContent = '';
   document.getElementById('account-asana-msg').className = 'account-msg';
   document.getElementById('account-asana-msg').textContent = '';
+  document.getElementById('account-google-msg').className = 'account-msg';
+  document.getElementById('account-google-msg').textContent = '';
   document.getElementById('account-asana-pat').value = '';
 
   try {
@@ -1307,6 +1360,7 @@ async function openAccount() {
     document.getElementById('account-token').value = '(unavailable)';
   }
 
+  refreshGoogleStatus();
   refreshAsanaStatus();
 }
 
@@ -1367,6 +1421,7 @@ async function checkOnboarding() {
 
 initMode();
 loadBriefList();
+refreshGoogleStatus();
 checkOnboarding();
 </script>
 </body>
