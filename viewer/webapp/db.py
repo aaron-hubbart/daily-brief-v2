@@ -361,8 +361,8 @@ def get_google_refresh_token(user_id: int) -> Optional[str]:
         return row['google_refresh_token'] if row else None
 
 
-def set_google_refresh_token(user_id: int, refresh_token: str) -> bool:
-    """Store the user's Google refresh token."""
+def set_google_refresh_token(user_id: int, refresh_token: Optional[str]) -> bool:
+    """Store or clear the user's Google refresh token."""
     if not DATABASE_URL:
         return False
     
