@@ -288,6 +288,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
       <div class="account-row" id="google-status-row">Google Drive: <strong id="google-status">checking…</strong></div>
       <button class="icon-btn" id="account-google-connect" onclick="connectGoogleDrive()" style="display:none;">Connect Google Drive</button>
       <button class="icon-btn" id="account-google-disconnect" onclick="disconnectGoogleDrive()" style="display:none;">Disconnect Google Drive</button>
+      <div style="margin-top: 8px; display:none;" id="google-folder-section">
+        <p style="font-size:11.5px;color:var(--t3);margin-bottom:6px;">Google Drive folder ID for briefs:</p>
+        <div class="copy-row">
+          <input class="text-input" id="account-google-folder-id" type="text" placeholder="Paste your Google Drive folder ID here" autocomplete="off">
+          <button class="copy-btn" id="account-google-folder-save" onclick="saveGoogleFolderId()">Save</button>
+        </div>
+      </div>
       <div class="account-msg" id="account-google-msg"></div>
       <hr class="account-hr">
       <div class="account-row" id="asana-status-row">Asana connection: <strong id="asana-status">checking…</strong></div>
@@ -1254,6 +1261,7 @@ async function refreshGoogleStatus() {
     const connectBtn = document.getElementById('account-google-connect');
     const disconnectBtn = document.getElementById('account-google-disconnect');
     const topbarBtn = document.getElementById('google-connect-btn');
+    const folderSection = document.getElementById('google-folder-section');
     
     if (data.connected) {
       statusEl.textContent = 'Connected';
@@ -1261,16 +1269,71 @@ async function refreshGoogleStatus() {
       connectBtn.style.display = 'none';
       disconnectBtn.style.display = 'inline-block';
       topbarBtn.style.display = 'none';
+      // Show folder ID input when connected
+      if (folderSection) folderSection.style.display = 'block';
+      loadGoogleFolderId();
     } else {
       statusEl.textContent = 'Not connected';
       statusEl.parentElement.style.color = 'var(--bad-t)';
       connectBtn.style.display = 'inline-block';
       disconnectBtn.style.display = 'none';
       topbarBtn.style.display = 'inline-block';
+      // Hide folder ID input when not connected
+      if (folderSection) folderSection.style.display = 'none';
     }
   } catch (e) {
     console.error('Failed to check Google status:', e);
     document.getElementById('google-status').textContent = 'Error checking status';
+  }
+}
+
+async function loadGoogleFolderId() {
+  try {
+    const res = await fetch('api/google-drive/folder-id');
+    const data = await res.json();
+    const input = document.getElementById('account-google-folder-id');
+    if (data.folder_id) {
+      input.value = data.folder_id;
+    }
+  } catch (e) {
+    console.error('Failed to load folder ID:', e);
+  }
+}
+
+async function saveGoogleFolderId() {
+  const input = document.getElementById('account-google-folder-id');
+  const folderId = input.value.trim();
+  const msg = document.getElementById('account-google-msg');
+  
+  if (!folderId) {
+    msg.className = 'account-msg err';
+    msg.textContent = 'Folder ID is required';
+    return;
+  }
+  
+  msg.className = 'account-msg';
+  msg.textContent = 'Saving…';
+  
+  try {
+    const res = await fetch('api/google-drive/folder-id', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder_id: folderId })
+    });
+    const data = await res.json();
+    
+    if (res.ok) {
+      msg.className = 'account-msg';
+      msg.textContent = 'Saved! Refresh the page to load your briefs.';
+      // Reload brief list
+      loadBriefList();
+    } else {
+      msg.className = 'account-msg err';
+      msg.textContent = 'Error: ' + (data.error || 'Failed to save');
+    }
+  } catch (e) {
+    msg.className = 'account-msg err';
+    msg.textContent = 'Error: ' + e.message;
   }
 }
 
