@@ -1084,8 +1084,8 @@ def serve_brief(date_str):
     return render_template(
         'brief_fragment.html',
         brief_date=date_str,
-        brief_date_label=brief_day['brief_date'].strftime('%A, %B %-d'),
-        brief_type=brief_day['brief_type'],
+        brief_date_label=date.fromisoformat(date_str).strftime('%A, %B %-d'),
+        brief_type=brief_data.get('brief_type', 'default'),
         checkable_count=checkable_count,
         sections=sections,
         items_by_section=items_by_section,
