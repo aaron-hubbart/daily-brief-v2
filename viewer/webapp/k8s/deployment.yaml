@@ -47,7 +47,7 @@ spec:
             # ingress.yaml) — must exactly match the Redirect URI registered
             # on the app registration in the Azure Portal.
             - name: AZURE_REDIRECT_URI
-              value: "https://dashboard.es-sandbox.com/daily-brief/auth/callback"
+              value: "https://dashboard.es-sandbox.com/daily-brief-v2/auth/callback"
             # Plain value, not a secret (just an allowlist of email
             # addresses) — comma-separated emails allowed to reach /admin.
             # Unset (empty) disables the admin panel entirely. Edit this
