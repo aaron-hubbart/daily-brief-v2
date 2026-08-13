@@ -11,6 +11,7 @@ import json
 import os
 import secrets
 from contextlib import contextmanager
+from typing import Optional
 
 import psycopg2
 import psycopg2.extras
