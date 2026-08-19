@@ -125,6 +125,33 @@ The brief is always split into two sections: **Yesterday / Today So Far** and **
 
 **BEFORE generating any content, read `references/item-sync.md` in full.** This reference file documents the authoritative file layout, folder specifications, item shapes, and all Google Drive write operations. You cannot correctly structure the brief output without having read this file first. Do not wait until the end of the run to read it.
 
+### PROHIBITED Output Formats — Read Before Anything Else
+
+The Google Drive deliverable for this skill is EIGHT separate JSON files per date, listed in Step 4 and specified in full in `references/item-sync.md`. Every one of the following is a violation and must not happen — not as a fallback, not "just this once," not because a section is empty, not because "one file reads better":
+
+- **A single consolidated `brief.json`** (or any file that packs multiple sections into one JSON blob). The section split is load-bearing — the hosted viewer reads one file per section, and post-meeting-patch / section-refresh flows rewrite a single section's file. A consolidated file breaks both. If you catch yourself building a top-level `sections: { ... }` object, stop; that is the prohibited shape.
+- **A Google Doc (`application/vnd.google-apps.document`)**, a Word doc, a plain-text file, a Markdown file, or any non-`application/json` mime type for the scheduled-run deliverable. Do not fall back to `create_file` with `content_mime_type: text/markdown` because "the JSON schema is complex" — the schema is in `references/item-sync.md`, use it. Do not set `disable_conversion_to_google_type: false`; always pass `true` so JSON stays JSON.
+- **Files saved loose in the parent, in `BRIEF_DATA_FOLDER_ID` root, in "My Drive", or in a legacy folder** (`Daily Briefs`, `Daily Briefs New`, `daily-brief`, etc.). The date subfolder MUST live under `/briefs/{date}/`; nothing else is a valid location for a scheduled run.
+- **Omitting a section file because it's empty.** Empty sections still get their file, with `[]` for the array-shaped sections or `{}`-shape for `manager-update.json` — the viewer treats a missing file as "brief never ran," not "nothing to report."
+- **A chat-only response with no Drive writes.** Interactive `brief me` conversations may include a prose summary in chat, but scheduled runs without a human present MUST still produce the eight files. A pretty in-chat brief that skipped Step 4 is a failed run, not a completed one.
+
+Explicit list of the eight files that must be written on every scheduled run:
+
+```
+/briefs/{date}/manifest.json
+/briefs/{date}/meetings.json
+/briefs/{date}/accounts/{slug}.json   (one file per account/initiative with content — Section 1 Part B is split)
+/briefs/{date}/today.json
+/briefs/{date}/action-items.json
+/briefs/{date}/updates/{slug}.json    (one file per in-scope account — Section 3 is split)
+/briefs/{date}/manager-update.json
+/briefs/{date}/fyi.json
+```
+
+`accounts/` and `updates/` are folders containing per-account JSON files. Everything else in the list is a single JSON file with a fixed name. See `references/item-sync.md` for the exact shape of each.
+
+**Historic failure to correct against:** on 2026-08-19, a scheduled run produced a single Google Doc, then later a single consolidated `brief.json`, in the wrong parent folder, with no per-account split at all. Both are prohibited by the rules above. If in doubt, re-read this section before writing anything.
+
 ### Mandatory Sync Flow (Five Sequential Steps)
 
 **Step 1: Read `references/item-sync.md`** — Understand the file layout, folder hierarchy, item schema (item_key conventions, field shapes, badges, links, content), and Google Drive connector mechanics. This is a prerequisite for understanding Steps 2–5. This reference also documents the Folder Existence Check requirements (Step 2 below).
@@ -133,7 +160,7 @@ The brief is always split into two sections: **Yesterday / Today So Far** and **
 
 **Step 3: Generate Brief Content** — Pull all data sources (Outlook, Slack, Zoom, Asana) and synthesize Sections 1–4. See "Data Sources and What to Pull" below for specifics.
 
-**Step 4: Write ALL Section JSON Files to Google Drive** — Using the folder IDs from Step 2, write the complete section JSON files via `Google Drive: create_file`:
+**Step 4: Write ALL Section JSON Files to Google Drive** — Using the folder IDs from Step 2, write the complete section JSON files via `Google Drive: create_file`. Each of the paths below is its OWN file — do not merge them into a single consolidated `brief.json`, and do not create any of them as a Google Doc, Markdown, or plain text (see the PROHIBITED Output Formats block above for the full list). All files use `content_mime_type: application/json` and `disable_conversion_to_google_type: true`:
 - `/briefs/{date}/manifest.json`
 - `/briefs/{date}/meetings.json`
 - `/briefs/{date}/accounts/{slug}.json` (one per account/initiative with content)
