@@ -146,7 +146,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
 
   {% for section in sections %}
   {% set section_items = items_by_section.get(section.slug, []) %}
-  {% if section_items %}
+  {% if section_items or (section.slug == 'action-items' and action_subsections and action_subsections|selectattr('items')|list) %}
   <details class="sec" data-section="{{ section.slug }}">
     <summary class="sec-summary">
       <span class="sec-label">{{ section.label }}</span>
