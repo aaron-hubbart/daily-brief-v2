@@ -1,0 +1,3 @@
+# Generated Daily Brief HTML reports land here at runtime.
+# This folder is intentionally empty in the repo — see ../.gitignore.
+# Point your Drive sync (or the daily-brief skill's local output path) here.
