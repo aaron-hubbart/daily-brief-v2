@@ -10,3 +10,4 @@ node_modules/
 .claude-flow/
 ruvector.db
 viewer-backend/.claude-flow/
+.claude/
