@@ -1,0 +1,17 @@
+-- Per-user Asana Personal Access Token, entered via the in-app setup
+-- walkthrough (or the Account panel later, where it can also be added,
+-- replaced, or removed). Replaces the old single shared ASANA_PAT
+-- environment variable, which mirrored checkbox/due-date edits back to
+-- Asana for whichever one account that env var's token belonged to.
+--
+-- Used for two things now:
+--   1. Same best-effort two-way sync of checkbox/due-date edits on Action
+--      Items back to the linked Asana task, but scoped per signed-in user.
+--   2. Live pulls of the Overdue / Due Next 7 Days / No Due Date Action
+--      Items subsections directly from Asana at page-render time (see
+--      account_projects in 004_add_account_projects.sql and
+--      _fetch_live_action_items in app.py). Left NULL (skipped during
+--      setup), those three subsections are simply omitted and only New
+--      Items — tracked in Postgres, created by that day's brief run —
+--      renders.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS asana_pat TEXT;

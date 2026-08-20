@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: daily-brief
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+  # Headless would also work (StatefulSet convention), but this app only
+  # ever needs to reach the single replica by the stable Service DNS name
+  # "postgres" — no need for per-pod DNS records a headless Service adds.
+  type: ClusterIP
