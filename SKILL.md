@@ -254,6 +254,18 @@ If there is genuinely nothing to report in a section, omit it silently.
 
 Every brief run syncs its content into the hosted viewer's Postgres store, in addition to the in-chat response, per the full spec in `references/item-sync.md`. Read that file when you reach the sync step in a run — it covers section/item_key conventions, badge/link/content shape, and the API calls that create or refresh items.
 
+### PROHIBITED Output Formats — Read Before Anything Else
+
+The scheduled-run deliverable for this skill is an API upsert of structured items to the hosted viewer's Postgres store, one row per item, across the seven section slugs listed in `references/item-sync.md`. Every one of the following is a violation and must not happen — not as a fallback, not "just this once," not because a section is empty, not because "one file reads better":
+
+- **A single consolidated JSON blob** (`brief.json`, or any single upsert whose body packs multiple sections into one item's `content` field). The per-item, per-section shape is load-bearing — the hosted viewer reads one row per item, and post-meeting-patch / section-refresh flows rewrite a single item by its `(brief_date, section, item_key)` key. A consolidated single-item write breaks both. If you catch yourself building a top-level `sections: { ... }` object and passing it as one item's content, stop; that is the prohibited shape.
+- **A Google Doc, Word doc, plain-text file, Markdown file, or any file at all as the deliverable.** There is no file to build, name, or upload — the deliverable IS the Postgres upserts. Do not fall back to `create_file` with `content_mime_type: text/markdown` because "the JSON schema is complex" — the schema is in `references/item-sync.md`, use it. Do not write a Drive file "as a backup" of the API calls; there is no such thing here.
+- **Omitting a section because it's empty.** Empty sections still upsert their expected rows — an empty Action Items section still upserts nothing under `action-items` (the webapp treats zero rows as "New Items empty" and falls through to the live-pulled subsections), but a section with no upsert calls at all reads as "brief never ran," not "nothing to report." When in doubt, upsert at least the placeholder rows the schema expects.
+- **A chat-only response with no API upsert calls.** Interactive `brief me` conversations may include a prose summary in chat, but scheduled runs without a human present MUST still call the upsert API for every section that has content. A pretty in-chat brief that skipped the sync step is a failed run, not a completed one.
+
+**Historic failure to correct against:** on 2026-08-19, a scheduled run on a sibling branch produced a single Google Doc, then later a single consolidated `brief.json`, in the wrong Drive parent folder, with no per-item split at all. Both are prohibited by the rules above. This branch stores in Postgres rather than Drive, so the exact failure surface is different, but the shape — a single degenerate output instead of the structured per-item upserts the viewer actually reads — is the same. If in doubt, re-read this section before calling any sync tool.
+
+
 ## Post-Meeting Patch Runs
 
 Not part of the normal brief trigger. When meeting-manager's post-meeting agent finishes processing a meeting flagged in today's brief as missing a recording/transcript, read `references/post-meeting-patch.md` and follow that flow to patch that one item via the API instead of waiting for the next scheduled run.
