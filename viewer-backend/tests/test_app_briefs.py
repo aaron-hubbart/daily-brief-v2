@@ -80,3 +80,34 @@ def test_api_briefs_surfaces_drive_error_reason_instead_of_opaque_500(client, mo
     payload = resp.get_json()
     assert payload['drive_status'] == 403
     assert 'insufficientFilePermissions' in payload['error'] or 'access' in payload['error'].lower()
+
+
+def test_action_items_section_renders_when_only_live_pulled_items_exist(client, mocker):
+    """Regression: when action-items.json is empty on Drive but the user's Asana PAT
+    surfaces overdue/due-soon items via the live pull, the Action Items section
+    header used to disappear entirely because the template's outer visibility gate
+    only checked items_by_section (the Drive-file side), not action_subsections
+    (the live-pull side)."""
+    _link_google_and_folder(client)
+    mocker.patch('drive_store.get_brief_day', return_value={
+        'brief_date': '2026-07-21', 'brief_type': 'morning', 'folder_id': 'date-folder',
+    })
+    # No file-side action items at all
+    mocker.patch('drive_store.get_items_for_day', return_value=[])
+    # But the user has an Asana PAT and one live-pulled overdue task
+    mocker.patch('token_store.get_asana_pat', return_value='pat-xyz')
+    mocker.patch('drive_store.get_account_projects', return_value=[
+        {'account_name': 'Bank of America', 'project_gid': '111'},
+    ])
+    mocker.patch('app._fetch_live_action_items', return_value=[
+        {'section': 'action-items', 'item_key': 'action-999', 'item_type': 'checkable',
+         'title': 'Overdue BofA task', 'subtitle': None, 'badge': None, 'links': [],
+         'content': {'due_on': '2026-07-14', 'is_new': False, 'project_name': 'Bank of America'},
+         'checked': False, 'display_order': 0, 'generated_at': None},
+    ])
+
+    resp = client.get('/brief/2026-07-21')
+    assert resp.status_code == 200
+    assert b'Overdue BofA task' in resp.data
+    # The Action Items section header itself must render
+    assert b'data-section="action-items"' in resp.data
