@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: daily-brief-viewer
+  namespace: daily-brief-v2
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Strip the /daily-brief-v2 prefix before it reaches the app — app.py's
+    # routes are defined at root (/login, /healthz, etc.), not under a
+    # prefix. $2 is the part of the path after /daily-brief-v2.
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    # Sets X-Forwarded-Prefix without using configuration-snippet (blocked on
+    # this cluster — snippet annotations are disabled cluster-wide). This is
+    # the supported non-snippet mechanism: a ConfigMap of header name/value
+    # pairs, referenced by namespace/name. See proxy-headers-configmap.yaml.
+    nginx.ingress.kubernetes.io/proxy-set-headers: "daily-brief-v2/daily-brief-proxy-headers"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - dashboard.es-sandbox.com
+      # Separate secret from the dashboard app's dashboard-tls — Secrets are
+      # namespace-scoped, so this namespace needs (and cert-manager will
+      # independently issue) its own certificate for the same hostname.
+      # Two certs for one domain across namespaces is a normal pattern here,
+      # not a conflict.
+      secretName: daily-brief-tls
+  rules:
+    - host: dashboard.es-sandbox.com
+      http:
+        paths:
+          - path: /daily-brief-v2(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: daily-brief-viewer
+                port:
+                  number: 8000
