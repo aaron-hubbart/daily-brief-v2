@@ -45,6 +45,7 @@ from pathlib import Path
 
 import msal
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, send_from_directory, session, url_for
+from markupsafe import Markup, escape
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import db
@@ -58,6 +59,11 @@ APP_DIR = Path(__file__).resolve().parent
 VIEWER_HTML_DIR = Path(os.environ.get('VIEWER_HTML_DIR', str(APP_DIR.parent)))
 
 DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+# Matches standard Jira ticket keys: 2+ uppercase letters, a dash, then one or
+# more digits (e.g. SUPPORT-33741, CAM-12345, OPT-678). Used by the
+# autolink_jira template filter below.
+JIRA_TICKET_RE = re.compile(r'\b([A-Z]{2,}-\d+)\b')
 
 # Fixed section slugs/labels/open-by-default, in the order they render.
 # Matches the daily-brief skill's existing section conventions.
@@ -484,6 +490,24 @@ app.wsgi_app = ForcePrefixMiddleware(
     _app_path_prefix,
 )
 app.teardown_appcontext(db.close_conn)
+
+
+JIRA_BASE_URL = os.environ.get('JIRA_BASE_URL', 'https://jira.camunda.com/browse').rstrip('/')
+
+
+@app.template_filter('autolink_jira')
+def autolink_jira(text):
+    """Jinja2 filter: converts Jira ticket keys (e.g. SUPPORT-33741) in plain
+    text into clickable links pointing at the configured Jira instance. The
+    rest of the text is HTML-escaped first so this is safe to use with |safe
+    in the template."""
+    if not text:
+        return text
+    safe_text = str(escape(text))
+    def _replace(m):
+        key = m.group(1)
+        return f'<a class="lbtn" href="{JIRA_BASE_URL}/{key}" target="_blank">{key}</a>'
+    return Markup(JIRA_TICKET_RE.sub(_replace, safe_text))
 
 
 def _msal_app():
