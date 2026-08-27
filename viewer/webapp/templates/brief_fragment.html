@@ -147,9 +147,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
   {% endmacro %}
 
   {% for section in sections %}
-  {% set section_items = items_by_section.get(section.slug, []) %}
-  {% if section_items or (section.slug == 'action-items' and action_subsections and action_subsections|selectattr('items')|list) %}
-  <details class="sec" data-section="{{ section.slug }}">
+  <details class="sec" data-section="{{ section.slug }}"{% if section.open_default %} open{% endif %}>
     <summary class="sec-summary">
       <span class="sec-label">{{ section.label }}</span>
       <span class="sec-summary-right">
@@ -159,7 +157,15 @@ details.sec>.sec-body{padding:4px 14px 10px;}
         {% endif %}
       </span>
     </summary>
-    <div class="sec-body">
+    <div class="sec-body" id="sec-body-{{ section.slug }}">
+      {% if progressive %}
+      <div class="section-loader" style="display:flex;align-items:center;gap:8px;padding:8px 0;">
+        <span class="loading-spinner"></span>
+        <span class="fyi-txt">Loading&hellip;</span>
+      </div>
+      {% else %}
+      {# Non-progressive fallback (not currently used but kept for safety) #}
+      {% set section_items = items_by_section.get(section.slug, []) %}
       {% if section.slug == 'fyi' %}
         {% for item in section_items %}
         <div class="fyi-item" data-id="{{ item.item_key }}">
@@ -170,125 +176,20 @@ details.sec>.sec-body{padding:4px 14px 10px;}
           </div>
         </div>
         {% endfor %}
-      {% elif section.slug == 'customer-updates' %}
-        {% for item in section_items %}
-        <details class="acct-card" data-id="{{ item.item_key }}">
-          <summary>
-            <span class="acct-card-name">{{ item.title or 'Unnamed account' }}</span>
-            <span class="acct-card-meta">{{ item.content.get('last_posted_label', 'No previous update found') }}</span>
-          </summary>
-          <div class="acct-card-body">
-            <textarea class="update-textarea">{{ item.content.get('textarea', '') }}</textarea>
-            <div class="update-row">
-              <input class="channel-input" type="text" value="{{ item.content.get('channel_id', '') }}" readonly>
-              <a class="post-btn" href="https://slack.com/app_redirect?channel={{ item.content.get('channel_id', '') }}" target="_blank">Post to Slack</a>
-              <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh customer update for ' ~ (item.title or 'Unnamed account') ~ ' date:' ~ brief_date)|urlencode }}" target="_blank">Refresh</a>
-            </div>
-          </div>
-        </details>
-        {% endfor %}
-      {% elif section.slug == 'manager-update' %}
-        {% for item in section_items %}
-        <textarea class="update-textarea">{{ item.content.get('textarea', '') }}</textarea>
-        <div class="update-row">
-          <a class="post-btn" href="{{ item.content.get('post_url', '#') }}" target="_blank">Post to Manager</a>
-          <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh manager update date:' ~ brief_date)|urlencode }}" target="_blank">Refresh</a>
-        </div>
-        {% endfor %}
-      {% elif section.slug == 'action-items' %}
-        {% if not asana_pat_configured %}
-        <div class="asana-hint">Connect Asana in the Account panel to see Overdue, Due Next 7 Days, and No Due Date items here too.</div>
-        {% endif %}
-        <div id="action-items-content">
-        {% for group in action_subsections %}
-        <details class="acct-card" data-subsection="{{ group.slug }}">
-          <summary>
-            <span class="acct-card-name">{{ group.label }}</span>
-            <span class="acct-card-meta">{{ group['items']|length }} item{{ '' if group['items']|length == 1 else 's' }}</span>
-          </summary>
-          <div class="acct-card-body">
-            {% for board in group.boards %}
-            <details class="board-group" open>
-              <summary>{{ board.name }} <span class="acct-card-meta">({{ board['items']|length }})</span></summary>
-              {% for item in board['items'] %}
-              {{ action_item(item, show_board=false) }}
-              {% endfor %}
-            </details>
-            {% endfor %}
-          </div>
-        </details>
-        {% endfor %}
-        {% if asana_pat_configured %}
-        <div id="action-items-loading" class="asana-hint" style="display:flex;align-items:center;gap:8px;">
-          <span class="loading-spinner"></span>
-          Loading live Asana items&hellip;
-        </div>
-        {% endif %}
-        </div>
-      {% elif section.slug == 'account-recap' %}
-        {% for item in section_items %}
-        {% if item.item_type == 'card' %}
-        <details class="acct-card" data-id="{{ item.item_key }}">
-          <summary>
-            <span class="acct-card-name">{{ item.title }}</span>
-            {% if item.content.get('status') %}<span class="acct-card-meta">{{ item.content.get('status')|capitalize }}</span>{% endif %}
-          </summary>
-          <div class="acct-card-body">
-            {% if item.content.get('html_content') %}<div style="line-height:1.5;color:var(--t1);">{{ item.content.get('html_content')|safe }}</div>{% endif %}
-            {% if item.content.get('action_items') %}
-            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-              <div style="font-size:10px;font-weight:700;color:var(--accent-t);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Action Items</div>
-              <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--t2);line-height:1.5;">
-                {% for action in item.content.get('action_items', []) %}
-                <li>{{ action }}</li>
-                {% endfor %}
-              </ul>
-            </div>
-            {% endif %}
-            {% if section.slug == 'account-recap' %}
-            <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh section:' + section.slug + ' account:' + (item.title|replace(' & ', '-')|replace('.', '')|replace(',', '')|replace(' ', '-')|lower) + ' date:' + brief_date)|urlencode }}" target="_blank" style="margin-top:8px;display:inline-block;">Refresh</a>
-            {% endif %}
-          </div>
-        </details>
-        {% else %}
-        <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}">
-          <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
-          <div class="ibody">
-            <div class="ititle">{{ item.title|autolink_jira }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
-            {% if item.subtitle %}<div class="isub">{{ item.subtitle|autolink_jira }}</div>{% endif %}
-            {% if item.links %}
-            <div class="ilinks">
-              {% for link in item.links %}
-              <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url|resolve_link_url }}" target="_blank">{{ link.label }}</a>
-              {% endfor %}
-            </div>
-            {% endif %}
-          </div>
-        </div>
-        {% endif %}
-        {% endfor %}
       {% else %}
         {% for item in section_items %}
         <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}">
           <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
-          {% if item.content.get('time') %}<div class="itime">{{ item.content.get('time') }}</div>{% endif %}
           <div class="ibody">
-            <div class="ititle">{{ item.title|autolink_jira }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
+            <div class="ititle">{{ item.title|autolink_jira }}</div>
             {% if item.subtitle %}<div class="isub">{{ item.subtitle|autolink_jira }}</div>{% endif %}
-            {% if item.links %}
-            <div class="ilinks">
-              {% for link in item.links %}
-              <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url|resolve_link_url }}" target="_blank">{{ link.label }}</a>
-              {% endfor %}
-            </div>
-            {% endif %}
           </div>
         </div>
         {% endfor %}
       {% endif %}
+      {% endif %}
     </div>
   </details>
-  {% endif %}
   {% endfor %}
 
   <div class="footer">
@@ -308,17 +209,56 @@ details.sec>.sec-body{padding:4px 14px 10px;}
   if (expandBtn) expandBtn.addEventListener('click', function () { setAllDetails(true); });
   if (collapseBtn) collapseBtn.addEventListener('click', function () { setAllDetails(false); });
 
-  // Async load live Asana action items after initial render
-  var container = document.getElementById('action-items-content');
-  var loader = document.getElementById('action-items-loading');
-  if (container && loader) {
-    var briefDate = '{{ brief_date }}';
-    fetch('api/brief/' + briefDate + '/live-action-items', {credentials: 'same-origin'})
+  var briefDate = '{{ brief_date }}';
+  var basePath = '../';  // from /brief/<date> up to app root
+
+  {% if progressive %}
+  // Progressive section loading: fire parallel fetches, inject each as it arrives
+  var sectionSlugs = [{% for s in sections %}'{{ s.slug }}'{% if not loop.last %},{% endif %}{% endfor %}];
+  var totalCheckable = 0;
+
+  sectionSlugs.forEach(function (slug) {
+    var body = document.getElementById('sec-body-' + slug);
+    if (!body) return;
+
+    fetch(basePath + 'api/brief/' + briefDate + '/section/' + slug, {credentials: 'same-origin'})
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.html) {
+          body.innerHTML = data.html;
+        } else {
+          body.innerHTML = '<div class="fyi-txt" style="padding:4px 0;">No items.</div>';
+        }
+        // Update count label
+        var sec = body.closest('[data-section]');
+        if (sec) {
+          var countEl = sec.querySelector('.sec-count');
+          if (countEl && data.count !== undefined) {
+            countEl.textContent = data.count + ' items';
+          }
+        }
+        // After action-items section loads, kick off the Asana live pull
+        if (slug === 'action-items') {
+          loadLiveActionItems();
+        }
+      })
+      .catch(function () {
+        body.innerHTML = '<div class="fyi-txt" style="padding:4px 0;">Failed to load section.</div>';
+      });
+  });
+  {% endif %}
+
+  // Async load live Asana action items (called after action-items section renders)
+  function loadLiveActionItems() {
+    var container = document.getElementById('action-items-content');
+    var loader = document.getElementById('action-items-loading');
+    if (!container || !loader) return;
+
+    fetch(basePath + 'api/brief/' + briefDate + '/live-action-items', {credentials: 'same-origin'})
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data.html) {
           container.innerHTML = data.html;
-          // Update the section count label
           var sec = container.closest('[data-section="action-items"]');
           if (sec) {
             var countEl = sec.querySelector('.sec-count');
@@ -329,7 +269,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
         }
       })
       .catch(function () {
-        loader.innerHTML = '<span class="fyi-txt">Could not load live Asana items.</span>';
+        if (loader) loader.innerHTML = '<span class="fyi-txt">Could not load live Asana items.</span>';
       });
   }
 })();

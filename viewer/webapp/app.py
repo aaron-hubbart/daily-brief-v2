@@ -1039,69 +1039,43 @@ def serve_brief(date_str):
 
     t0 = time.monotonic()
 
-    # Get user's Google refresh token and folder ID from database
     google_token = db.get_google_refresh_token(request.brief_user['id'])
     folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
 
     if not google_token:
-        abort(403)  # User hasn't connected Google Drive yet
+        abort(403)
 
-    # Read from Google Drive using user's token and folder ID
-    brief_data = gdrive_briefs.read_brief_manifest(date_str, google_token, folder_id)
-    t_gdrive = time.monotonic()
+    # Only read manifest + folder listing (no section file downloads).
+    # Section content is loaded progressively via /api/brief/<date>/section/<slug>.
+    meta = gdrive_briefs.read_brief_metadata(date_str, google_token, folder_id)
+    t_meta = time.monotonic()
 
-    if not brief_data:
+    if not meta:
         abort(404)
 
-    # Extract items by section from brief_data
-    items_by_section = brief_data.get('sections', {})
-
-    # Action Items: on initial page render, only show items from the brief
-    # JSON (New Items the skill created). The live Asana pull (Overdue, Due
-    # Next 7 Days, No Due Date) is deferred to a separate async endpoint
-    # (/api/brief/<date>/live-action-items) that the client fetches after
-    # the page is visible, so the page isn't blocked on Asana API latency.
-    today_iso = date.today().isoformat()
-    postgres_action_items = items_by_section.get('action-items', [])
     asana_pat = db.get_asana_pat(request.brief_user['id'])
-
-    new_only = [it for it in postgres_action_items if (it.get('content') or {}).get('is_new')]
-    action_subsections = _group_action_items(new_only, today_iso)
-    action_items_displayed = sum(len(g['items']) for g in action_subsections)
-
-    # Count checkable items across all sections
-    checkable_count = 0
-    for section_slug, items in items_by_section.items():
-        for item in items:
-            if item.get('item_type') == 'checkable' and item.get('checked') is not None:
-                checkable_count += 1
+    available = set(meta.get('available_sections', []))
 
     sections = []
     for s in SECTIONS:
-        section_items = items_by_section.get(s['slug'], [])
-        if s['slug'] == 'action-items':
-            count_label = f'{action_items_displayed} items'
-        else:
-            count_label = _count_label(s['slug'], section_items)
-        sections.append({**s, 'count_label': count_label})
+        if s['slug'] in available or s['slug'] == 'action-items':
+            sections.append({**s, 'count_label': 'loading\u2026'})
 
-    t_render = time.monotonic()
-    logger.info(
-        'serve_brief: date=%s gdrive=%.1fs render_prep=%.1fs total=%.1fs',
-        date_str, t_gdrive - t0, t_render - t_gdrive, t_render - t0,
-    )
+    logger.info('serve_brief: date=%s meta=%.1fs sections=%d total=%.1fs',
+                date_str, t_meta - t0, len(sections), time.monotonic() - t0)
 
     return render_template(
         'brief_fragment.html',
         brief_date=date_str,
         brief_date_label=date.fromisoformat(date_str).strftime('%A, %B %-d'),
-        brief_type=brief_data.get('brief_type', 'default'),
-        checkable_count=checkable_count,
+        brief_type=meta.get('brief_type', 'default'),
+        checkable_count=0,
         sections=sections,
-        items_by_section=items_by_section,
-        action_subsections=action_subsections,
+        items_by_section={},
+        action_subsections=[],
         asana_pat_configured=bool(asana_pat),
-        today_iso=today_iso,
+        today_iso=date.today().isoformat(),
+        progressive=True,
     )
 
 
@@ -1163,6 +1137,64 @@ def api_live_action_items(date_str):
         date_str, t_gdrive - t0, t_asana - t_gdrive, t_render - t_asana, t_render - t0, total_count,
     )
     return jsonify({'html': html, 'count': total_count})
+
+
+@app.route('/api/brief/<date_str>/section/<slug>')
+@login_required
+def api_section(date_str, slug):
+    """Returns pre-rendered HTML for a single brief section. Called by the
+    client-side progressive loader which fires parallel fetches for each
+    section, so sections appear on the page as their individual Drive
+    downloads complete rather than waiting for all of them."""
+    if not DATE_RE.match(date_str):
+        abort(400)
+    valid_slugs = {s['slug'] for s in SECTIONS}
+    if slug not in valid_slugs:
+        abort(404)
+
+    t0 = time.monotonic()
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'html': '', 'count': 0})
+
+    items = gdrive_briefs.read_section(date_str, slug, google_token, folder_id) or []
+    t_read = time.monotonic()
+
+    today_iso = date.today().isoformat()
+
+    # Action Items gets special handling — the brief-file items render
+    # immediately; the live Asana pull is a separate async call.
+    if slug == 'action-items':
+        asana_pat = db.get_asana_pat(request.brief_user['id'])
+        new_only = [it for it in items if (it.get('content') or {}).get('is_new')]
+        action_subsections = _group_action_items(new_only, today_iso)
+        html = render_template(
+            'section_fragment.html',
+            section_slug=slug,
+            section_items=items,
+            action_subsections=action_subsections,
+            asana_pat_configured=bool(asana_pat),
+            brief_date=date_str,
+            today_iso=today_iso,
+        )
+        count = sum(len(g['items']) for g in action_subsections)
+    else:
+        html = render_template(
+            'section_fragment.html',
+            section_slug=slug,
+            section_items=items,
+            action_subsections=[],
+            asana_pat_configured=False,
+            brief_date=date_str,
+            today_iso=today_iso,
+        )
+        count = len(items)
+
+    elapsed = time.monotonic() - t0
+    logger.info('api_section: date=%s slug=%s read=%.1fs total=%.1fs items=%d',
+                date_str, slug, t_read - t0, elapsed, count)
+    return jsonify({'html': html, 'count': count})
 
 
 @app.route('/api/items/<section>/<item_key>/checked', methods=['PATCH'])
