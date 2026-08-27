@@ -204,22 +204,14 @@ details.sec>.sec-body{padding:4px 14px 10px;}
             <span class="acct-card-meta">{{ group['items']|length }} item{{ '' if group['items']|length == 1 else 's' }}</span>
           </summary>
           <div class="acct-card-body">
-            {% if group.slug == 'no-due-date' %}
-              {% for board in group.boards %}
-              <details class="board-group">
-                <summary>{{ board.name }} <span class="acct-card-meta">({{ board['items']|length }})</span></summary>
-                {% for item in board['items'] %}
-                {{ action_item(item, show_board=false) }}
-                {% endfor %}
-              </details>
+            {% for board in group.boards %}
+            <details class="board-group" open>
+              <summary>{{ board.name }} <span class="acct-card-meta">({{ board['items']|length }})</span></summary>
+              {% for item in board['items'] %}
+              {{ action_item(item, show_board=false) }}
               {% endfor %}
-            {% else %}
-              {% for item in group['items'] %}
-              {{ action_item(item) }}
-              {% else %}
-              <div class="fyi-txt">Nothing here.</div>
-              {% endfor %}
-            {% endif %}
+            </details>
+            {% endfor %}
           </div>
         </details>
         {% endfor %}

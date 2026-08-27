@@ -336,18 +336,15 @@ def _group_action_items(items, today_iso: str):
         if buckets[s['slug']]
     ]
 
-    # No Due Date is further split by board (Asana project name) so a
-    # long backlog doesn't read as one undifferentiated pile — a person
-    # scanning for "what's sitting in the Wells Fargo board" shouldn't
-    # have to read every title to find it. "My Tasks" (content.project_name
-    # is null — no configured project GID for that account, or a
-    # non-Asana action item) sorts last since it's the catch-all, not a
-    # named board a person is likely scanning for specifically. Item order
-    # within each board is preserved from the incoming list (display_order
-    # for New-Item-shaped rows, upstream ordering for live-pulled ones).
+    # Every subsection is further split by board (Asana project name) so
+    # items are visually grouped by account rather than rendering as one
+    # undifferentiated list. "My Tasks" (content.project_name is null,
+    # meaning no configured project GID for that account, or a non-Asana
+    # action item) sorts last since it's the catch-all. Item order within
+    # each board is preserved from the incoming list (display_order for
+    # New-Item-shaped rows, due_on sort for date-bucketed rows, upstream
+    # ordering for live-pulled ones).
     for group in groups:
-        if group['slug'] != 'no-due-date':
-            continue
         boards = {}
         for item in group['items']:
             board_name = (item.get('content') or {}).get('project_name') or 'My Tasks'
