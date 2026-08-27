@@ -122,9 +122,9 @@ details.sec>.sec-body{padding:4px 14px 10px;}
   <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}" data-section="action-items">
     <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
     <div class="ibody">
-      <div class="ititle">{{ item.title }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
+      <div class="ititle">{{ item.title|autolink_jira }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
       {% if show_board %}<div class="iboard">{{ item.content.get('project_name') or 'My Tasks' }}</div>{% endif %}
-      {% if item.subtitle %}<div class="isub">{{ item.subtitle }}</div>{% endif %}
+      {% if item.subtitle %}<div class="isub">{{ item.subtitle|autolink_jira }}</div>{% endif %}
       {% if item.links %}
       <div class="ilinks">
         {% for link in item.links %}
@@ -163,8 +163,8 @@ details.sec>.sec-body{padding:4px 14px 10px;}
         <div class="fyi-item" data-id="{{ item.item_key }}">
           <div class="fyi-dot"></div>
           <div>
-            <div class="fyi-lbl">{{ item.title }}</div>
-            <div class="fyi-txt">{{ item.subtitle }}</div>
+            <div class="fyi-lbl">{{ item.title|autolink_jira }}</div>
+            <div class="fyi-txt">{{ item.subtitle|autolink_jira }}</div>
           </div>
         </div>
         {% endfor %}
@@ -244,8 +244,8 @@ details.sec>.sec-body{padding:4px 14px 10px;}
         <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}">
           <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
           <div class="ibody">
-            <div class="ititle">{{ item.title }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
-            {% if item.subtitle %}<div class="isub">{{ item.subtitle }}</div>{% endif %}
+            <div class="ititle">{{ item.title|autolink_jira }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
+            {% if item.subtitle %}<div class="isub">{{ item.subtitle|autolink_jira }}</div>{% endif %}
             {% if item.links %}
             <div class="ilinks">
               {% for link in item.links %}
@@ -263,8 +263,8 @@ details.sec>.sec-body{padding:4px 14px 10px;}
           <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
           {% if item.content.get('time') %}<div class="itime">{{ item.content.get('time') }}</div>{% endif %}
           <div class="ibody">
-            <div class="ititle">{{ item.title }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
-            {% if item.subtitle %}<div class="isub">{{ item.subtitle }}</div>{% endif %}
+            <div class="ititle">{{ item.title|autolink_jira }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
+            {% if item.subtitle %}<div class="isub">{{ item.subtitle|autolink_jira }}</div>{% endif %}
             {% if item.links %}
             <div class="ilinks">
               {% for link in item.links %}
