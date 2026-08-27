@@ -128,7 +128,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
       {% if item.links %}
       <div class="ilinks">
         {% for link in item.links %}
-        <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url }}" target="_blank">{{ link.label }}</a>
+        <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url|resolve_link_url }}" target="_blank">{{ link.label }}</a>
         {% endfor %}
       </div>
       {% endif %}
@@ -249,7 +249,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
             {% if item.links %}
             <div class="ilinks">
               {% for link in item.links %}
-              <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url }}" target="_blank">{{ link.label }}</a>
+              <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url|resolve_link_url }}" target="_blank">{{ link.label }}</a>
               {% endfor %}
             </div>
             {% endif %}
@@ -268,7 +268,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
             {% if item.links %}
             <div class="ilinks">
               {% for link in item.links %}
-              <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url }}" target="_blank">{{ link.label }}</a>
+              <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url|resolve_link_url }}" target="_blank">{{ link.label }}</a>
               {% endfor %}
             </div>
             {% endif %}
