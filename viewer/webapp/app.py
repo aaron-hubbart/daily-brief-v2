@@ -510,6 +510,22 @@ def autolink_jira(text):
     return Markup(JIRA_TICKET_RE.sub(_replace, safe_text))
 
 
+@app.template_filter('resolve_link_url')
+def resolve_link_url(url):
+    """Jinja2 filter for link href values: if the URL is a bare Jira ticket
+    key (e.g. 'SUPPORT-33741') rather than a full URL, prefix it with the
+    Jira browse base so it doesn't resolve as a relative path against the
+    current page. Full URLs (http://, https://, claude://) pass through
+    unchanged."""
+    if not url:
+        return url
+    if url.startswith(('http://', 'https://', 'claude://', '//', '/')):
+        return url
+    if JIRA_TICKET_RE.fullmatch(url):
+        return f'{JIRA_BASE_URL}/{url}'
+    return url
+
+
 def _msal_app():
     return msal.ConfidentialClientApplication(
         AZURE_CLIENT_ID,
