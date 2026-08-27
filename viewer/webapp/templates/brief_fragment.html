@@ -97,6 +97,8 @@ details.sec>.sec-body{padding:4px 14px 10px;}
 .toolbar{display:flex;gap:8px;margin-bottom:14px;}
 .toolbtn{font-size:11px;font-weight:500;padding:4px 10px;background:var(--surface);color:var(--t2);border:1px solid var(--border-strong);border-radius:var(--r);cursor:pointer;font-family:var(--font);}
 .toolbtn:hover{background:var(--accent-bg);color:var(--accent-t);border-color:var(--accent);}
+.loading-spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border-strong);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
 </style>
 </head>
 <body>
@@ -197,6 +199,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
         {% if not asana_pat_configured %}
         <div class="asana-hint">Connect Asana in the Account panel to see Overdue, Due Next 7 Days, and No Due Date items here too.</div>
         {% endif %}
+        <div id="action-items-content">
         {% for group in action_subsections %}
         <details class="acct-card" data-subsection="{{ group.slug }}">
           <summary>
@@ -215,6 +218,13 @@ details.sec>.sec-body{padding:4px 14px 10px;}
           </div>
         </details>
         {% endfor %}
+        {% if asana_pat_configured %}
+        <div id="action-items-loading" class="asana-hint" style="display:flex;align-items:center;gap:8px;">
+          <span class="loading-spinner"></span>
+          Loading live Asana items&hellip;
+        </div>
+        {% endif %}
+        </div>
       {% elif section.slug == 'account-recap' %}
         {% for item in section_items %}
         {% if item.item_type == 'card' %}
@@ -297,6 +307,31 @@ details.sec>.sec-body{padding:4px 14px 10px;}
   var collapseBtn = document.getElementById('collapse-all-btn');
   if (expandBtn) expandBtn.addEventListener('click', function () { setAllDetails(true); });
   if (collapseBtn) collapseBtn.addEventListener('click', function () { setAllDetails(false); });
+
+  // Async load live Asana action items after initial render
+  var container = document.getElementById('action-items-content');
+  var loader = document.getElementById('action-items-loading');
+  if (container && loader) {
+    var briefDate = '{{ brief_date }}';
+    fetch('api/brief/' + briefDate + '/live-action-items', {credentials: 'same-origin'})
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.html) {
+          container.innerHTML = data.html;
+          // Update the section count label
+          var sec = container.closest('[data-section="action-items"]');
+          if (sec) {
+            var countEl = sec.querySelector('.sec-count');
+            if (countEl) countEl.textContent = data.count + ' items';
+          }
+        } else {
+          loader.style.display = 'none';
+        }
+      })
+      .catch(function () {
+        loader.innerHTML = '<span class="fyi-txt">Could not load live Asana items.</span>';
+      });
+  }
 })();
 </script>
 </body>

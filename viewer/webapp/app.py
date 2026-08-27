@@ -36,6 +36,7 @@ import logging
 import os
 import re
 import secrets
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -1035,78 +1036,37 @@ def api_briefs():
 def serve_brief(date_str):
     if not DATE_RE.match(date_str):
         abort(400)
-    
+
+    t0 = time.monotonic()
+
     # Get user's Google refresh token and folder ID from database
     google_token = db.get_google_refresh_token(request.brief_user['id'])
     folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
-    
+
     if not google_token:
         abort(403)  # User hasn't connected Google Drive yet
-    
+
     # Read from Google Drive using user's token and folder ID
     brief_data = gdrive_briefs.read_brief_manifest(date_str, google_token, folder_id)
-    
+    t_gdrive = time.monotonic()
+
     if not brief_data:
         abort(404)
-    
+
     # Extract items by section from brief_data
     items_by_section = brief_data.get('sections', {})
 
-    # Action Items renders as four fixed subsections (New Items, Overdue,
-    # Due Next 7 Days, No Due Date) rather than one flat list. New Items is
-    # the only one tracked in Postgres (the skill only upserts action-items
-    # rows where content.is_new is true — see references/item-sync.md). The
-    # other three are pulled live from Asana on every page render if the
-    # signed-in user has an asana_pat configured; if not, they're omitted
-    # entirely and only whatever's in Postgres (New Items, plus any stale
-    # pre-migration rows from before the skill stopped syncing the rest)
-    # renders. "Today" here means the server's own local date; brief_date
-    # is the brief's date, which isn't necessarily the same day the person
-    # is viewing it on an evening/late run, so we deliberately use
-    # wall-clock today for the overdue/due-soon cutoffs rather than
-    # brief_date.
+    # Action Items: on initial page render, only show items from the brief
+    # JSON (New Items the skill created). The live Asana pull (Overdue, Due
+    # Next 7 Days, No Due Date) is deferred to a separate async endpoint
+    # (/api/brief/<date>/live-action-items) that the client fetches after
+    # the page is visible, so the page isn't blocked on Asana API latency.
     today_iso = date.today().isoformat()
     postgres_action_items = items_by_section.get('action-items', [])
     asana_pat = db.get_asana_pat(request.brief_user['id'])
 
-    if asana_pat:
-        account_projects = db.get_account_projects(request.brief_user['id'])
-        exclude_gids = {
-            it['item_key'][len(ASANA_ACTION_ITEM_PREFIX):]
-            for it in postgres_action_items
-            if it['item_key'].startswith(ASANA_ACTION_ITEM_PREFIX)
-        }
-        if not account_projects:
-            logger.warning(
-                'live action items: user=%s has an asana_pat configured but zero rows in '
-                'account_projects — the skill\'s daily_brief_sync_account_projects call may '
-                'never have run for this user, or ran against a different user_id',
-                request.brief_user['email'],
-            )
-        live_items = _fetch_live_action_items(asana_pat, account_projects, exclude_gids)
-        logger.info(
-            'live action items: user=%s account_projects=%d live_items=%d',
-            request.brief_user['email'], len(account_projects), len(live_items),
-        )
-        action_subsections = _group_action_items(postgres_action_items + live_items, today_iso)
-    else:
-        logger.info(
-            'live action items: user=%s has no asana_pat configured, skipping live pull',
-            request.brief_user['email'],
-        )
-        # No Asana connection for this user — only ever show items this
-        # brief run itself created and synced to Postgres, never any
-        # stale non-new rows a pre-migration skill run may have left
-        # behind (those would otherwise show up here as an inconsistent,
-        # un-refreshable "Overdue"/"Due Soon" section with no live source).
-        new_only = [it for it in postgres_action_items if (it.get('content') or {}).get('is_new')]
-        action_subsections = _group_action_items(new_only, today_iso)
-
-    # Count actually displayed, not raw Postgres row counts, for Action
-    # Items — the two now diverge on purpose (stale non-new rows get
-    # filtered out with no asana_pat; live-pulled items get added in with
-    # one). Every other section still has count == what's in Postgres, so
-    # only Action Items needs the override.
+    new_only = [it for it in postgres_action_items if (it.get('content') or {}).get('is_new')]
+    action_subsections = _group_action_items(new_only, today_iso)
     action_items_displayed = sum(len(g['items']) for g in action_subsections)
 
     # Count checkable items across all sections
@@ -1125,6 +1085,12 @@ def serve_brief(date_str):
             count_label = _count_label(s['slug'], section_items)
         sections.append({**s, 'count_label': count_label})
 
+    t_render = time.monotonic()
+    logger.info(
+        'serve_brief: date=%s gdrive=%.1fs render_prep=%.1fs total=%.1fs',
+        date_str, t_gdrive - t0, t_render - t_gdrive, t_render - t0,
+    )
+
     return render_template(
         'brief_fragment.html',
         brief_date=date_str,
@@ -1137,6 +1103,66 @@ def serve_brief(date_str):
         asana_pat_configured=bool(asana_pat),
         today_iso=today_iso,
     )
+
+
+@app.route('/api/brief/<date_str>/live-action-items')
+@login_required
+def api_live_action_items(date_str):
+    """Async endpoint called by the client after the brief page renders.
+    Does the Asana live pull, groups the results, and returns rendered HTML
+    for the action items subsections. This keeps the initial page load fast
+    by deferring the slowest part (multiple Asana API calls) to a background
+    fetch the browser makes once the rest of the brief is already visible."""
+    if not DATE_RE.match(date_str):
+        abort(400)
+
+    t0 = time.monotonic()
+    asana_pat = db.get_asana_pat(request.brief_user['id'])
+    if not asana_pat:
+        return jsonify({'html': '', 'count': 0})
+
+    today_iso = date.today().isoformat()
+
+    # Read the brief's own action-items to get exclude list (New Items
+    # already shown on initial render — don't duplicate them).
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    postgres_action_items = []
+    if google_token:
+        brief_data = gdrive_briefs.read_brief_manifest(date_str, google_token, folder_id)
+        if brief_data:
+            postgres_action_items = brief_data.get('sections', {}).get('action-items', [])
+    t_gdrive = time.monotonic()
+
+    account_projects = db.get_account_projects(request.brief_user['id'])
+    exclude_gids = {
+        it['item_key'][len(ASANA_ACTION_ITEM_PREFIX):]
+        for it in postgres_action_items
+        if it['item_key'].startswith(ASANA_ACTION_ITEM_PREFIX)
+    }
+    live_items = _fetch_live_action_items(asana_pat, account_projects, exclude_gids)
+    t_asana = time.monotonic()
+
+    all_items = postgres_action_items + live_items
+    action_subsections = _group_action_items(all_items, today_iso)
+    total_count = sum(len(g['items']) for g in action_subsections)
+
+    # Render the action items subsections as an HTML fragment using the
+    # same template partial the main page uses.
+    html = render_template(
+        'action_items_fragment.html',
+        action_subsections=action_subsections,
+        asana_pat_configured=True,
+        brief_date=date_str,
+        today_iso=today_iso,
+    )
+    t_render = time.monotonic()
+
+    logger.info(
+        'api_live_action_items: date=%s gdrive=%.1fs asana=%.1fs render=%.1fs total=%.1fs items=%d',
+        date_str, t_gdrive - t0, t_asana - t_gdrive, t_render - t_asana, t_render - t0, total_count,
+    )
+    return jsonify({'html': html, 'count': total_count})
 
 
 @app.route('/api/items/<section>/<item_key>/checked', methods=['PATCH'])
