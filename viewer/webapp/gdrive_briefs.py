@@ -28,7 +28,6 @@ import logging
 import os
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional, Dict, List, Tuple
 
 try:
@@ -174,34 +173,28 @@ def _download_json(drive, file_id: str):
     return json.loads(content)
 
 
-def _read_subfolder_files_parallel(drive, subfolder_id: str) -> List[Dict]:
-    """Read all JSON files from a subfolder in parallel."""
+def _read_subfolder_files(drive, subfolder_id: str) -> List[Dict]:
+    """Read all JSON files from a subfolder (accounts/ or updates/).
+    Downloads are sequential because the googleapiclient Drive service
+    object is not thread-safe. Outer parallelism comes from the browser
+    firing concurrent section fetches, so this is fine."""
     query = f"parents='{subfolder_id}' and trashed=false"
     results = drive.files().list(
         q=query, spaces='drive', pageSize=50,
         fields='files(id,name)',
     ).execute()
 
-    json_files = [f for f in results.get('files', []) if f['name'].endswith('.json')]
-    if not json_files:
-        return []
-
     items = []
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        futures = {
-            pool.submit(_download_json, drive, f['id']): f['name']
-            for f in json_files
-        }
-        for future in as_completed(futures):
-            name = futures[future]
+    for f in results.get('files', []):
+        if f['name'].endswith('.json'):
             try:
-                data = future.result()
+                data = _download_json(drive, f['id'])
                 if isinstance(data, list):
                     items.extend(data)
                 elif isinstance(data, dict):
                     items.append(data)
             except Exception as e:
-                logger.warning(f'Failed to read {name} from subfolder: {e}')
+                logger.warning(f'Failed to read {f["name"]} from subfolder: {e}')
     return items
 
 
@@ -290,9 +283,9 @@ def read_section(brief_date: str, section_slug: str, refresh_token: str,
 
         # Subfolder sections
         if section_slug == 'account-recap' and 'accounts' in subfolder_map:
-            return _read_subfolder_files_parallel(drive, subfolder_map['accounts'])
+            return _read_subfolder_files(drive, subfolder_map['accounts'])
         if section_slug == 'customer-updates' and 'updates' in subfolder_map:
-            return _read_subfolder_files_parallel(drive, subfolder_map['updates'])
+            return _read_subfolder_files(drive, subfolder_map['updates'])
 
         return []
 
@@ -331,23 +324,13 @@ def read_brief_manifest(brief_date: str, refresh_token: str, folder_id: Optional
             except Exception as e:
                 logger.warning(f'Failed to read manifest.json: {e}')
 
-        # Download all section files in parallel
-        download_tasks = {}
-        with ThreadPoolExecutor(max_workers=8) as pool:
-            for filename, section_slug in _FILE_TO_SECTION.items():
-                if filename in file_map:
-                    download_tasks[pool.submit(_download_json, drive, file_map[filename])] = (filename, section_slug)
-
-            # Also submit subfolder reads
-            if 'accounts' in subfolder_map:
-                download_tasks[pool.submit(_read_subfolder_files_parallel, drive, subfolder_map['accounts'])] = ('accounts/', 'account-recap')
-            if 'updates' in subfolder_map:
-                download_tasks[pool.submit(_read_subfolder_files_parallel, drive, subfolder_map['updates'])] = ('updates/', 'customer-updates')
-
-            for future in as_completed(download_tasks):
-                filename, section_slug = download_tasks[future]
+        # Download section files sequentially (Drive service is not thread-safe).
+        # This function is no longer the primary path anyway — progressive loading
+        # uses read_section per-section. This remains as a fallback.
+        for filename, section_slug in _FILE_TO_SECTION.items():
+            if filename in file_map:
                 try:
-                    data = future.result()
+                    data = _download_json(drive, file_map[filename])
                     if isinstance(data, list):
                         brief_data['sections'][section_slug] = data
                     elif isinstance(data, dict):
@@ -355,6 +338,24 @@ def read_brief_manifest(brief_date: str, refresh_token: str, folder_id: Optional
                     logger.info(f'read_brief_manifest: {filename} -> {section_slug}: {len(brief_data["sections"].get(section_slug, []))} items')
                 except Exception as e:
                     logger.warning(f'Failed to read {filename}: {e}')
+
+        if 'accounts' in subfolder_map:
+            try:
+                items = _read_subfolder_files(drive, subfolder_map['accounts'])
+                if items:
+                    brief_data['sections']['account-recap'] = items
+                    logger.info(f'read_brief_manifest: accounts/ -> account-recap: {len(items)} items')
+            except Exception as e:
+                logger.warning(f'Failed to read accounts/: {e}')
+
+        if 'updates' in subfolder_map:
+            try:
+                items = _read_subfolder_files(drive, subfolder_map['updates'])
+                if items:
+                    brief_data['sections']['customer-updates'] = items
+                    logger.info(f'read_brief_manifest: updates/ -> customer-updates: {len(items)} items')
+            except Exception as e:
+                logger.warning(f'Failed to read updates/: {e}')
 
         total_items = sum(len(v) for v in brief_data['sections'].values())
         logger.info(f'read_brief_manifest: Assembled brief for {brief_date} with {len(brief_data["sections"])} sections, {total_items} total items')
