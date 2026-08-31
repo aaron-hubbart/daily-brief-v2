@@ -366,6 +366,77 @@ def read_brief_manifest(brief_date: str, refresh_token: str, folder_id: Optional
         return None
 
 
+def get_account_projects(refresh_token: str, folder_id: Optional[str] = None) -> List[Dict]:
+    """Read account-config.json from the /config subfolder in Drive and return
+    a flat list of {'account_name': ..., 'project_gid': ...} dicts suitable for
+    the live Asana pull.  Includes every entry from accounts[] that has a
+    project_gid, plus the top-level internal_project_gid (labelled 'Internal').
+
+    Results are cached for 5 minutes (same TTL as folder lookups) since the
+    config changes rarely — at most when the skill syncs new accounts."""
+    parent_folder = folder_id or BRIEFS_FOLDER_ID
+    if not parent_folder or not refresh_token:
+        return []
+
+    # Cache key based on parent folder so multi-user deployments stay isolated.
+    cache_key = f'account-config:{parent_folder}'
+    now = time.monotonic()
+    with _cache_lock:
+        cached = _folder_cache.get(cache_key)
+        if cached and cached[1] > now:
+            return cached[0]
+
+    try:
+        drive = _get_drive_service(refresh_token)
+        if not drive:
+            return []
+
+        config_folder_id = _find_folder_cached(drive, parent_folder, 'config')
+        if not config_folder_id:
+            logger.warning('get_account_projects: no /config folder found')
+            return []
+
+        # Find account-config.json inside /config
+        query = (
+            f"parents='{config_folder_id}' "
+            f"and name='account-config.json' "
+            f"and trashed=false"
+        )
+        results = drive.files().list(
+            q=query, spaces='drive', pageSize=1, fields='files(id)',
+        ).execute()
+        files = results.get('files', [])
+        if not files:
+            logger.warning('get_account_projects: account-config.json not found in /config')
+            return []
+
+        config = _download_json(drive, files[0]['id'])
+
+        projects: List[Dict] = []
+
+        # Top-level internal_project_gid
+        internal_gid = config.get('internal_project_gid')
+        if internal_gid:
+            projects.append({'account_name': 'Internal', 'project_gid': str(internal_gid)})
+
+        # Per-account project GIDs
+        for acct in config.get('accounts', []):
+            gid = acct.get('project_gid')
+            name = acct.get('name') or acct.get('account_name', 'Unknown')
+            if gid:
+                projects.append({'account_name': name, 'project_gid': str(gid)})
+
+        logger.info('get_account_projects: loaded %d projects from Drive config', len(projects))
+
+        with _cache_lock:
+            _folder_cache[cache_key] = (projects, now + _FOLDER_TTL)
+        return projects
+
+    except Exception as e:
+        logger.error('get_account_projects: %s', e, exc_info=True)
+        return []
+
+
 def list_available_briefs(refresh_token: str, folder_id: Optional[str] = None) -> List[str]:
     """List all available brief dates from Google Drive in descending order."""
     parent_folder = folder_id or BRIEFS_FOLDER_ID

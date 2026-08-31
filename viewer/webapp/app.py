@@ -1106,7 +1106,11 @@ def api_live_action_items(date_str):
         ) or []
     t_gdrive = time.monotonic()
 
-    account_projects = db.get_account_projects(request.brief_user['id'])
+    account_projects = (
+        gdrive_briefs.get_account_projects(google_token, folder_id)
+        if google_token
+        else db.get_account_projects(request.brief_user['id'])
+    )
     exclude_gids = {
         it['item_key'][len(ASANA_ACTION_ITEM_PREFIX):]
         for it in brief_action_items
