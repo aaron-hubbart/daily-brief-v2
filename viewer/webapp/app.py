@@ -1082,11 +1082,9 @@ def serve_brief(date_str):
 @app.route('/api/brief/<date_str>/live-action-items')
 @login_required
 def api_live_action_items(date_str):
-    """Async endpoint called by the client after the brief page renders.
-    Does the Asana live pull, groups the results, and returns rendered HTML
-    for the action items subsections. This keeps the initial page load fast
-    by deferring the slowest part (multiple Asana API calls) to a background
-    fetch the browser makes once the rest of the brief is already visible."""
+    """Async endpoint called by the client after the action-items section
+    renders. Does the Asana live pull, groups the results with the brief-file
+    items, and returns rendered HTML for all action item subsections."""
     if not DATE_RE.match(date_str):
         abort(400)
 
@@ -1097,32 +1095,30 @@ def api_live_action_items(date_str):
 
     today_iso = date.today().isoformat()
 
-    # Read the brief's own action-items to get exclude list (New Items
-    # already shown on initial render — don't duplicate them).
+    # Read just the action-items section (not the entire brief) to build
+    # the exclude list so New Items aren't duplicated in the live pull.
     google_token = db.get_google_refresh_token(request.brief_user['id'])
     folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
-    postgres_action_items = []
+    brief_action_items = []
     if google_token:
-        brief_data = gdrive_briefs.read_brief_manifest(date_str, google_token, folder_id)
-        if brief_data:
-            postgres_action_items = brief_data.get('sections', {}).get('action-items', [])
+        brief_action_items = gdrive_briefs.read_section(
+            date_str, 'action-items', google_token, folder_id,
+        ) or []
     t_gdrive = time.monotonic()
 
     account_projects = db.get_account_projects(request.brief_user['id'])
     exclude_gids = {
         it['item_key'][len(ASANA_ACTION_ITEM_PREFIX):]
-        for it in postgres_action_items
+        for it in brief_action_items
         if it['item_key'].startswith(ASANA_ACTION_ITEM_PREFIX)
     }
     live_items = _fetch_live_action_items(asana_pat, account_projects, exclude_gids)
     t_asana = time.monotonic()
 
-    all_items = postgres_action_items + live_items
+    all_items = brief_action_items + live_items
     action_subsections = _group_action_items(all_items, today_iso)
     total_count = sum(len(g['items']) for g in action_subsections)
 
-    # Render the action items subsections as an HTML fragment using the
-    # same template partial the main page uses.
     html = render_template(
         'action_items_fragment.html',
         action_subsections=action_subsections,
