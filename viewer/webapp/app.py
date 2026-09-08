@@ -963,6 +963,45 @@ def api_asana_pat_clear():
     return jsonify({'status': 'ok'})
 
 
+
+# ── Customer list management ─────────────────────────────────────────
+
+@app.route('/customers')
+@login_required
+def customers_page():
+    return render_template('customers.html', user_email=request.brief_user['email'])
+
+
+@app.route('/api/customers/config')
+@login_required
+def api_customers_config():
+    """Return the raw account-config.json for the management UI."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    config = gdrive_briefs.read_account_config(google_token, folder_id)
+    if config is None:
+        return jsonify({'error': 'Could not read account-config.json'}), 500
+    return jsonify(config)
+
+
+@app.route('/api/customers/config', methods=['PUT'])
+@login_required
+def api_customers_config_update():
+    """Write updated account-config.json back to Drive."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    data = request.get_json(silent=True)
+    if not data or 'accounts' not in data:
+        return jsonify({'error': 'Invalid payload — must include accounts array'}), 400
+    ok = gdrive_briefs.write_account_config(data, google_token, folder_id)
+    if not ok:
+        return jsonify({'error': 'Failed to write account-config.json'}), 500
+    return jsonify({'ok': True})
+
 @app.route('/admin')
 @login_required
 @admin_required
@@ -1159,6 +1198,8 @@ def api_section(date_str, slug):
         return jsonify({'html': '', 'count': 0})
 
     items = gdrive_briefs.read_section(date_str, slug, google_token, folder_id) or []
+    if slug == 'customer-updates':
+        items.sort(key=lambda x: (x.get('title') or '').lower())
     t_read = time.monotonic()
 
     today_iso = date.today().isoformat()

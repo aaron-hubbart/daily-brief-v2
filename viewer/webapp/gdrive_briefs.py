@@ -477,3 +477,93 @@ def list_available_briefs(refresh_token: str, folder_id: Optional[str] = None) -
     except Exception as e:
         logger.error(f'list_available_briefs: Error listing briefs: {e}', exc_info=True)
         return []
+
+
+def read_account_config(refresh_token: str, folder_id: Optional[str] = None) -> Optional[Dict]:
+    """Read the raw account-config.json from Drive's /config subfolder.
+    Returns the parsed JSON dict (with 'accounts' array and
+    'internal_project_gid'), or None on failure."""
+    parent_folder = folder_id or BRIEFS_FOLDER_ID
+    if not parent_folder or not refresh_token:
+        return None
+
+    try:
+        drive = _get_drive_service(refresh_token)
+        if not drive:
+            return None
+
+        config_folder_id = _find_folder_cached(drive, parent_folder, 'config')
+        if not config_folder_id:
+            logger.warning('read_account_config: no /config folder found')
+            return None
+
+        query = (
+            f"parents='{config_folder_id}' "
+            f"and name='account-config.json' "
+            f"and trashed=false"
+        )
+        results = drive.files().list(
+            q=query, spaces='drive', pageSize=1, fields='files(id)',
+        ).execute()
+        files = results.get('files', [])
+        if not files:
+            logger.warning('read_account_config: account-config.json not found')
+            return None
+
+        return _download_json(drive, files[0]['id'])
+
+    except Exception as e:
+        logger.error('read_account_config: %s', e, exc_info=True)
+        return None
+
+
+def write_account_config(config_data: Dict, refresh_token: str,
+                         folder_id: Optional[str] = None) -> bool:
+    """Write account-config.json back to Drive (in-place update).
+    Returns True on success, False on failure."""
+    parent_folder = folder_id or BRIEFS_FOLDER_ID
+    if not parent_folder or not refresh_token:
+        return False
+
+    try:
+        from io import BytesIO
+        from googleapiclient.http import MediaIoBaseUpload
+
+        drive = _get_drive_service(refresh_token)
+        if not drive:
+            return False
+
+        config_folder_id = _find_folder_cached(drive, parent_folder, 'config')
+        if not config_folder_id:
+            logger.warning('write_account_config: no /config folder found')
+            return False
+
+        query = (
+            f"parents='{config_folder_id}' "
+            f"and name='account-config.json' "
+            f"and trashed=false"
+        )
+        results = drive.files().list(
+            q=query, spaces='drive', pageSize=1, fields='files(id)',
+        ).execute()
+        files = results.get('files', [])
+        if not files:
+            logger.warning('write_account_config: account-config.json not found')
+            return False
+
+        file_id = files[0]['id']
+        payload = json.dumps(config_data, indent=2).encode('utf-8')
+        media = MediaIoBaseUpload(BytesIO(payload), mimetype='application/json', resumable=False)
+        drive.files().update(fileId=file_id, media_body=media).execute()
+
+        # Invalidate the account-projects cache so next read picks up changes
+        cache_key = f'account-config:{parent_folder}'
+        with _cache_lock:
+            _folder_cache.pop(cache_key, None)
+
+        logger.info('write_account_config: updated account-config.json (file_id=%s)', file_id)
+        return True
+
+    except Exception as e:
+        logger.error('write_account_config: %s', e, exc_info=True)
+        return False
