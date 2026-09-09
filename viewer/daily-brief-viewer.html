@@ -153,6 +153,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 #brief-content .fyi-lbl{color:var(--t1);}
 #brief-content .fyi-txt{color:var(--t2);}
 #brief-content .isub{color:var(--t2);}
+/* ── Checked-item strikethrough (viewer-owned, loads before fragment CSS) ── */
+.item.done{opacity:.35;}
+.item.done .ititle,.item.done .isub,.item.done .iboard{text-decoration:line-through;}
 .brief-content{display:none;}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:.5rem;color:var(--t3);font-size:13px;padding:2rem;text-align:center;}
 .empty-state svg{opacity:.25;margin-bottom:.5rem;}
@@ -169,6 +172,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
     <span class="brief-count" id="brief-count"></span>
   </div>
   <button class="icon-btn" id="google-connect-btn" onclick="connectGoogleDrive()" style="display:none;" title="Connect Google Drive to view briefs">Connect Google Drive</button>
+  <button class="icon-btn" id="customers-btn" onclick="window.location.href='customers'" title="Manage customer list">Customers</button>
   <button class="icon-btn" id="setup-btn" onclick="openSetup()" title="Setup guide">Setup</button>
   <button class="icon-btn" id="account-btn" onclick="openAccount()" title="Account & token">Account</button>
   <button class="mode-btn" id="mode-btn" onclick="toggleMode()" title="Toggle light/dark mode">☀</button>
