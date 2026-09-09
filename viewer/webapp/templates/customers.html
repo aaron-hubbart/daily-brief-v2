@@ -37,6 +37,7 @@ tr:last-child td{border-bottom:none;}
 tr.editing td{background:var(--accent-bg);}
 .acct-name{font-weight:500;}
 .mono{font-family:var(--mono);font-size:11px;color:var(--t3);}
+.sub{display:block;font-size:10px;opacity:.6;}
 .pill{font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:2px 7px;border-radius:99px;display:inline-block;}
 .pill.primary{background:var(--accent-bg);color:var(--accent-t);}
 .pill.secondary{background:var(--surface2);color:var(--t2);}
@@ -90,8 +91,8 @@ select{cursor:pointer;}
           <th>Account Name</th>
           <th>Tier</th>
           <th>Run Day</th>
-          <th>Slack Channel ID</th>
-          <th>Asana Project GID</th>
+          <th>Slack Channel</th>
+          <th>Asana Project</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -110,8 +111,8 @@ select{cursor:pointer;}
         <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
         <option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
       </select>
-      <input type="text" id="new-slack" placeholder="Slack Channel ID">
-      <input type="text" id="new-gid" placeholder="Asana Project GID">
+      <input type="text" id="new-slack-name" placeholder="Slack channel name"><input type="text" id="new-slack" placeholder="Slack Channel ID" class="mono">
+      <input type="text" id="new-asana-name" placeholder="Asana project name"><input type="text" id="new-gid" placeholder="Asana Project GID" class="mono">
       <button class="btn primary" onclick="addAccount()">Add account</button>
     </div>
     <div class="msg" id="msg"></div>
@@ -168,8 +169,8 @@ function render() {
         <td class="acct-name">${esc(a.account_name || '')}</td>
         <td><span class="pill ${a.tier || 'primary'}">${a.tier || 'primary'}</span></td>
         <td class="day-tag">${a.tier === 'secondary' && a.run_day ? a.run_day : '—'}</td>
-        <td class="mono">${esc(a.slack_channel_id || '—')}</td>
-        <td class="mono">${esc(a.project_gid || '—')}</td>
+        <td>${a.slack_channel_name ? esc(a.slack_channel_name) : ''}<span class="mono sub">${a.slack_channel_id ? (a.slack_channel_name ? ' ' : '') + esc(a.slack_channel_id) : '—'}</span></td>
+        <td>${a.asana_board_name ? esc(a.asana_board_name) : ''}<span class="mono sub">${a.project_gid ? (a.asana_board_name ? ' ' : '') + esc(a.project_gid) : '—'}</span></td>
         <td class="actions">
           <button class="btn" onclick="editRow(${i})">Edit</button>
           <button class="btn danger" onclick="removeRow(${i})">Remove</button>
@@ -201,8 +202,8 @@ function editRow(idx) {
       <option value="">—</option>
       ${DAYS.map(d=>`<option ${a.run_day===d?'selected':''}>${d}</option>`).join('')}
     </select></td>
-    <td><input type="text" id="e-slack" value="${esc(a.slack_channel_id||'')}" style="width:100%"></td>
-    <td><input type="text" id="e-gid" value="${esc(a.project_gid||'')}" style="width:100%"></td>
+    <td><input type="text" id="e-slack-name" value="${esc(a.slack_channel_name||'')}" placeholder="Channel name" style="width:100%;margin-bottom:4px"><input type="text" id="e-slack" value="${esc(a.slack_channel_id||'')}" placeholder="Channel ID" class="mono" style="width:100%;font-size:10px"></td>
+    <td><input type="text" id="e-asana-name" value="${esc(a.asana_board_name||'')}" placeholder="Project name" style="width:100%;margin-bottom:4px"><input type="text" id="e-gid" value="${esc(a.project_gid||'')}" placeholder="Project GID" class="mono" style="width:100%;font-size:10px"></td>
     <td class="actions">
       <button class="btn save" onclick="saveRow(${idx})">OK</button>
       <button class="btn" onclick="render()">Cancel</button>
@@ -215,7 +216,9 @@ function saveRow(idx) {
   a.account_name = document.getElementById('e-name').value.trim();
   a.tier = document.getElementById('e-tier').value;
   a.run_day = a.tier === 'secondary' ? (document.getElementById('e-day').value || null) : null;
+  a.slack_channel_name = document.getElementById('e-slack-name').value.trim() || '';
   a.slack_channel_id = document.getElementById('e-slack').value.trim() || '';
+  a.asana_board_name = document.getElementById('e-asana-name').value.trim() || '';
   a.project_gid = document.getElementById('e-gid').value.trim() || '';
   CONFIG.accounts.sort((a,b) =>
     (a.account_name||'').localeCompare(b.account_name||'', undefined, {sensitivity:'base'})
@@ -229,18 +232,22 @@ function addAccount() {
   if (!name) return;
   const tier = document.getElementById('new-tier').value;
   const day = tier === 'secondary' ? (document.getElementById('new-day').value || null) : null;
+  const slackName = document.getElementById('new-slack-name').value.trim();
   const slack = document.getElementById('new-slack').value.trim();
+  const asanaName = document.getElementById('new-asana-name').value.trim();
   const gid = document.getElementById('new-gid').value.trim();
   CONFIG.accounts.push({
     account_name: name, tier: tier, run_day: day,
-    slack_channel_id: slack, supporting_slack_channel_ids: [],
-    project_gid: gid, asana_board_name: '', gdrive_folder_id: null
+    slack_channel_name: slackName, slack_channel_id: slack, supporting_slack_channel_ids: [],
+    asana_board_name: asanaName, project_gid: gid, gdrive_folder_id: null
   });
   CONFIG.accounts.sort((a,b) =>
     (a.account_name||'').localeCompare(b.account_name||'', undefined, {sensitivity:'base'})
   );
   document.getElementById('new-name').value = '';
+  document.getElementById('new-slack-name').value = '';
   document.getElementById('new-slack').value = '';
+  document.getElementById('new-asana-name').value = '';
   document.getElementById('new-gid').value = '';
   markDirty();
   render();
