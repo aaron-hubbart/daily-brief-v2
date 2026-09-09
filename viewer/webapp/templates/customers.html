@@ -75,8 +75,9 @@ select{cursor:pointer;}
 </div>
 
 <div class="internal-gid">
-  <label>Internal Asana Project GID:</label>
-  <input type="text" id="internal-gid" placeholder="e.g. 1213137068479722">
+  <label>Internal Asana Project:</label>
+  <input type="text" id="internal-name" placeholder="Project name" style="width:200px">
+  <input type="text" id="internal-gid" placeholder="Project GID" class="mono" style="width:200px">
 </div>
 
 <div class="panel">
@@ -131,6 +132,7 @@ document.getElementById('new-tier').addEventListener('change', function() {
 });
 
 document.getElementById('internal-gid').addEventListener('input', () => markDirty());
+document.getElementById('internal-name').addEventListener('input', () => markDirty());
 
 async function load() {
   try {
@@ -141,6 +143,7 @@ async function load() {
       (a.account_name||'').localeCompare(b.account_name||'', undefined, {sensitivity:'base'})
     );
     document.getElementById('internal-gid').value = CONFIG.internal_project_gid || '';
+    document.getElementById('internal-name').value = CONFIG.internal_project_name || '';
     render();
   } catch(e) {
     document.getElementById('acct-body').innerHTML =
@@ -275,6 +278,7 @@ async function saveConfig() {
   msg.textContent = 'Saving…';
   msg.className = 'msg';
 
+  CONFIG.internal_project_name = document.getElementById('internal-name').value.trim() || '';
   CONFIG.internal_project_gid = document.getElementById('internal-gid').value.trim() || '';
 
   try {
