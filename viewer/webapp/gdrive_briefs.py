@@ -28,7 +28,7 @@ import logging
 import os
 import threading
 import time
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Union
 
 try:
     from google.auth.transport.requests import Request
@@ -518,12 +518,14 @@ def read_account_config(refresh_token: str, folder_id: Optional[str] = None) -> 
 
 
 def write_account_config(config_data: Dict, refresh_token: str,
-                         folder_id: Optional[str] = None) -> bool:
+                         folder_id: Optional[str] = None) -> Union[bool, str]:
     """Write account-config.json back to Drive (in-place update).
-    Returns True on success, False on failure."""
+    Returns True on success, or an error string on failure."""
     parent_folder = folder_id or BRIEFS_FOLDER_ID
-    if not parent_folder or not refresh_token:
-        return False
+    if not parent_folder:
+        return 'No Drive folder configured'
+    if not refresh_token:
+        return 'No Google refresh token — re-link Google Drive'
 
     try:
         from io import BytesIO
@@ -531,12 +533,12 @@ def write_account_config(config_data: Dict, refresh_token: str,
 
         drive = _get_drive_service(refresh_token)
         if not drive:
-            return False
+            return 'Could not authenticate with Google Drive — re-link Google Drive'
 
         config_folder_id = _find_folder_cached(drive, parent_folder, 'config')
         if not config_folder_id:
             logger.warning('write_account_config: no /config folder found')
-            return False
+            return 'Config folder not found in Drive'
 
         query = (
             f"parents='{config_folder_id}' "
@@ -549,7 +551,7 @@ def write_account_config(config_data: Dict, refresh_token: str,
         files = results.get('files', [])
         if not files:
             logger.warning('write_account_config: account-config.json not found')
-            return False
+            return 'account-config.json not found in Drive config folder'
 
         file_id = files[0]['id']
         payload = json.dumps(config_data, indent=2).encode('utf-8')
@@ -566,4 +568,4 @@ def write_account_config(config_data: Dict, refresh_token: str,
 
     except Exception as e:
         logger.error('write_account_config: %s', e, exc_info=True)
-        return False
+        return f'Drive API error: {e}' 

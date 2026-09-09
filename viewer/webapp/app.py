@@ -721,7 +721,7 @@ def auth_google():
                 'redirect_uris': [redirect_uri],
             }
         },
-        scopes=['https://www.googleapis.com/auth/drive.readonly'],
+        scopes=['https://www.googleapis.com/auth/drive'],
         redirect_uri=redirect_uri,
     )
     
@@ -765,7 +765,7 @@ def auth_google_callback():
                     'redirect_uris': [redirect_uri],
                 }
             },
-            scopes=['https://www.googleapis.com/auth/drive.readonly'],
+            scopes=['https://www.googleapis.com/auth/drive'],
             redirect_uri=redirect_uri,
         )
         
@@ -997,9 +997,10 @@ def api_customers_config_update():
     data = request.get_json(silent=True)
     if not data or 'accounts' not in data:
         return jsonify({'error': 'Invalid payload — must include accounts array'}), 400
-    ok = gdrive_briefs.write_account_config(data, google_token, folder_id)
-    if not ok:
-        return jsonify({'error': 'Failed to write account-config.json'}), 500
+    result = gdrive_briefs.write_account_config(data, google_token, folder_id)
+    if result is not True:
+        msg = result if isinstance(result, str) else 'Failed to write account-config.json'
+        return jsonify({'error': msg}), 500
     return jsonify({'ok': True})
 
 @app.route('/admin')
