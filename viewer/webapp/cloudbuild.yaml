@@ -6,9 +6,8 @@ steps:
       - -t
       - gcr.io/tam-aaron-hubbart/daily-brief-viewer:latest
       - -f
-      - webapp/Dockerfile
-      - .
-    dir: viewer
+      - viewer/webapp/Dockerfile
+      - viewer
 
   - name: gcr.io/cloud-builders/docker
     args: [push, gcr.io/tam-aaron-hubbart/daily-brief-viewer:latest]
