@@ -837,11 +837,16 @@ def index():
 @login_required
 def whoami():
     user = db.get_user_by_id(request.brief_user['id'])
-    return jsonify({
+    original = session.get('admin_original_user')
+    response = {
         'name': request.brief_user['name'],
         'email': request.brief_user['email'],
         'onboarding_completed': bool(user and user['onboarding_completed_at']),
-    })
+        'impersonating': bool(original),
+    }
+    if original:
+        response['real_admin_email'] = original['email']
+    return jsonify(response)
 
 
 @app.route('/api/onboarding/complete', methods=['POST'])
@@ -1001,6 +1006,70 @@ def admin_page():
 @admin_required
 def admin_list_users():
     return jsonify(db.list_users_with_stats())
+
+
+@app.route('/api/admin/test-users', methods=['GET'])
+@login_required
+@admin_required
+def admin_list_test_users():
+    return jsonify(db.list_test_users())
+
+
+@app.route('/api/admin/test-users', methods=['POST'])
+@login_required
+@admin_required
+def admin_create_test_user():
+    body = request.get_json(silent=True) or {}
+    user = db.create_test_user(body.get('label'))
+    return jsonify(user), 201
+
+
+@app.route('/api/admin/test-users/<int:user_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def admin_delete_test_user(user_id):
+    deleted = db.delete_test_user(user_id)
+    if not deleted:
+        abort(404, 'Not a test user, or already deleted.')
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/admin/impersonate/<int:user_id>/start', methods=['POST'])
+@login_required
+@admin_required
+def admin_impersonate_start(user_id):
+    """Switches the current session to view as a throwaway test user.
+    Guarded twice: @admin_required above, and the is_test check here — this
+    route can never target a real user's account, even via a crafted ID."""
+    if not db.is_test_user(user_id):
+        abort(404, 'Can only impersonate a test user.')
+    if session.get('admin_original_user'):
+        abort(400, 'Already impersonating — stop first.')
+    test_user = db.get_user_by_id(user_id)
+    if not test_user:
+        abort(404)
+    session['admin_original_user'] = session['user']
+    session['user'] = {
+        'email': test_user['email'],
+        'name': test_user['email'],
+        'oid': f"test-{test_user['id']}",
+        'slug': test_user['slug'],
+        'id': test_user['id'],
+    }
+    return jsonify({'status': 'ok', 'email': test_user['email']})
+
+
+@app.route('/api/admin/impersonate/stop', methods=['POST'])
+@login_required
+def admin_impersonate_stop():
+    """Ends impersonation and restores the real admin's session. Not
+    admin-gated: by construction only someone who started an impersonation
+    can have admin_original_user set, and they must always be able to end
+    it even if ADMIN_EMAILS changes mid-session."""
+    original = session.pop('admin_original_user', None)
+    if original:
+        session['user'] = original
+    return jsonify({'status': 'ok'})
 
 
 @app.route('/api/admin/config')
