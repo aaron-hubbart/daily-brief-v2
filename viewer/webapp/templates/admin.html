@@ -71,6 +71,28 @@ a.back{font-size:12px;color:var(--accent-t);text-decoration:none;}
   </div>
 
   <div class="panel">
+    <div class="panel-head">Test Users</div>
+    <div class="panel-body">
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <input class="btn" id="test-user-label" type="text" placeholder="Optional label" style="flex:1;text-align:left;cursor:text;">
+        <button class="btn" onclick="createTestUser()">Create test user</button>
+      </div>
+      <table id="test-users-table" style="display:none;">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Created</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="test-users-body"></tbody>
+      </table>
+      <div class="empty" id="test-users-loading">Loading…</div>
+      <div class="msg" id="test-users-msg"></div>
+    </div>
+  </div>
+
+  <div class="panel">
     <div class="panel-head">Users</div>
     <div class="panel-body">
       <table id="users-table" style="display:none;">
@@ -81,7 +103,6 @@ a.back{font-size:12px;color:var(--accent-t);text-decoration:none;}
             <th>Signed up</th>
             <th>Active briefs</th>
             <th>Last active</th>
-            <th></th>
           </tr>
         </thead>
         <tbody id="users-body"></tbody>
@@ -143,7 +164,6 @@ async function loadUsers() {
         <td>${fmtDate(u.created_at)}</td>
         <td>${u.active_brief_count}</td>
         <td>${fmtDate(u.last_active_at)}</td>
-        <td><button class="btn danger" onclick="rotateToken(${u.id}, '${u.email}')">Rotate token</button></td>
       </tr>
     `).join('');
   } catch (e) {
@@ -151,26 +171,90 @@ async function loadUsers() {
   }
 }
 
-async function rotateToken(userId, email) {
-  if (!confirm(`Rotate ${email}'s API token? Their existing token stops working immediately — they'll need to sign in and revisit /api/token to get the new one before their skill can sync again.`)) {
-    return;
-  }
-  const msg = document.getElementById('users-msg');
-  msg.className = 'msg';
-  msg.textContent = 'Rotating…';
+async function loadTestUsers() {
+  const table = document.getElementById('test-users-table');
+  const body = document.getElementById('test-users-body');
+  const loading = document.getElementById('test-users-loading');
   try {
-    const res = await fetch(`api/admin/users/${userId}/rotate-token`, { method: 'POST' });
+    const res = await fetch('api/admin/test-users');
     if (!res.ok) throw new Error('status ' + res.status);
+    const users = await res.json();
+    loading.style.display = 'none';
+    if (!users.length) {
+      loading.style.display = '';
+      loading.textContent = 'No test users yet.';
+      return;
+    }
+    table.style.display = '';
+    body.innerHTML = users.map(u => `
+      <tr data-id="${u.id}">
+        <td class="email">${u.email}</td>
+        <td>${fmtDate(u.created_at)}</td>
+        <td>
+          <button class="btn" onclick="impersonateUser(${u.id}, '${u.email}')">Impersonate</button>
+          <button class="btn danger" onclick="deleteTestUser(${u.id}, '${u.email}')">Delete</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    loading.textContent = 'Could not load test users.';
+  }
+}
+
+async function createTestUser() {
+  const labelInput = document.getElementById('test-user-label');
+  const msg = document.getElementById('test-users-msg');
+  msg.className = 'msg';
+  msg.textContent = 'Creating…';
+  try {
+    const res = await fetch('api/admin/test-users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: labelInput.value.trim() || null }),
+    });
+    if (!res.ok) throw new Error('status ' + res.status);
+    labelInput.value = '';
     msg.className = 'msg ok';
-    msg.textContent = `Token rotated for ${email}. They should revisit /api/token while signed in to get the new value.`;
+    msg.textContent = 'Test user created.';
+    loadTestUsers();
   } catch (e) {
     msg.className = 'msg err';
-    msg.textContent = `Could not rotate token for ${email}.`;
+    msg.textContent = 'Could not create test user.';
+  }
+}
+
+async function impersonateUser(userId, email) {
+  if (!confirm(`View the app as ${email}? You can return to your own account anytime via the banner.`)) {
+    return;
+  }
+  try {
+    const res = await fetch(`api/admin/impersonate/${userId}/start`, { method: 'POST' });
+    if (!res.ok) throw new Error('status ' + res.status);
+    window.location.href = './';
+  } catch (e) {
+    document.getElementById('test-users-msg').className = 'msg err';
+    document.getElementById('test-users-msg').textContent = `Could not impersonate ${email}.`;
+  }
+}
+
+async function deleteTestUser(userId, email) {
+  if (!confirm(`Delete test user ${email}? This can't be undone.`)) return;
+  const msg = document.getElementById('test-users-msg');
+  try {
+    const res = await fetch(`api/admin/test-users/${userId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('status ' + res.status);
+    msg.className = 'msg ok';
+    msg.textContent = `Deleted ${email}.`;
+    loadTestUsers();
+  } catch (e) {
+    msg.className = 'msg err';
+    msg.textContent = `Could not delete ${email}.`;
   }
 }
 
 loadConfig();
 loadUsers();
+loadTestUsers();
 </script>
 
 </body>

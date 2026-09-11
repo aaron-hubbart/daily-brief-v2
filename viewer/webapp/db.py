@@ -56,55 +56,25 @@ def cursor(commit=False):
 def get_or_create_user(email: str, slug: str) -> dict:
     """
     Called from the Azure AD sign-in callback. Creates the user row on
-    first sign-in and — this is what makes new-user setup automatic —
-    assigns a random api_token at the same time, with no admin step
-    required. Returns {'id': ..., 'api_token': ...}.
+    first sign-in, with no admin step required. Returns
+    {'id': ..., 'onboarding_completed_at': ...}.
     """
     with cursor(commit=True) as cur:
         cur.execute(
             """
             INSERT INTO users (email, slug) VALUES (%s, %s)
             ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
-            RETURNING id, api_token, onboarding_completed_at
+            RETURNING id, onboarding_completed_at
             """,
             (email, slug),
         )
-        row = cur.fetchone()
-
-    if row['api_token'] is None:
-        # Either a brand-new user, or an existing one from before api_token
-        # existed (see migrations/001_add_api_token.sql) — assign one now.
-        # COALESCE makes this race-safe: if two requests hit this for the
-        # same user at once, only one write actually takes effect and both
-        # end up returning that same value.
-        token = secrets.token_hex(32)
-        with cursor(commit=True) as cur:
-            cur.execute(
-                "UPDATE users SET api_token = COALESCE(api_token, %s) WHERE id = %s RETURNING api_token",
-                (token, row['id']),
-            )
-            row['api_token'] = cur.fetchone()['api_token']
-
-    return row
-
-
-def get_user_by_token(token: str):
-    with cursor() as cur:
-        cur.execute("SELECT id, email, slug, api_token FROM users WHERE api_token = %s", (token,))
         return cur.fetchone()
-
-
-def get_user_token(user_id: int) -> str:
-    with cursor() as cur:
-        cur.execute("SELECT api_token FROM users WHERE id = %s", (user_id,))
-        row = cur.fetchone()
-        return row['api_token'] if row else None
 
 
 def get_user_by_id(user_id: int):
     with cursor() as cur:
         cur.execute(
-            "SELECT id, email, slug, api_token, asana_pat, created_at, onboarding_completed_at FROM users WHERE id = %s",
+            "SELECT id, email, slug, asana_pat, created_at, onboarding_completed_at FROM users WHERE id = %s",
             (user_id,),
         )
         return cur.fetchone()
@@ -140,37 +110,6 @@ def count_users_with_asana_pat() -> int:
         return cur.fetchone()['n']
 
 
-def get_account_projects(user_id: int) -> list:
-    """The account -> Asana project GID mapping mirrored from Meeting
-    Manager Config.xlsx, used to know which boards to poll for the live
-    Action Items pull. Empty list if the skill hasn't synced this yet."""
-    with cursor() as cur:
-        cur.execute(
-            "SELECT account_name, project_gid FROM account_projects WHERE user_id = %s ORDER BY account_name",
-            (user_id,),
-        )
-        return cur.fetchall()
-
-
-def replace_account_projects(user_id: int, accounts: list) -> None:
-    """Full replace, not an upsert-per-row — the skill sends its complete
-    current mapping on every run, so a row for an account that's been
-    removed or renamed in the source sheet shouldn't linger here. Runs as
-    one transaction: delete-then-insert, never a visible empty gap."""
-    with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM account_projects WHERE user_id = %s", (user_id,))
-        for acct in accounts:
-            cur.execute(
-                """
-                INSERT INTO account_projects (user_id, account_name, project_gid)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (user_id, account_name) DO UPDATE
-                    SET project_gid = EXCLUDED.project_gid, updated_at = now()
-                """,
-                (user_id, acct['account_name'], acct['project_gid']),
-            )
-
-
 def mark_onboarding_complete(user_id: int) -> None:
     """Idempotent — only sets the timestamp the first time; re-completing
     (e.g. clicking through the walkthrough again from the Account panel)
@@ -183,10 +122,12 @@ def mark_onboarding_complete(user_id: int) -> None:
 
 
 def list_users_with_stats() -> list:
-    """One row per user for the admin panel: sign-up date, how many brief
-    days they have, and when they were last active. Left joins so a user
-    who signed in but whose skill has never synced anything still shows up
-    (with brief_count 0 / last_active null) rather than being hidden."""
+    """One row per real (non-test) user for the admin panel: sign-up date,
+    how many brief days they have, and when they were last active. Left
+    joins so a user who signed in but whose skill has never synced anything
+    still shows up (with brief_count 0 / last_active null) rather than being
+    hidden. Test users (is_test = TRUE) are excluded — they appear in the
+    separate Test Users panel instead (see list_test_users)."""
     with cursor() as cur:
         cur.execute(
             """
@@ -196,24 +137,12 @@ def list_users_with_stats() -> list:
                 MAX(bd.last_updated_at) AS last_active_at
             FROM users u
             LEFT JOIN brief_days bd ON bd.user_id = u.id
+            WHERE u.is_test = FALSE
             GROUP BY u.id
             ORDER BY u.email
             """
         )
         return cur.fetchall()
-
-
-def rotate_user_token(user_id: int) -> str:
-    """Invalidates the old token and assigns a new one. The old token stops
-    working immediately — whatever's using it (the person's skill config)
-    needs updating with the new value."""
-    new_token = secrets.token_hex(32)
-    with cursor(commit=True) as cur:
-        cur.execute(
-            "UPDATE users SET api_token = %s WHERE id = %s RETURNING api_token",
-            (new_token, user_id),
-        )
-        return cur.fetchone()['api_token']
 
 
 def list_active_briefs(user_id: int) -> list:
@@ -392,7 +321,7 @@ def set_google_drive_folder_id(user_id: int, folder_id: Optional[str]) -> bool:
     """Store or clear the user's Google Drive folder ID."""
     if not DATABASE_URL:
         return False
-    
+
     try:
         with cursor(commit=True) as cur:
             cur.execute(
@@ -402,3 +331,59 @@ def set_google_drive_folder_id(user_id: int, folder_id: Optional[str]) -> bool:
         return True
     except Exception:
         return False
+
+
+def create_test_user(label: Optional[str] = None) -> dict:
+    """Creates a throwaway test-user row for admin impersonation. Never a
+    real person — email is always a synthetic @daily-brief.local address,
+    optionally incorporating an admin-supplied label for readability in the
+    admin panel's Test Users list."""
+    suffix = secrets.token_hex(4)
+    local_part = f"test-{label.strip().lower().replace(' ', '-')}-{suffix}" if label and label.strip() else f"test-{suffix}"
+    email = f"{local_part}@daily-brief.local"
+    slug = slugify_test_email(local_part)
+    with cursor(commit=True) as cur:
+        cur.execute(
+            """
+            INSERT INTO users (email, slug, is_test)
+            VALUES (%s, %s, TRUE)
+            RETURNING id, email, slug, is_test, created_at
+            """,
+            (email, slug),
+        )
+        return cur.fetchone()
+
+
+def slugify_test_email(local_part: str) -> str:
+    """Test-user emails are already URL-safe lowercase-with-hyphens, so the
+    slug is just the local part itself — no dependency on app.py's
+    slugify_user (which expects a real email with an @domain to strip)."""
+    return local_part
+
+
+def list_test_users() -> list:
+    """All admin-created throwaway test users, for the admin panel's Test
+    Users panel and its impersonation picker."""
+    with cursor() as cur:
+        cur.execute(
+            "SELECT id, email, slug, created_at FROM users WHERE is_test = TRUE ORDER BY created_at DESC"
+        )
+        return cur.fetchall()
+
+
+def delete_test_user(user_id: int) -> bool:
+    """Deletes a test user row. Returns False (does nothing) if user_id
+    doesn't exist or isn't a test user — this is the safety guard that
+    keeps a crafted ID from ever deleting a real person's account."""
+    with cursor(commit=True) as cur:
+        cur.execute("DELETE FROM users WHERE id = %s AND is_test = TRUE", (user_id,))
+        return cur.rowcount > 0
+
+
+def is_test_user(user_id: int) -> bool:
+    """Used to gate impersonation start — never let an admin impersonate a
+    real user, even via a crafted ID in the request."""
+    with cursor() as cur:
+        cur.execute("SELECT is_test FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        return bool(row and row['is_test'])

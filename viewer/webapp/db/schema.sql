@@ -11,11 +11,6 @@ CREATE TABLE IF NOT EXISTS users (
     id          SERIAL PRIMARY KEY,
     email       TEXT NOT NULL UNIQUE,
     slug        TEXT NOT NULL UNIQUE,
-    -- Bearer token the daily-brief skill authenticates with when calling
-    -- /api/items/upsert and /api/items/batch-upsert. Assigned automatically
-    -- the first time this user signs in through the browser (see
-    -- get_or_create_user in db.py) -- nobody has to hand-provision this.
-    api_token   TEXT UNIQUE,
     -- Per-user Asana Personal Access Token — see migrations/003_add_asana_pat.sql
     -- for what it's used for. NULL means the person skipped that step of
     -- setup; the webapp treats that as "live Action Items pull disabled."
@@ -23,10 +18,11 @@ CREATE TABLE IF NOT EXISTS users (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     -- Set once the person has clicked through the in-app setup walkthrough
     -- (or dismissed it). NULL means "show it automatically on next login."
-    onboarding_completed_at TIMESTAMPTZ
+    onboarding_completed_at TIMESTAMPTZ,
+    -- Admin-created throwaway account for testing the new-user experience
+    -- via impersonation (see migrations/007_...sql) — never a real person.
+    is_test     BOOLEAN NOT NULL DEFAULT FALSE
 );
-
-CREATE INDEX IF NOT EXISTS idx_users_api_token ON users (api_token);
 
 -- One row per user per calendar date. This is the "day" the requirement
 -- describes -- multiple runs/refreshes during the day update items within
@@ -77,19 +73,4 @@ CREATE TABLE IF NOT EXISTS items (
 
 CREATE INDEX IF NOT EXISTS idx_items_brief_day ON items (brief_day_id, section, display_order);
 
--- Mirror of the account -> Asana project GID mapping from Meeting Manager
--- Config.xlsx, re-synced by the skill on every run (full replace-per-user)
--- since the webapp has no Google Drive access of its own. See
--- migrations/004_add_account_projects.sql and app.py's live Action Items
--- pull for how this gets used.
-CREATE TABLE IF NOT EXISTS account_projects (
-    id           SERIAL PRIMARY KEY,
-    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    account_name TEXT NOT NULL,
-    project_gid  TEXT NOT NULL,
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (user_id, account_name)
-);
-
-CREATE INDEX IF NOT EXISTS idx_account_projects_user ON account_projects (user_id);
 
