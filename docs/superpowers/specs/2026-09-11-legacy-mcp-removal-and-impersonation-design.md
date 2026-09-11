@@ -68,6 +68,13 @@ Remove the "Rotate token" table column/button, the `rotateToken()` JS function, 
 
 Remove the `MCP_CONNECTOR_URL` env var block from `deployment.yaml`. Remove the `DEPLOYMENT.md` sections describing the `api_token` migration note and the MCP connector public URL setup.
 
+### Additional scope found during implementation research (same removal, more instances)
+
+- **`viewer/daily-brief-viewer.html`'s separate "Account & API token" panel** (a different modal from the Setup walkthrough, opened via the account icon) has its own token display, "Rotate token" button, and explanatory paragraph about updating the MCP connector's Authorization header (`account-token` input, `account-rotate` button, `rotateToken()` JS function). Remove all of it; keep the "Signed in as {email}" line and everything below the token section (Google Drive, Asana, "Replay setup guide") unchanged. Retitle the modal from "Account & API token" to "Account".
+- **`viewer/webapp/app.py`'s `api_live_action_items`** (the live Action Items endpoint) has a fallback: `gdrive_briefs.get_account_projects(...) if google_token else db.get_account_projects(...)`. Since `db.get_account_projects` is being removed, change this to `gdrive_briefs.get_account_projects(google_token, folder_id) if google_token else []` — a user without Drive connected simply gets no live Action Items poll targets, consistent with the rest of v2's Drive-first design.
+- **`viewer/webapp/db/README.md`** describes `account_projects` as one of Action Items' two data sources. Update it to reflect that the live Asana pull's project-GID mapping now comes exclusively from Drive's `account-config.json` (via `gdrive_briefs.get_account_projects`), with no Postgres fallback.
+- **NOT touched:** `gdrive_briefs.py`'s own `get_account_projects` function — this is a different, Drive-reading function (confirmed by its log messages: "loaded N projects from Drive config") and is the correct, currently-live v2 code path. Do not confuse it with `db.py`'s Postgres-backed function of the same name.
+
 ## Part 3: Setup walkthrough rewrite (`viewer/daily-brief-viewer.html`)
 
 Replace the current 6-step walkthrough's steps 1-3 with a single new Step 1:
