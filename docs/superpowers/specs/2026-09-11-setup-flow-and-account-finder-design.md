@@ -130,13 +130,17 @@ The discovery engine is a standalone, reusable component usable in two contexts:
 - Confirms: "Added X new accounts. They'll appear in your next brief."
 
 **In the webapp** (Customers tab, new "Scan for Accounts" button):
-- Opens modal with discovery results
-- Same table/cards UI
-- User confirms selections
+- **Scoped to Asana only.** The webapp has a stored per-user Asana PAT (already used for live action items) and Google Drive OAuth, but no Slack or Outlook access — those connectors exist only inside the skill's Claude runtime. The webapp's discovery pass therefore:
+  - Searches Asana for projects not yet linked to any account in `account-config.json`
+  - For each candidate project, proposes an account name (from the project name) and lets the user match it to an existing account or create a new one
+  - Does NOT attempt Slack channel discovery or email-seeded account discovery — those fields stay manually editable in the same UI (already supported by the existing `customers.html` add/edit rows)
+- Opens modal with discovery results (Asana matches only)
+- Same table/cards UI pattern as the skill's confirmation table, minus the Slack/email columns
+- User confirms selections, optionally fills in Slack channel manually
 - Updates `account-config.json` via webapp's Google OAuth
 - Refreshes customers list immediately
 
-**Key design principle:** Single discovery logic, consistent results, same UI pattern everywhere. Users can always find and add new accounts without friction.
+**Key design principle:** The skill (full four-pass: email, Slack, Asana, internal board) and the webapp (Asana-only) both write to the same `account-config.json` shape and both offer a "scan and confirm" UX, but they discover from different source sets because of where each one runs. A user who wants full email+Slack+Asana discovery uses the skill; the webapp is a lighter-weight, Asana-only complement for quick additions without opening Claude.
 
 ---
 
@@ -144,7 +148,7 @@ The discovery engine is a standalone, reusable component usable in two contexts:
 
 ### Config Files (written to `/config/` on Drive)
 
-**`config.json`** (global configuration):
+**`config.json`** (global configuration — unchanged shape from today; `internal_project_gid` lives in `account-config.json`, not here, per the existing `references/item-sync.md` schema):
 ```json
 {
   "brief_data_folder_id": "...",
@@ -153,7 +157,6 @@ The discovery engine is a standalone, reusable component usable in two contexts:
   "status_update_cache_file_id": "...",
   "slack_user_id": "UXXXXXXXXXX",
   "key_contacts": ["Alice Smith", "Bob Chen"],
-  "internal_project_gid": "999888",
   "sync_state": { "skill_source_sha": "...", "references_source_sha": "...", "sync_check_last_run": "..." }
 }
 ```
@@ -168,9 +171,10 @@ The discovery engine is a standalone, reusable component usable in two contexts:
       "account_name": "Bank of America",
       "tier": "primary",
       "run_day": null,
+      "slack_channel_name": "boa-main",
       "slack_channel_id": "C12345678",
       "supporting_slack_channel_ids": ["C87654321"],
-      "asana_project_gid": "123456",
+      "project_gid": "123456",
       "asana_board_name": "Bank of America Engagement",
       "gdrive_folder_id": "folder_abc123"
     },
@@ -178,9 +182,10 @@ The discovery engine is a standalone, reusable component usable in two contexts:
       "account_name": "Acme Corp",
       "tier": "secondary",
       "run_day": "Monday",
+      "slack_channel_name": "acme-internal",
       "slack_channel_id": "C22222222",
       "supporting_slack_channel_ids": [],
-      "asana_project_gid": "555666",
+      "project_gid": "555666",
       "asana_board_name": "Acme - Platform Work",
       "gdrive_folder_id": "folder_xyz789"
     }
@@ -277,13 +282,17 @@ Skill: Confirms "Added X accounts"
 Next brief run includes new accounts
 ```
 
-### Flow C: Add New Accounts (post-setup, in webapp)
+### Flow C: Add New Accounts (post-setup, in webapp, Asana-only)
 
 ```
 User: Clicks "Scan for Accounts" in Customers tab
 ↓
-Webapp: Modal opens with discovery results
-User: Checks which to add
+Webapp: Searches Asana (via stored PAT) for projects not yet linked
+        to any account in account-config.json
+↓
+Webapp: Modal opens with candidate accounts (name + Asana project only;
+        no Slack data — user can type a Slack channel manually)
+User: Checks which to add, optionally fills in Slack channel details
 ↓
 Webapp: Updates account-config.json via Google OAuth
 Webapp: Refreshes customers list
@@ -365,10 +374,11 @@ Customers tab now shows new accounts
 - Present confirmation UI (filtered to new/candidate accounts only)
 - Append to account-config.json
 
-### Part 4: Webapp Integration
+### Part 4: Webapp Integration (Asana-only discovery)
 
 - New "Scan for Accounts" button in Customers tab
-- Modal UI with discovery results
+- Backend: search Asana (stored per-user PAT) for projects not already referenced by `project_gid` in `account-config.json`
+- Modal UI with discovery results (account name candidate + Asana project only — no Slack columns)
 - Google OAuth read/write of account-config.json
 - Incremental append logic
 - Refresh customers list on success
