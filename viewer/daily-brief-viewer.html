@@ -276,18 +276,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 <div class="modal-overlay" id="account-overlay">
   <div class="modal" style="max-width:440px;">
     <div class="modal-head">
-      <h2>Account &amp; API token</h2>
+      <h2>Account</h2>
       <button class="modal-close" onclick="closeAccount()" title="Close">&times;</button>
     </div>
     <div class="modal-body">
       <div class="account-row">Signed in as <strong id="account-email">…</strong></div>
-      <div class="copy-row">
-        <input class="copy-input" id="account-token" readonly value="Loading…">
-        <button class="copy-btn" onclick="copyField('account-token', this)">Copy</button>
-      </div>
-      <button class="icon-btn" id="account-rotate" onclick="rotateToken()">Rotate token</button>
-      <p style="font-size:11.5px;color:var(--t3);margin-top:10px;line-height:1.5;">Rotating invalidates your current token immediately. Afterward, update the <code>Authorization</code> header on your daily-brief-mcp-server connector (Claude Settings &rarr; Connectors) with the new value — your skill can't sync again until you do.</p>
-      <div class="account-msg" id="account-msg"></div>
       <hr class="account-hr">
       <div class="account-row" id="google-status-row">Google Drive: <strong id="google-status">checking…</strong></div>
       <button class="icon-btn" id="account-google-connect" onclick="connectGoogleDrive()" style="display:none;">Connect Google Drive</button>
@@ -1412,8 +1405,6 @@ function closeSetup() {
 
 async function openAccount() {
   document.getElementById('account-overlay').classList.add('show');
-  document.getElementById('account-msg').className = 'account-msg';
-  document.getElementById('account-msg').textContent = '';
   document.getElementById('account-asana-msg').className = 'account-msg';
   document.getElementById('account-asana-msg').textContent = '';
   document.getElementById('account-google-msg').className = 'account-msg';
@@ -1421,12 +1412,11 @@ async function openAccount() {
   document.getElementById('account-asana-pat').value = '';
 
   try {
-    const res = await fetch('api/token');
+    const res = await fetch('api/whoami');
     const d = await res.json();
     document.getElementById('account-email').textContent = d.email || '';
-    document.getElementById('account-token').value = d.token || '(unavailable)';
   } catch (e) {
-    document.getElementById('account-token').value = '(unavailable)';
+    document.getElementById('account-email').textContent = '(unavailable)';
   }
 
   refreshGoogleStatus();
@@ -1435,26 +1425,6 @@ async function openAccount() {
 
 function closeAccount() {
   document.getElementById('account-overlay').classList.remove('show');
-}
-
-async function rotateToken() {
-  if (!confirm('Rotate your API token? Your current token stops working immediately — update your daily-brief-mcp-server connector\'s Authorization header with the new value before your skill can sync again.')) {
-    return;
-  }
-  const msg = document.getElementById('account-msg');
-  msg.className = 'account-msg';
-  msg.textContent = 'Rotating…';
-  try {
-    const res = await fetch('api/token/rotate', { method: 'POST' });
-    if (!res.ok) throw new Error('status ' + res.status);
-    const d = await res.json();
-    document.getElementById('account-token').value = d.token;
-    msg.className = 'account-msg ok';
-    msg.textContent = 'Token rotated. Update your connector\'s Authorization header with this new value now.';
-  } catch (e) {
-    msg.className = 'account-msg err';
-    msg.textContent = 'Could not rotate token — try again in a moment.';
-  }
 }
 
 function copyField(inputId, btn) {
