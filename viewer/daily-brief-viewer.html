@@ -1414,8 +1414,13 @@ async function checkOnboarding() {
     const res = await fetch('api/whoami');
     const d = await res.json();
     if (d.impersonating) {
+      const banner = document.getElementById('impersonation-banner');
       document.getElementById('impersonation-email').textContent = d.email;
-      document.getElementById('impersonation-banner').style.display = 'block';
+      banner.style.display = 'block';
+      // Banner is fixed (so it stays put on scroll), which takes it out of
+      // document flow — push the rest of the page down by its real height
+      // so it doesn't sit on top of the sticky topbar's nav buttons.
+      document.body.style.paddingTop = banner.offsetHeight + 'px';
     }
     if (d.is_admin) {
       document.getElementById('admin-btn').style.display = 'inline-block';
