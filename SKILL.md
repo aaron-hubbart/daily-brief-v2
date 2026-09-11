@@ -9,6 +9,8 @@ description: >
 
   Also trigger the setup flow on "/daily-brief setup", "set up daily brief", or "configure daily brief" — see the First-Run Setup section.
 
+  Also trigger the on-demand account-discovery flow on "find new accounts", "scan for customers", or "find more accounts" — see the "On-Demand: Find New Accounts" section of references/first-run-setup.md.
+
   Don't require morning vs. evening — infer from context or current time. Always run without asking for confirmation first.
 ---
 
@@ -20,6 +22,7 @@ This file is the core: trigger, timing, and what to pull. Three things are delib
 - `references/status-updates.md` — Section 3/4 (Customer Updates, Manager Update) generation. **Read this file on every single brief run, with no exceptions** — including the first "brief me" of the day, which is exactly the case where every account and the manager entry are cache misses and need full generation. The per-account gate that decides reuse-vs-regenerate lives inside that file, not here; you cannot correctly skip Sections 3/4 without having read it first. Treating these sections as optional, or assuming a cache hit without checking, is the single most common failure mode of this skill — do not extrapolate "most runs reuse the cache" into "check is skippable."
 - `references/post-meeting-patch.md` — the post-meeting patch flow. Only read when that specific, infrequent trigger fires.
 - `references/section-refresh.md` — patches a single Customer Update or Manager Update card, or regenerates one of the other five sections in full, when a Refresh button is clicked. Only read when that trigger fires.
+- `references/first-run-setup.md` — the First-Run Setup flow (minimal config, automated discovery, confirmation, write) and the on-demand "find new accounts" flow. Only read when one of those two triggers fires.
 
 ## Admin Config
 
@@ -70,40 +73,11 @@ See references/item-sync.md for the file layout and folder hierarchy.
 
 ## First-Run Setup
 
-Runs when the user explicitly asks (`/daily-brief setup`, "set up daily brief", etc.), and is auto-offered whenever a normal run finds `CONFIG_FILE_ID` still set to the placeholder (per the config-load step above — offer setup instead of erroring). Setup is interactive and **gathers everything before writing anything**: collect all values, confirm them with the user, then write each config file once. The only thing the user ever hand-edits in `SKILL.md` is `CONFIG_FILE_ID`.
+Runs when the user explicitly asks (`/daily-brief setup`, "set up daily brief", etc.), and is auto-offered whenever a normal run finds `CONFIG_FILE_ID` still set to the placeholder (per the config-load step above — offer setup instead of erroring).
 
-### Phase A — Gather global settings
+Read `references/first-run-setup.md` in full before running this flow — it documents the minimal-configuration phase, the automated discovery pass (email, Slack, Asana, and internal-board detection), the confirmation-and-edit step, and the final write-and-hand-off step. It also documents the on-demand "find new accounts" flow used outside of full setup.
 
-Ask for these and hold them in the conversation (do not write yet). Ask for the brief-data Drive folder ID first, since both config files live inside it — if the user doesn't have one, tell them to create an empty Drive folder and paste its ID from the URL (`drive.google.com/drive/folders/<this-part>`).
-
-- brief-data Drive folder ID → `brief_data_folder_id`
-- meeting-manager run-log Google Sheet ID → `meeting_run_log_sheet_id`
-- Asana recurring-activities project GID → `recurring_activities_project_gid`
-- status-update cache file ID → `status_update_cache_file_id` (offer to create an empty `{"customer_updates": {}, "manager_update": {}}` file and use its ID)
-- Slack user ID (`UXXXXXXXXXX`) → `slack_user_id`
-- key contacts (named individuals) → `key_contacts`
-
-### Phase B — Build the account list (discover → confirm)
-
-Produce the full account list before writing. Do not write to Drive during this phase.
-
-1. **Seed** from the existing `/config/account-config.json` if one exists in the folder (read it); otherwise start empty.
-2. **Propose additions** by scanning the user's Slack account channels and Asana projects for customer-account names not already in the list.
-3. **Draft each account's details by name-search:** the Slack channel(s) whose name matches the account (main + any supporting), the Asana board matching the name — resolved to its `project_gid` — and a Drive folder matching the name for `gdrive_folder_id`. Leave any detail you can't resolve blank.
-4. **Confirm with the user.** Present the whole draft and have them correct, fill gaps, add, or remove accounts. Always confirm `tier` (primary/secondary) and, for each secondary account, its `run_day` weekday — these are not discoverable. The result is the complete account list in the shape documented in `references/item-sync.md` (`account_name`, `tier`, `run_day`, `slack_channel_id`, `supporting_slack_channel_ids`, `project_gid`, `asana_board_name`, `gdrive_folder_id`), plus the top-level `internal_project_gid`.
-
-(Future: a per-person account-assignment CSV will become the seed in step 1 — the rest of the flow is unchanged when that lands.)
-
-### Phase C — Write once, then hand off the ID
-
-After the user confirms everything:
-
-1. Create `/config/config.json` in the folder via one `Google Drive: create_file`, containing all Phase A values.
-2. Create `/config/account-config.json` in the folder via one `Google Drive: create_file`, containing the full confirmed account list and `internal_project_gid`.
-3. Report the new `config.json` Drive file ID and instruct the user to paste it into `CONFIG_FILE_ID` at the top of their local `SKILL.md`. This paste is the only manual edit.
-4. Point at the remaining prerequisites (reference only): enable the MCP connectors they use (Microsoft 365, Slack, Zoom, Asana, Google Drive) under Claude's Settings → Connectors.
-
-**Re-running setup** loads both existing files first, uses them as the Phase A/B starting point, re-confirms, and writes a fresh version of each file once — never a per-key incremental write.
+**Re-running setup** loads both existing config files first, uses them as the Phase 1/2 starting point, re-confirms, and writes a fresh version of each file once — never a per-key incremental write.
 
 ---
 
