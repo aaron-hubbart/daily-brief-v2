@@ -9,6 +9,7 @@ need to think about yet.
 """
 import json
 import os
+import secrets
 from contextlib import contextmanager
 from typing import Optional
 
@@ -320,7 +321,7 @@ def set_google_drive_folder_id(user_id: int, folder_id: Optional[str]) -> bool:
     """Store or clear the user's Google Drive folder ID."""
     if not DATABASE_URL:
         return False
-    
+
     try:
         with cursor(commit=True) as cur:
             cur.execute(
@@ -330,3 +331,59 @@ def set_google_drive_folder_id(user_id: int, folder_id: Optional[str]) -> bool:
         return True
     except Exception:
         return False
+
+
+def create_test_user(label: Optional[str] = None) -> dict:
+    """Creates a throwaway test-user row for admin impersonation. Never a
+    real person — email is always a synthetic @daily-brief.local address,
+    optionally incorporating an admin-supplied label for readability in the
+    admin panel's Test Users list."""
+    suffix = secrets.token_hex(4)
+    local_part = f"test-{label.strip().lower().replace(' ', '-')}-{suffix}" if label and label.strip() else f"test-{suffix}"
+    email = f"{local_part}@daily-brief.local"
+    slug = slugify_test_email(local_part)
+    with cursor(commit=True) as cur:
+        cur.execute(
+            """
+            INSERT INTO users (email, slug, is_test)
+            VALUES (%s, %s, TRUE)
+            RETURNING id, email, slug, is_test, created_at
+            """,
+            (email, slug),
+        )
+        return cur.fetchone()
+
+
+def slugify_test_email(local_part: str) -> str:
+    """Test-user emails are already URL-safe lowercase-with-hyphens, so the
+    slug is just the local part itself — no dependency on app.py's
+    slugify_user (which expects a real email with an @domain to strip)."""
+    return local_part
+
+
+def list_test_users() -> list:
+    """All admin-created throwaway test users, for the admin panel's Test
+    Users panel and its impersonation picker."""
+    with cursor() as cur:
+        cur.execute(
+            "SELECT id, email, slug, created_at FROM users WHERE is_test = TRUE ORDER BY created_at DESC"
+        )
+        return cur.fetchall()
+
+
+def delete_test_user(user_id: int) -> bool:
+    """Deletes a test user row. Returns False (does nothing) if user_id
+    doesn't exist or isn't a test user — this is the safety guard that
+    keeps a crafted ID from ever deleting a real person's account."""
+    with cursor(commit=True) as cur:
+        cur.execute("DELETE FROM users WHERE id = %s AND is_test = TRUE", (user_id,))
+        return cur.rowcount > 0
+
+
+def is_test_user(user_id: int) -> bool:
+    """Used to gate impersonation start — never let an admin impersonate a
+    real user, even via a crafted ID in the request."""
+    with cursor() as cur:
+        cur.execute("SELECT is_test FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        return bool(row and row['is_test'])
