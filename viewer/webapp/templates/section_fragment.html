@@ -6,7 +6,7 @@
   <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
   <div class="ibody">
     <div class="ititle">{{ item.title|autolink_jira }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
-    {% if show_board %}<div class="iboard">{{ item.content.get('project_name') or 'My Tasks' }}</div>{% endif %}
+    {% if show_board %}<div class="iboard">{{ item.get('content', {}).get('project_name') or 'My Tasks' }}</div>{% endif %}
     {% if item.subtitle %}<div class="isub">{{ item.subtitle|autolink_jira }}</div>{% endif %}
     {% if item.links %}
     <div class="ilinks">
@@ -16,7 +16,7 @@
     </div>
     {% endif %}
     <div class="duebox" data-item-key="{{ item.item_key }}" data-section="action-items" data-date="{{ brief_date }}">
-      <input type="date" class="due-input{% if item.content.get('due_on') and item.content.get('due_on') < today_iso %} overdue{% endif %}" value="{{ item.content.get('due_on', '') }}">
+      <input type="date" class="due-input{% if item.get('content', {}).get('due_on') and item.get('content', {}).get('due_on') < today_iso %} overdue{% endif %}" value="{{ item.get('content', {}).get('due_on', '') }}">
       <button type="button" class="duebtn" data-shortcut="today">Today</button>
       <button type="button" class="duebtn" data-shortcut="tomorrow">Tomorrow</button>
       <button type="button" class="duebtn" data-shortcut="next-week">Next week</button>
@@ -43,13 +43,13 @@
   <details class="acct-card" data-id="{{ item.item_key }}">
     <summary>
       <span class="acct-card-name">{{ item.title or 'Unnamed account' }}</span>
-      <span class="acct-card-meta">{{ item.content.get('last_posted_label', 'No previous update found') }}</span>
+      <span class="acct-card-meta">{{ item.get('content', {}).get('last_posted_label', 'No previous update found') }}</span>
     </summary>
     <div class="acct-card-body">
-      <textarea class="update-textarea">{{ item.content.get('textarea', '') }}</textarea>
+      <textarea class="update-textarea">{{ item.get('content', {}).get('textarea', '') }}</textarea>
       <div class="update-row">
-        <input class="channel-input" type="text" value="{{ item.content.get('channel_id', '') }}" readonly>
-        <a class="post-btn" href="https://slack.com/app_redirect?channel={{ item.content.get('channel_id', '') }}" target="_blank">Post to Slack</a>
+        <input class="channel-input" type="text" value="{{ item.get('content', {}).get('channel_id', '') }}" readonly>
+        <a class="post-btn" href="https://slack.com/app_redirect?channel={{ item.get('content', {}).get('channel_id', '') }}" target="_blank">Post to Slack</a>
         <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh customer update for ' ~ (item.title or 'Unnamed account') ~ ' date:' ~ brief_date)|urlencode }}" target="_blank">Refresh</a>
       </div>
     </div>
@@ -58,9 +58,9 @@
 
 {% elif section_slug == 'manager-update' %}
   {% for item in section_items %}
-  <textarea class="update-textarea">{{ item.content.get('textarea', '') }}</textarea>
+  <textarea class="update-textarea">{{ item.get('content', {}).get('textarea', '') }}</textarea>
   <div class="update-row">
-    <a class="post-btn" href="{{ item.content.get('post_url', '#') }}" target="_blank">Post to Manager</a>
+    <a class="post-btn" href="{{ item.get('content', {}).get('post_url', '#') }}" target="_blank">Post to Manager</a>
     <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh manager update date:' ~ brief_date)|urlencode }}" target="_blank">Refresh</a>
   </div>
   {% endfor %}
@@ -102,15 +102,15 @@
   <details class="acct-card" data-id="{{ item.item_key }}">
     <summary>
       <span class="acct-card-name">{{ item.title }}</span>
-      {% if item.content.get('status') %}<span class="acct-card-meta">{{ item.content.get('status')|capitalize }}</span>{% endif %}
+      {% if item.get('content', {}).get('status') %}<span class="acct-card-meta">{{ item.get('content', {}).get('status')|capitalize }}</span>{% endif %}
     </summary>
     <div class="acct-card-body">
-      {% if item.content.get('html_content') %}<div style="line-height:1.5;color:var(--t1);">{{ item.content.get('html_content')|safe }}</div>{% endif %}
-      {% if item.content.get('action_items') %}
+      {% if item.get('content', {}).get('html_content') %}<div style="line-height:1.5;color:var(--t1);">{{ item.get('content', {}).get('html_content')|safe }}</div>{% endif %}
+      {% if item.get('content', {}).get('action_items') %}
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
         <div style="font-size:10px;font-weight:700;color:var(--accent-t);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Action Items</div>
         <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--t2);line-height:1.5;">
-          {% for action in item.content.get('action_items', []) %}
+          {% for action in item.get('content', {}).get('action_items', []) %}
           <li>{{ action }}</li>
           {% endfor %}
         </ul>
@@ -141,7 +141,7 @@
   {% for item in section_items %}
   <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}">
     <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
-    {% if item.content.get('time') %}<div class="itime">{{ item.content.get('time') }}</div>{% endif %}
+    {% if item.get('content', {}).get('time') %}<div class="itime">{{ item.get('content', {}).get('time') }}</div>{% endif %}
     <div class="ibody">
       <div class="ititle">{{ item.title|autolink_jira }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
       {% if item.subtitle %}<div class="isub">{{ item.subtitle|autolink_jira }}</div>{% endif %}

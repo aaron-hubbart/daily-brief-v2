@@ -1192,7 +1192,7 @@ def api_live_action_items(date_str):
     exclude_gids = {
         it['item_key'][len(ASANA_ACTION_ITEM_PREFIX):]
         for it in brief_action_items
-        if it['item_key'].startswith(ASANA_ACTION_ITEM_PREFIX)
+        if it.get('item_key', '').startswith(ASANA_ACTION_ITEM_PREFIX)
     }
     live_items = _fetch_live_action_items(asana_pat, account_projects, exclude_gids)
     t_asana = time.monotonic()
