@@ -81,7 +81,6 @@ a.back{font-size:12px;color:var(--accent-t);text-decoration:none;}
             <th>Signed up</th>
             <th>Active briefs</th>
             <th>Last active</th>
-            <th></th>
           </tr>
         </thead>
         <tbody id="users-body"></tbody>
@@ -143,29 +142,10 @@ async function loadUsers() {
         <td>${fmtDate(u.created_at)}</td>
         <td>${u.active_brief_count}</td>
         <td>${fmtDate(u.last_active_at)}</td>
-        <td><button class="btn danger" onclick="rotateToken(${u.id}, '${u.email}')">Rotate token</button></td>
       </tr>
     `).join('');
   } catch (e) {
     loading.textContent = 'Could not load users.';
-  }
-}
-
-async function rotateToken(userId, email) {
-  if (!confirm(`Rotate ${email}'s API token? Their existing token stops working immediately — they'll need to sign in and revisit /api/token to get the new one before their skill can sync again.`)) {
-    return;
-  }
-  const msg = document.getElementById('users-msg');
-  msg.className = 'msg';
-  msg.textContent = 'Rotating…';
-  try {
-    const res = await fetch(`api/admin/users/${userId}/rotate-token`, { method: 'POST' });
-    if (!res.ok) throw new Error('status ' + res.status);
-    msg.className = 'msg ok';
-    msg.textContent = `Token rotated for ${email}. They should revisit /api/token while signed in to get the new value.`;
-  } catch (e) {
-    msg.className = 'msg err';
-    msg.textContent = `Could not rotate token for ${email}.`;
   }
 }
 
