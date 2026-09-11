@@ -175,6 +175,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
   <button class="icon-btn" id="customers-btn" onclick="window.location.href='customers'" title="Manage customer list">Customers</button>
   <button class="icon-btn" id="setup-btn" onclick="openSetup()" title="Setup guide">Setup</button>
   <button class="icon-btn" id="account-btn" onclick="openAccount()" title="Account & token">Account</button>
+  <button class="icon-btn" id="admin-btn" onclick="window.location.href='admin'" style="display:none;" title="Admin panel">Admin</button>
   <button class="mode-btn" id="mode-btn" onclick="toggleMode()" title="Toggle light/dark mode">☀</button>
 </div>
 
@@ -1128,6 +1129,12 @@ async function selectBrief(idx) {
     clearStatus();
     document.getElementById('viewer-wrap').scrollTop = 0;
 
+    // Exposed so the brief's own progressive section-loading script (injected
+    // above) can re-run initBriefState once each section's items actually
+    // land in the DOM — sections render as loading placeholders at first,
+    // so wiring state here immediately would count/wire zero items.
+    window.__briefFilename = brief.name;
+
     // Wait for paint before wiring state — fixes first-load checkbox issue
     requestAnimationFrame(() => {
       initBriefState(brief.name);
@@ -1409,6 +1416,9 @@ async function checkOnboarding() {
     if (d.impersonating) {
       document.getElementById('impersonation-email').textContent = d.email;
       document.getElementById('impersonation-banner').style.display = 'block';
+    }
+    if (d.is_admin) {
+      document.getElementById('admin-btn').style.display = 'inline-block';
     }
     if (!d.onboarding_completed) openSetup();
   } catch (e) {
