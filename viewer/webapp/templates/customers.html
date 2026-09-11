@@ -70,10 +70,31 @@ select{cursor:pointer;}
 .toast.out{animation:toast-out .25s ease forwards;}
 @keyframes toast-in{to{opacity:1;transform:translateY(0);}}
 @keyframes toast-out{from{opacity:1;transform:translateY(0);}to{opacity:0;transform:translateY(-12px);}}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000;}
+.modal{background:var(--surface);border-radius:var(--r);max-width:600px;width:90%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border-strong);}
+.modal-head{padding:12px 16px;background:var(--surface2);font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:center;}
+.modal-body{padding:14px 16px;overflow-y:auto;flex:1;}
+.modal-foot{padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;}
+.scan-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:.5px solid var(--border);}
+.scan-row input[type="text"]{flex:1;}
+.scan-row .mono{white-space:nowrap;}
 </style>
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
+
+<div class="modal-overlay" id="scan-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-head">
+      <span>Discovered Asana Projects</span>
+      <button class="btn" onclick="closeScanModal()">Close</button>
+    </div>
+    <div class="modal-body" id="scan-body"></div>
+    <div class="modal-foot">
+      <button class="btn primary" onclick="addScannedAccounts()">Add Selected</button>
+    </div>
+  </div>
+</div>
 
 <div class="head">
   <div>
@@ -92,7 +113,10 @@ select{cursor:pointer;}
 <div class="panel">
   <div class="panel-head">
     <span>Account List</span>
-    <button class="btn save" id="save-btn" onclick="saveConfig()" disabled>Save to Drive</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="scan-btn" onclick="scanForAccounts()">Scan for Accounts</button>
+      <button class="btn save" id="save-btn" onclick="saveConfig()" disabled>Save to Drive</button>
+    </div>
   </div>
   <div class="panel-body">
     <table>
@@ -323,6 +347,68 @@ async function saveConfig() {
 }
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+let SCAN_CANDIDATES = [];
+
+async function scanForAccounts() {
+  const modal = document.getElementById('scan-modal');
+  const body = document.getElementById('scan-body');
+  modal.style.display = 'flex';
+  body.innerHTML = '<div class="empty">Scanning Asana…</div>';
+  try {
+    const r = await fetch(`${BASE}api/customers/discover-asana`, {credentials:'include'});
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    const data = await r.json();
+    SCAN_CANDIDATES = data.candidates || [];
+    renderScanResults();
+  } catch(e) {
+    body.innerHTML = `<div class="empty" style="color:var(--bad-t)">${esc(e.message)}</div>`;
+  }
+}
+
+function renderScanResults() {
+  const body = document.getElementById('scan-body');
+  if (!SCAN_CANDIDATES.length) {
+    body.innerHTML = '<div class="empty">No new Asana projects found — everything visible to your Asana account is already linked. Note: this only scans Asana; use the skill\'s "find new accounts" to also scan Slack and email.</div>';
+    return;
+  }
+  body.innerHTML = SCAN_CANDIDATES.map((c, i) => `
+    <div class="scan-row">
+      <input type="checkbox" id="scan-check-${i}" checked>
+      <input type="text" id="scan-name-${i}" value="${esc(c.name)}" placeholder="Account name">
+      <span class="mono sub">${esc(c.gid)}</span>
+    </div>
+  `).join('');
+}
+
+function closeScanModal() {
+  document.getElementById('scan-modal').style.display = 'none';
+}
+
+function addScannedAccounts() {
+  let added = 0;
+  SCAN_CANDIDATES.forEach((c, i) => {
+    const checkbox = document.getElementById(`scan-check-${i}`);
+    if (!checkbox || !checkbox.checked) return;
+    const name = document.getElementById(`scan-name-${i}`).value.trim();
+    if (!name) return;
+    CONFIG.accounts.push({
+      account_name: name, tier: 'primary', run_day: null,
+      slack_channel_name: '', slack_channel_id: '', supporting_slack_channel_ids: [],
+      asana_board_name: c.name, project_gid: c.gid, gdrive_folder_id: null
+    });
+    added++;
+  });
+  CONFIG.accounts.sort((a,b) =>
+    (a.account_name||'').localeCompare(b.account_name||'', undefined, {sensitivity:'base'})
+  );
+  closeScanModal();
+  if (added > 0) {
+    markDirty();
+    render();
+    showToast(`Added ${added} account${added===1?'':'s'} — click "Save to Drive" to persist`, 'ok', 5000);
+  }
+}
 
 window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 
