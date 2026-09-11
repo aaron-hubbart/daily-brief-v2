@@ -49,6 +49,7 @@ from flask import Flask, Response, abort, jsonify, redirect, render_template, re
 from markupsafe import Markup, escape
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+import asana_discovery
 import db
 import gdrive_briefs
 
@@ -1002,6 +1003,39 @@ def api_customers_config_update():
         msg = result if isinstance(result, str) else 'Failed to write account-config.json'
         return jsonify({'error': msg}), 500
     return jsonify({'ok': True})
+
+
+@app.route('/api/customers/discover-asana')
+@login_required
+def api_customers_discover_asana():
+    """Returns Asana projects not yet linked to any account, for the
+    Customers tab's "Scan for Accounts" button. Asana-only: this webapp
+    has no Slack or Outlook access, so full multi-source discovery still
+    only happens in the skill's own setup flow
+    (references/first-run-setup.md)."""
+    pat = db.get_asana_pat(request.brief_user['id'])
+    if not pat:
+        return jsonify({'error': 'No Asana PAT configured — add one from the Account panel first.'}), 400
+
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    config = gdrive_briefs.read_account_config(google_token, folder_id)
+    if config is None:
+        return jsonify({'error': 'Could not read account-config.json'}), 500
+
+    linked_gids = {
+        a.get('project_gid') for a in config.get('accounts', []) if a.get('project_gid')
+    }
+
+    try:
+        candidates = asana_discovery.find_new_projects(_asana_api_get, pat, linked_gids)
+    except (urllib.error.URLError, json.JSONDecodeError) as e:
+        return jsonify({'error': f'Asana lookup failed: {e}'}), 502
+
+    return jsonify({'candidates': candidates})
+
 
 @app.route('/admin')
 @login_required
