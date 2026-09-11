@@ -241,6 +241,11 @@ details.sec>.sec-body{padding:4px 14px 10px;}
             countEl.textContent = data.count + ' items';
           }
         }
+        // Re-wire checkbox state now that this section's items exist in the
+        // DOM — initBriefState ran already, before any section had loaded,
+        // so it counted/wired zero items. It's safe to call again: it
+        // re-queries the live DOM and re-clones nodes each time.
+        if (window.initBriefState) window.initBriefState(window.__briefFilename);
         // After action-items section loads, kick off the Asana live pull
         if (slug === 'action-items') {
           loadLiveActionItems();
@@ -272,6 +277,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
             var countEl = sec.querySelector('.sec-count');
             if (countEl) countEl.textContent = data.count + ' items';
           }
+          if (window.initBriefState) window.initBriefState(window.__briefFilename);
         } else {
           loader.style.display = 'none';
         }
