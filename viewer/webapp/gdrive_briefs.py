@@ -257,6 +257,22 @@ def read_brief_metadata(brief_date: str, refresh_token: str, folder_id: Optional
         return None
 
 
+def _extract_items(data) -> List[Dict]:
+    """Normalize a downloaded section file's JSON into a flat list of item
+    dicts. Section list files (today.json, meetings.json, fyi.json,
+    action-items.json) are written as {"items": [...]}; single-item files
+    (manager-update.json) are written as one bare dict. Without unwrapping
+    the "items" wrapper, the whole {"items": [...]} object gets treated as
+    a single malformed item (no title/item_key/content), rendering blank."""
+    if isinstance(data, list):
+        return data
+    elif isinstance(data, dict):
+        if isinstance(data.get('items'), list):
+            return data['items']
+        return [data]
+    return []
+
+
 def read_section(brief_date: str, section_slug: str, refresh_token: str,
                  folder_id: Optional[str] = None) -> Optional[List[Dict]]:
     """Read a single section's data from Drive. Uses cached credentials and
@@ -275,11 +291,7 @@ def read_section(brief_date: str, section_slug: str, refresh_token: str,
             if filename not in file_map:
                 return []
             data = _download_json(drive, file_map[filename])
-            if isinstance(data, list):
-                return data
-            elif isinstance(data, dict):
-                return [data]
-            return []
+            return _extract_items(data)
 
         # Subfolder sections
         if section_slug == 'account-recap' and 'accounts' in subfolder_map:
@@ -331,10 +343,7 @@ def read_brief_manifest(brief_date: str, refresh_token: str, folder_id: Optional
             if filename in file_map:
                 try:
                     data = _download_json(drive, file_map[filename])
-                    if isinstance(data, list):
-                        brief_data['sections'][section_slug] = data
-                    elif isinstance(data, dict):
-                        brief_data['sections'][section_slug] = [data]
+                    brief_data['sections'][section_slug] = _extract_items(data)
                     logger.info(f'read_brief_manifest: {filename} -> {section_slug}: {len(brief_data["sections"].get(section_slug, []))} items')
                 except Exception as e:
                     logger.warning(f'Failed to read {filename}: {e}')
