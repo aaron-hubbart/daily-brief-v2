@@ -36,15 +36,15 @@ See `viewer-backend/DEPLOYMENT.md` in this repo for deploying and linking the ho
 
 ### Google Drive
 
-- A Google Sheet for tracking meeting-manager runs — its ID is collected by the setup flow and stored in the `meeting_run_log_sheet_id` field of `config.json`
-- A small JSON file for the Section 3/4 daily cache — create an empty one (`{"customer_updates": {}, "manager_update": {}}` is a fine starting point); its ID is collected by the setup flow and stored in the `status_update_cache_file_id` field of `config.json`. See `references/status-updates.md` for the schema.
+- A Google Sheet for tracking meeting-manager runs — its ID is left blank by setup for you to fill in afterward, in the `meeting_run_log_sheet_id` field of `config.json`
+- A small JSON file for the Section 3/4 daily cache — create an empty one (`{"customer_updates": {}, "manager_update": {}}` is a fine starting point); its ID is left blank by setup for you to fill in afterward, in the `status_update_cache_file_id` field of `config.json`. See `references/status-updates.md` for the schema.
 - A folder to hold `/briefs` (this skill's own output), `/config` (hand-maintained by you), and `/state` (written by the hosted webapp, not this skill) — its ID is collected by the setup flow and stored in the `brief_data_folder_id` field of `config.json`. See `references/item-sync.md` for the layout.
 
 Setup itself now only asks for this folder ID and your Slack user ID up front — it discovers your customer accounts, their Slack channels, and their Asana projects automatically, then has you review and confirm before writing anything. See `references/first-run-setup.md` for the full flow. You can also run account discovery anytime after setup ("find new accounts"), or use the "Scan for Accounts" button on the hosted webapp's Customers tab (Asana-only there, since the webapp has no Slack access).
 
 ### Asana
 
-- A project for recurring task templates — its GID is collected by the setup flow and stored in the `recurring_activities_project_gid` field of `config.json`
+- A project for recurring task templates — its GID is left blank by setup for you to fill in afterward, in the `recurring_activities_project_gid` field of `config.json`
 - Recommended custom fields on that project: `Frequency`, `Day of Week`, `Week of Month`, `Day of Month`, `Month`, `Month of Quarter`, `Due Offset Days`, `Customer`, `Active`, `Snooze Until`, `Last Run`
 
 ### Slack

@@ -64,10 +64,10 @@ note it and continue.
 **Pass 4 — Internal board detection.** Search Asana for projects whose
 name suggests an internal/non-customer board — look for names containing
 "Internal", "Admin", "Team", "General", or "Recurring". If exactly one
-strong candidate is found, propose it as `internal_project_gid`. If
-multiple candidates are found, list them and ask the user to pick one in
-Phase 3. If none are found, leave it blank — the user can paste a GID
-directly in Phase 3.
+strong candidate is found, propose it as `internal_project_gid` (with its
+name as `internal_project_name`). If multiple candidates are found, list
+them and ask the user to pick one in Phase 3. If none are found, leave it
+blank — the user can paste a GID (and name) directly in Phase 3.
 
 **Confidence ranking.** Sort the candidate account list for Phase 3
 presentation: accounts with both a Slack channel AND an Asana project
@@ -120,16 +120,54 @@ Once the user confirms:
    used).
 2. Create `/config/account-config.json` via `Google Drive: create_file`
    with the confirmed `accounts` array and top-level `internal_project_gid`
-   — exact field names per `references/item-sync.md`: `account_name`,
-   `tier`, `run_day`, `slack_channel_id`, `supporting_slack_channel_ids`,
-   `project_gid`, `asana_board_name`, `gdrive_folder_id` (set `null` for
-   anything not resolved).
+   plus `internal_project_name` (the human-readable name of that internal
+   board) — exact field names per `references/item-sync.md`: `account_name`,
+   `tier`, `run_day`, `slack_channel_id`, `slack_channel_name` (the
+   human-readable Slack channel name, alongside the ID),
+   `supporting_slack_channel_ids`, `project_gid`, `asana_board_name`,
+   `gdrive_folder_id` (set `null` for anything not resolved).
 3. Run the Folder Existence Check (see `SKILL.md`) to create `/briefs`,
    `/config`, `/state` under the brief-data folder if they don't already
    exist.
 4. Report the new `config.json` file ID and tell the user to paste it
    into `CONFIG_FILE_ID` at the top of their local `SKILL.md` — this is
    the only manual edit.
+
+## Re-running Setup
+
+Before starting Phase 1, check whether `/config/config.json` and
+`/config/account-config.json` already exist in the target Drive folder.
+If neither exists, this is a first run — proceed with Phase 1 as written.
+
+If one or both already exist, read them first and seed the flow from
+their existing values instead of starting from zero:
+
+- **Phase 1 starting point.** Use the existing `brief_data_folder_id` and
+  `slack_user_id` from `config.json` as the answers to Phase 1's two
+  questions instead of re-asking them — confirm the values with the user
+  ("Re-running setup — still using folder `<id>` and Slack user
+  `<id>`?") rather than prompting from scratch. Only ask again if the
+  user explicitly wants to change one.
+- **Phase 2/3 starting point.** Treat the existing `accounts` array (and
+  `internal_project_gid` / `internal_project_name`) as the starting
+  candidate list, not just something to check for duplicates against.
+  Run Phase 2's discovery passes as usual to find anything new, then
+  present Phase 3's confirmation table with *both* the already-configured
+  accounts and the newly-discovered ones together, clearly marked which
+  is which.
+- **Never silently clobber hand-set fields.** Every existing account's
+  current `tier`, `run_day`, `supporting_slack_channel_ids`, and
+  `gdrive_folder_id` must carry forward unchanged unless the user
+  explicitly changes them during Phase 3 confirmation. A re-run's
+  discovery pass not re-finding the same Slack/Asana match for an
+  already-configured account is not a reason to blank out or drop fields
+  that were already set — discovery only fills gaps and proposes
+  additions, it never overwrites a hand-edited value on an existing
+  account.
+- **Phase 4 write.** When writing the fresh `account-config.json`, the
+  written `accounts` array must be the merge of preserved existing
+  accounts (with any user-confirmed edits from Phase 3) plus any
+  newly-confirmed accounts — never just the newly-discovered set.
 
 ## On-Demand: Find New Accounts
 

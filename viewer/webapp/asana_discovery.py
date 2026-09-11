@@ -43,7 +43,7 @@ def find_new_projects(
             continue
         projects = fetch_fn(
             pat, f'/workspaces/{workspace_gid}/projects',
-            {'opt_fields': 'name,gid', 'archived': 'false'},
+            {'opt_fields': 'name,gid', 'archived': 'false', 'limit': 100},
         )
         for project in projects.get('data', []):
             gid = project.get('gid')

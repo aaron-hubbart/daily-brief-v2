@@ -347,6 +347,7 @@ async function saveConfig() {
 }
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
 
 let SCAN_CANDIDATES = [];
 
@@ -374,8 +375,8 @@ function renderScanResults() {
   }
   body.innerHTML = SCAN_CANDIDATES.map((c, i) => `
     <div class="scan-row">
-      <input type="checkbox" id="scan-check-${i}" checked>
-      <input type="text" id="scan-name-${i}" value="${esc(c.name)}" placeholder="Account name">
+      <input type="checkbox" id="scan-check-${i}">
+      <input type="text" id="scan-name-${i}" value="${escAttr(c.name)}" placeholder="Account name">
       <span class="mono sub">${esc(c.gid)}</span>
     </div>
   `).join('');

@@ -1028,6 +1028,8 @@ def api_customers_discover_asana():
     linked_gids = {
         a.get('project_gid') for a in config.get('accounts', []) if a.get('project_gid')
     }
+    if config.get('internal_project_gid'):
+        linked_gids.add(config['internal_project_gid'])
 
     try:
         candidates = asana_discovery.find_new_projects(_asana_api_get, pat, linked_gids)
