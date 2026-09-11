@@ -843,6 +843,7 @@ def whoami():
         'email': request.brief_user['email'],
         'onboarding_completed': bool(user and user['onboarding_completed_at']),
         'impersonating': bool(original),
+        'is_admin': bool(ADMIN_EMAILS and request.brief_user['email'].lower() in ADMIN_EMAILS),
     }
     if original:
         response['real_admin_email'] = original['email']
