@@ -25,11 +25,11 @@ With one row per item: refreshing a single account's update, or a single meeting
 - **30 days**: `brief_days` rows with `brief_date` more than 30 days ago get hard-deleted, `ON DELETE CASCADE` removes their `items` rows with them. This is irreversible.
 - Both checks run independently every time the job runs — a day that's already archived just gets skipped by the 14-day pass (its `status` is no longer `'active'`) and picked up by the 30-day pass on schedule.
 
-## `users.asana_pat` and `account_projects`
+## `users.asana_pat`
 
-As of `migrations/003_add_asana_pat.sql` and `004_add_account_projects.sql`, Action Items has two data sources instead of one:
+As of `migrations/003_add_asana_pat.sql`, Action Items has two data sources instead of one:
 
 - **New Items** — still Postgres-backed, exactly as before. The skill only upserts items where `content.is_new` is true (the task it just created this run); it no longer syncs Overdue/Due Next 7 Days/No Due Date rows to Postgres at all.
-- **Overdue / Due Next 7 Days / No Due Date** — pulled live from Asana's API at page-render time (see `app.py`'s `_fetch_live_action_items`), using the signed-in user's own `users.asana_pat` and the project GIDs in `account_projects` for that `user_id`. Never persisted; recomputed on every page load. If `asana_pat` is `NULL` (the person skipped that step of setup), these three subsections are omitted entirely and only New Items renders.
+- **Overdue / Due Next 7 Days / No Due Date** — pulled live from Asana's API at page-render time (see `app.py`'s `_fetch_live_action_items`), using the signed-in user's own `users.asana_pat` and the account→project-GID mapping read live from that user's Google Drive `account-config.json` (`gdrive_briefs.get_account_projects`) — no Postgres table involved. Never persisted; recomputed on every page load. If `asana_pat` is `NULL` (the person skipped that step of setup), or Google Drive isn't connected, these three subsections are omitted entirely and only New Items renders.
 
-`account_projects` is a full replace-per-user mirror — the skill re-syncs the whole table for a user on every brief run via `daily_brief_sync_account_projects`, so a stale row for a removed account doesn't linger.
+(As of migration 007, the earlier Postgres-backed `account_projects` mirror table this section used to describe has been dropped — the mapping now comes exclusively from Drive.)
