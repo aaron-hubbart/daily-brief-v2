@@ -55,7 +55,7 @@ spec:
             # value directly and re-apply/rollout-restart to change it;
             # not worth a Secret for something this low-sensitivity.
             - name: ADMIN_EMAILS
-              value: ""
+              value: "aaron.hubbart@camunda.com"
             # Built from postgres-credentials via $(VAR) interpolation
             # (supported natively by Kubernetes for env vars defined earlier
             # in the same list) rather than duplicating the connection
