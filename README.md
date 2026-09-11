@@ -9,6 +9,7 @@ A Claude skill that generates a personalized daily briefing. Pulls from Outlook 
 - `references/status-updates.md` — Section 3 (Customer Updates) and Section 4 (Manager Update) generation, plus the per-account daily cache that gates them. Read only for the accounts (or manager entry) that actually need generating on a given run.
 - `references/post-meeting-patch.md` — writes a new version of the affected Yesterday's Meetings item to Drive when meeting-manager finishes post-meeting processing. Read only when that trigger fires.
 - `references/section-refresh.md` — writes a new version of a single Customer Update or Manager Update card, or a full section (Yesterday's Meetings, Account/Initiative Recap, Today, Action Items, FYI), to Drive when its Refresh button is clicked. Read only when that trigger fires.
+- `references/first-run-setup.md` — the First-Run Setup flow (minimal Drive-folder/Slack-ID collection, automated email/Slack/Asana discovery, user confirmation, write) and the on-demand "find new accounts" flow. Read only when setup or account-discovery triggers.
 
 ## Prerequisites
 
@@ -38,6 +39,8 @@ See `viewer-backend/DEPLOYMENT.md` in this repo for deploying and linking the ho
 - A Google Sheet for tracking meeting-manager runs — its ID is collected by the setup flow and stored in the `meeting_run_log_sheet_id` field of `config.json`
 - A small JSON file for the Section 3/4 daily cache — create an empty one (`{"customer_updates": {}, "manager_update": {}}` is a fine starting point); its ID is collected by the setup flow and stored in the `status_update_cache_file_id` field of `config.json`. See `references/status-updates.md` for the schema.
 - A folder to hold `/briefs` (this skill's own output), `/config` (hand-maintained by you), and `/state` (written by the hosted webapp, not this skill) — its ID is collected by the setup flow and stored in the `brief_data_folder_id` field of `config.json`. See `references/item-sync.md` for the layout.
+
+Setup itself now only asks for this folder ID and your Slack user ID up front — it discovers your customer accounts, their Slack channels, and their Asana projects automatically, then has you review and confirm before writing anything. See `references/first-run-setup.md` for the full flow. You can also run account discovery anytime after setup ("find new accounts"), or use the "Scan for Accounts" button on the hosted webapp's Customers tab (Asana-only there, since the webapp has no Slack access).
 
 ### Asana
 
