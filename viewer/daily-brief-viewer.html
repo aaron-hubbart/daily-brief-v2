@@ -193,68 +193,37 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
       <div class="modal-dots" id="setup-dots"></div>
 
       <div class="setup-step active" data-step="1">
-        <h3>1. Get your API token</h3>
-        <p>This token is how your daily-brief skill authenticates to sync briefs into this viewer. It's tied to your Camunda sign-in — never share it with anyone else.</p>
-        <div class="copy-row">
-          <input class="copy-input" id="setup-token" readonly value="Loading…">
-          <button class="copy-btn" onclick="copyField('setup-token', this)">Copy</button>
-        </div>
-        <p>Keep this handy — you'll paste it into a connector setting in the next step.</p>
+        <h3>1. Set up the daily-brief skill</h3>
+        <p>Install the skill in a Claude project from <a href="https://github.com/aaron-hubbart/daily-brief-v2" target="_blank" rel="noopener">github.com/aaron-hubbart/daily-brief-v2</a> — copy <code>SKILL.md</code> and the <code>references/</code> folder in.</p>
+        <p>Then, in Claude, run:</p>
+        <p><code>/daily-brief setup</code></p>
+        <p>Follow the prompts — it'll ask for your Drive folder ID and Slack user ID, then discover your customer accounts, Slack channels, and Asana projects automatically. Review and confirm what it finds.</p>
+        <p>When it finishes, it reports a <code>config.json</code> Drive file ID. Paste that into <code>CONFIG_FILE_ID</code> at the top of your local <code>SKILL.md</code> — that's the only manual edit.</p>
       </div>
 
       <div class="setup-step" data-step="2">
-        <h3>2. Add the daily-brief connector in Claude</h3>
-        <p>This is what actually lets your skill push brief items here — Claude's sandboxed tools can't reach this domain directly, so syncing goes through a dedicated MCP connector instead of a plain web request.</p>
-        <ol>
-          <li>In Claude, go to <strong>Settings &rarr; Connectors &rarr; Add custom connector</strong></li>
-          <li>URL:</li>
-        </ol>
-        <div class="copy-row">
-          <input class="copy-input" id="setup-mcp-url" readonly value="Loading…">
-          <button class="copy-btn" onclick="copyField('setup-mcp-url', this)">Copy</button>
-        </div>
-        <ol start="3">
-          <li>Auth type: <strong>static header</strong></li>
-          <li>Header name <code>Authorization</code>, value <code>Bearer &lt;your token from step 1&gt;</code></li>
-        </ol>
-        <p>If this token is ever rotated, update this connector's header with the new value — see the Account panel for rotating.</p>
-      </div>
-
-      <div class="setup-step" data-step="3">
-        <h3>3. Install the daily-brief skill</h3>
-        <p>Add the skill to a Claude project from <a href="https://github.com/aaron-hubbart/daily-brief" target="_blank" rel="noopener">github.com/aaron-hubbart/daily-brief</a> — copy <code>SKILL.md</code> and the <code>references/</code> folder in.</p>
-        <p>Then set this in your local copy's <strong>Admin Config</strong> block at the top of <code>SKILL.md</code>:</p>
-        <div class="copy-row">
-          <input class="copy-input" id="setup-base-url" readonly value="Loading…">
-          <button class="copy-btn" onclick="copyField('setup-base-url', this)">Copy</button>
-        </div>
-        <p>That's <code>DAILY_BRIEF_API_BASE_URL</code> — reference only. Syncing itself goes through the connector from step 2, so there's no token value to store in this file.</p>
-      </div>
-
-      <div class="setup-step" data-step="4">
-        <h3>4. Connect your data sources</h3>
+        <h3>2. Connect your data sources</h3>
         <p>The skill pulls from these — enable whichever apply to you under Claude's <strong>Settings &rarr; Connectors</strong>:</p>
         <ul>
           <li><strong>Microsoft 365</strong> — Outlook calendar, email, availability</li>
           <li><strong>Slack</strong> — DMs, channel activity, mentions, posting status updates</li>
           <li><strong>Zoom</strong> — meeting summaries</li>
           <li><strong>Asana</strong> — task tracking</li>
-          <li><strong>Google Drive</strong> — meeting run log sheet and status-update cache</li>
+          <li><strong>Google Drive</strong> — where your briefs, config, and status-update cache all live</li>
         </ul>
         <p>Only connect what you actually use — the skill flags a source as "not found" rather than failing when one isn't hooked up.</p>
       </div>
 
-      <div class="setup-step" data-step="5">
-        <h3>5. A few other things</h3>
+      <div class="setup-step" data-step="3">
+        <h3>3. A few other things</h3>
         <ul>
           <li><strong>Claude Desktop</strong>, if you want the <code>claude://</code> refresh and meeting-manager deep links in your briefs to work</li>
-          <li>Your own Asana recurring-activities project GID (<code>RECURRING_ACTIVITIES_PROJECT_GID</code>) and a Drive sheet for the meeting run log (<code>MEETING_RUN_LOG_SHEET_ID</code>) — set these in Admin Config as you go</li>
           <li>See the skill repo's <code>README.md</code> for the full prerequisites list</li>
         </ul>
       </div>
 
-      <div class="setup-step" data-step="6">
-        <h3>6. Connect Asana (optional)</h3>
+      <div class="setup-step" data-step="4">
+        <h3>4. Connect Asana (optional)</h3>
         <p>Adding your own Asana Personal Access Token lets this viewer pull your Overdue, Due Next 7 Days, and No Due Date tasks directly from Asana every time you load a brief — always current, not just whatever the skill saw on its last run. Only the New Items you saw above come from the brief run itself; this step is what turns on the other three.</p>
         <p>To create one: sign in to Asana, go to <strong>your profile photo &rarr; My Settings &rarr; Apps &rarr; Manage Developer Apps &rarr; Personal Access Tokens &rarr; Create new token</strong> (or go directly to <a href="https://app.asana.com/0/developer-console" target="_blank" rel="noopener">app.asana.com/0/developer-console</a>). Give it a name like "Daily Brief Viewer" and copy the token — Asana only shows it once.</p>
         <div class="copy-row">
@@ -276,18 +245,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 <div class="modal-overlay" id="account-overlay">
   <div class="modal" style="max-width:440px;">
     <div class="modal-head">
-      <h2>Account &amp; API token</h2>
+      <h2>Account</h2>
       <button class="modal-close" onclick="closeAccount()" title="Close">&times;</button>
     </div>
     <div class="modal-body">
       <div class="account-row">Signed in as <strong id="account-email">…</strong></div>
-      <div class="copy-row">
-        <input class="copy-input" id="account-token" readonly value="Loading…">
-        <button class="copy-btn" onclick="copyField('account-token', this)">Copy</button>
-      </div>
-      <button class="icon-btn" id="account-rotate" onclick="rotateToken()">Rotate token</button>
-      <p style="font-size:11.5px;color:var(--t3);margin-top:10px;line-height:1.5;">Rotating invalidates your current token immediately. Afterward, update the <code>Authorization</code> header on your daily-brief-mcp-server connector (Claude Settings &rarr; Connectors) with the new value — your skill can't sync again until you do.</p>
-      <div class="account-msg" id="account-msg"></div>
       <hr class="account-hr">
       <div class="account-row" id="google-status-row">Google Drive: <strong id="google-status">checking…</strong></div>
       <button class="icon-btn" id="account-google-connect" onclick="connectGoogleDrive()" style="display:none;">Connect Google Drive</button>
@@ -314,6 +276,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
   </div>
 </div>
 
+
+<div class="modal-overlay" id="impersonation-banner" style="display:none;position:fixed;top:0;left:0;right:0;background:#b02520;color:#fff;padding:8px 16px;text-align:center;font-size:13px;z-index:2000;">
+  Viewing as: <strong id="impersonation-email"></strong> (test) &mdash;
+  <button style="background:#fff;color:#b02520;border:none;border-radius:4px;padding:3px 10px;font-size:12px;cursor:pointer;margin-left:6px;" onclick="stopImpersonating()">Return to my account</button>
+</div>
 
 <div class="status-bar" id="status-bar">
   <div class="spinner" id="spinner"></div>
@@ -1181,20 +1148,8 @@ document.getElementById('brief-select').addEventListener('change', function() {
 
 // ── Setup walkthrough + Account panel ──────────────────────────────
 
-let clientConfig = null; // {api_base_url, mcp_connector_url} — cached after first fetch
 let setupStepIndex = 1;
-const SETUP_STEP_COUNT = 6;
-
-async function getClientConfig() {
-  if (clientConfig) return clientConfig;
-  try {
-    const res = await fetch('api/client-config');
-    clientConfig = await res.json();
-  } catch (e) {
-    clientConfig = { api_base_url: null, mcp_connector_url: null };
-  }
-  return clientConfig;
-}
+const SETUP_STEP_COUNT = 4;
 
 async function saveAsanaPat(inputId, msgId, onSuccess) {
   const input = document.getElementById(inputId);
@@ -1396,14 +1351,6 @@ async function openSetup(fromReplay) {
   document.getElementById('setup-asana-pat').value = '';
   document.getElementById('setup-asana-msg').className = 'account-msg';
   document.getElementById('setup-asana-msg').textContent = '';
-
-  fetch('api/token').then(r => r.json()).then(d => {
-    document.getElementById('setup-token').value = d.token || '(unavailable)';
-  }).catch(() => { document.getElementById('setup-token').value = '(unavailable)'; });
-
-  const cfg = await getClientConfig();
-  document.getElementById('setup-base-url').value = cfg.api_base_url || '(unavailable)';
-  document.getElementById('setup-mcp-url').value = cfg.mcp_connector_url || '(ask your admin for this URL)';
 }
 
 function closeSetup() {
@@ -1412,8 +1359,6 @@ function closeSetup() {
 
 async function openAccount() {
   document.getElementById('account-overlay').classList.add('show');
-  document.getElementById('account-msg').className = 'account-msg';
-  document.getElementById('account-msg').textContent = '';
   document.getElementById('account-asana-msg').className = 'account-msg';
   document.getElementById('account-asana-msg').textContent = '';
   document.getElementById('account-google-msg').className = 'account-msg';
@@ -1421,12 +1366,11 @@ async function openAccount() {
   document.getElementById('account-asana-pat').value = '';
 
   try {
-    const res = await fetch('api/token');
+    const res = await fetch('api/whoami');
     const d = await res.json();
     document.getElementById('account-email').textContent = d.email || '';
-    document.getElementById('account-token').value = d.token || '(unavailable)';
   } catch (e) {
-    document.getElementById('account-token').value = '(unavailable)';
+    document.getElementById('account-email').textContent = '(unavailable)';
   }
 
   refreshGoogleStatus();
@@ -1435,26 +1379,6 @@ async function openAccount() {
 
 function closeAccount() {
   document.getElementById('account-overlay').classList.remove('show');
-}
-
-async function rotateToken() {
-  if (!confirm('Rotate your API token? Your current token stops working immediately — update your daily-brief-mcp-server connector\'s Authorization header with the new value before your skill can sync again.')) {
-    return;
-  }
-  const msg = document.getElementById('account-msg');
-  msg.className = 'account-msg';
-  msg.textContent = 'Rotating…';
-  try {
-    const res = await fetch('api/token/rotate', { method: 'POST' });
-    if (!res.ok) throw new Error('status ' + res.status);
-    const d = await res.json();
-    document.getElementById('account-token').value = d.token;
-    msg.className = 'account-msg ok';
-    msg.textContent = 'Token rotated. Update your connector\'s Authorization header with this new value now.';
-  } catch (e) {
-    msg.className = 'account-msg err';
-    msg.textContent = 'Could not rotate token — try again in a moment.';
-  }
 }
 
 function copyField(inputId, btn) {
@@ -1482,10 +1406,21 @@ async function checkOnboarding() {
   try {
     const res = await fetch('api/whoami');
     const d = await res.json();
+    if (d.impersonating) {
+      document.getElementById('impersonation-email').textContent = d.email;
+      document.getElementById('impersonation-banner').style.display = 'block';
+    }
     if (!d.onboarding_completed) openSetup();
   } catch (e) {
     // Fails open — no walkthrough rather than blocking the viewer over it.
   }
+}
+
+async function stopImpersonating() {
+  try {
+    await fetch('api/admin/impersonate/stop', { method: 'POST' });
+  } catch (e) { /* best-effort */ }
+  window.location.href = './admin';
 }
 
 initMode();

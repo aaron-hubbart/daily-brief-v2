@@ -57,13 +57,13 @@ kubectl -n daily-brief rollout status statefulset/postgres
 
 The `postgres-schema` ConfigMap is mounted at `/docker-entrypoint-initdb.d/` — the official Postgres image auto-runs any `.sql` files there, but **only the very first time it initializes an empty data directory**. If you change `schema.sql` later, re-creating this ConfigMap and restarting the pod won't re-apply it — that needs a real migration step (`kubectl exec` into the pod and run the new SQL by hand, or a proper migration tool, once there's a second schema change to make).
 
-**If Postgres is already running from a previous deploy** (true as of the `api_token` column being added — anyone who stood this up before that change needs this): apply the migration by hand once, against the running database:
+**If Postgres is already running from a previous deploy** (true for any cluster that predates migration 007): apply each new migration by hand once, against the running database — for example:
 
 ```powershell
-Get-Content -Raw viewer/webapp/db/migrations/001_add_api_token.sql | kubectl exec -i -n daily-brief postgres-0 -- psql -U dailybrief -d dailybrief
+Get-Content -Raw viewer/webapp/db/migrations/007_drop_api_token_and_account_projects.sql | kubectl exec -i -n daily-brief postgres-0 -- psql -U dailybrief -d dailybrief
 ```
 
-Safe to run more than once. Existing users don't need a separate backfill step — `db.get_or_create_user` assigns each of them a token automatically the next time they sign in (see step 8).
+Safe to run more than once.
 
 Same deal for the `onboarding_completed_at` column added for the setup walkthrough — anyone upgrading from before that needs this too, also safe to run more than once:
 
@@ -120,17 +120,14 @@ kubectl -n daily-brief logs deploy/daily-brief-viewer --tail=50
 
 ## 8. Roll out to test users
 
-This is now fully self-service — no `kubectl` step per person:
+This is fully self-service — no `kubectl` step per person:
 
-1. **They sign in.** Visit the URL, sign in with any `@camunda.com` account. `db.get_or_create_user` creates their `users` row and assigns them a random `api_token` in that same call — nothing for you to provision.
-2. **They grab their token.** While signed in, visiting `/daily-brief/api/token` in the browser returns `{"token": "...", "email": "..."}`. That's the value they put in their own copy of the daily-brief skill's Admin Config to authenticate `/api/items/upsert` and `/api/items/batch-upsert` calls.
-3. **Their skill starts pushing items**, and their brief shows up next time they load the viewer.
+1. **They sign in.** Visit the URL, sign in with any `@camunda.com` account. `db.get_or_create_user` creates their `users` row automatically — nothing for you to provision.
+2. **They run `/daily-brief setup` in Claude** (see the in-app Setup walkthrough, or the skill repo's own `README.md`) — this writes their brief config directly to their own Google Drive.
+3. **They connect Google Drive and (optionally) Asana** from the Account panel or the Setup walkthrough.
+4. **Their skill starts writing briefs to Drive**, and their brief shows up next time they load the viewer (after connecting Drive).
 
-If someone's token ever leaks or they just want a fresh one, `POST /daily-brief/api/token/rotate` (while signed in) issues a new one and immediately invalidates the old one.
-
-**Ordering matters**: a token only exists once someone has signed in through the browser at least once — there's no way to provision a token for an email that's never authenticated, since Azure AD sign-in is the only trusted identity check in this system. A new person's sequence is always sign in first, then configure their skill, never the other way around.
-
-Signing in and having reports show up are still two separate things — a person can sign in today and see an empty state until either their own skill upserts some items using their token, or you manually insert a test row for a quick look (see `db/README.md`'s schema for the shape).
+Signing in and having reports show up are still two separate things — a person can sign in today and see an empty state until they've connected Google Drive and run the skill at least once.
 
 ## Updating the deployed image later
 
@@ -170,14 +167,14 @@ This runs the Flask dev server directly (not gunicorn, not a container) for quic
 
 ## What this doesn't do yet
 
-- **The skill now calls `/api/items/upsert` and `/api/items/batch-upsert`.** These replace what would have been `/api/upload` in the old file-based design — the skill calls `batch-upsert` once per full brief generation, and `upsert` again later for a single item's refresh (no separate "patch a file" flow needed anymore, unlike the old `references/section-refresh.md` approach). See `references/item-sync.md`, `references/post-meeting-patch.md`, and `references/section-refresh.md` in the skill repo for the wiring.
 - **Checked-state sync.** Done. Checkbox toggles call `/api/items/<section>/<item_key>/checked`, which persists across devices and, for Action Items, mirrors onto the linked Asana task's completed state when the signed-in person has their own `asana_pat` configured (see the section above).
 - **Multi-tenant automation.** This gets each test user a login and isolated data. It does not make the daily-brief *skill* itself multi-user — each person who wants their own automated briefs still needs their own Claude project and their own Drive/Slack/Asana connections. This is the viewer/hosting/storage layer only.
 - **Group-based restriction.** `ALLOWED_GROUPS` is present in `app.py` but inactive, since this test rollout is open to any Camunda tenant user.
-- **Admin panel.** `/admin` lists every signed-in user (sign-up date, active brief count, last-active date) and can rotate any user's token — useful for unblocking a stuck sync without asking them to self-diagnose a 401/403. Gated by `ADMIN_EMAILS` (comma-separated, case-insensitive) in `deployment.yaml`; empty/unset 404s the panel for everyone. Not a secret value, so it's a plain env var rather than a Kubernetes Secret — edit `deployment.yaml` directly and `kubectl -n daily-brief rollout restart deployment/daily-brief-viewer` to pick up a change.
+- **Admin panel.** `/admin` lists every real signed-in user (sign-up date, active brief count, last-active date) and lets an admin create/impersonate/delete throwaway test users for exercising the new-user experience safely (see the Admin Impersonation section below). Gated by `ADMIN_EMAILS` (comma-separated, case-insensitive) in `deployment.yaml`; empty/unset 404s the panel for everyone. Not a secret value, so it's a plain env var rather than a Kubernetes Secret — edit `deployment.yaml` directly and `kubectl -n daily-brief rollout restart deployment/daily-brief-viewer` to pick up a change.
 - **Asana checkbox sync.** Checking or unchecking an Action Item in the viewer PATCHes `/api/items/action-items/{item_key}/checked`, which persists to Postgres (for New Items) and, when the signed-in person has their own Asana PAT configured (`users.asana_pat`, set via the setup walkthrough or Account panel — see `migrations/003_add_asana_pat.sql`), PUTs the same completed state to the linked Asana task (item_key is `action-{asana_gid}`, so no lookup is needed). No PAT configured and the checkbox still persists across devices for New Items, it just doesn't reach Asana; for the live-pulled Overdue/Due Next 7 Days/No Due Date items there's no Postgres row at all, so a checkbox toggle there only ever writes to Asana directly, and does nothing (no-ops with a 404) if the person somehow reaches one without a PAT configured, which the UI shouldn't allow since those subsections only render when a PAT exists. Check `users_with_asana_pat` on the admin panel's deployment status for an aggregate count without exposing any token value itself.
-- **Live Action Items pull.** Overdue, Due Next 7 Days, and No Due Date are no longer synced by the skill at all — the webapp fetches them straight from Asana on every `/brief/<date>` page render (`app.py`'s `_fetch_live_action_items`), using `users.asana_pat` and the `account_projects` table (mirrored from `Meeting Manager Config.xlsx` by the skill's `daily_brief_sync_account_projects` MCP tool — see `migrations/004_add_account_projects.sql`). Only New Items — tasks the brief run itself just created — are ever written to Postgres for this section now.
-- **In-app setup walkthrough.** First sign-in (`onboarding_completed_at IS NULL` on the `users` row) automatically opens a 6-step modal in the viewer: get your API token, add the daily-brief-mcp-server connector in Claude, install the skill and set `DAILY_BRIEF_API_BASE_URL`, connect data-source MCP connectors, a few odds and ends (Claude Desktop, Asana/Drive IDs), and an optional step to connect a personal Asana PAT for the live Overdue/Due Next 7 Days/No Due Date pull (skippable — New Items keeps working either way). It calls `/api/onboarding/complete` on finishing so it doesn't reopen automatically, but anyone can reopen it any time via the "Setup" button in the topbar. The walkthrough's copy-paste values (base URL, MCP connector URL) come from `/api/client-config` — the connector URL is the plain `MCP_CONNECTOR_URL` env var below, set to whatever `mcp/DEPLOYMENT.md` (or `mcp/README.md`) says your daily-brief-mcp-server is actually reachable at.
-- **Account panel.** The "Account" button in the topbar shows the signed-in person's own token (with copy) and a "Rotate token" button with inline instructions on what to update afterward (the connector's `Authorization` header) — this is the self-service alternative to having an admin do it from `/admin`. It also shows Asana connection status with save/disconnect controls for `asana_pat`, so connecting or removing Asana doesn't require replaying the whole setup walkthrough.
+- **Live Action Items pull.** Overdue, Due Next 7 Days, and No Due Date are no longer synced by the skill at all — the webapp fetches them straight from Asana on every `/brief/<date>` page render (`app.py`'s `_fetch_live_action_items`), using `users.asana_pat` and the account→project-GID mapping read live from that user's Drive `account-config.json` (`gdrive_briefs.get_account_projects`). Only New Items — tasks the brief run itself just created — are ever written to Postgres for this section now.
+- **In-app setup walkthrough.** First sign-in (`onboarding_completed_at IS NULL` on the `users` row) automatically opens a 4-step modal in the viewer: install the skill and run its First-Run Setup, connect data-source connectors, a couple of odds and ends (Claude Desktop, README pointer), and an optional step to connect a personal Asana PAT for the live Overdue/Due Next 7 Days/No Due Date pull (skippable — New Items keeps working either way). It calls `/api/onboarding/complete` on finishing so it doesn't reopen automatically, but anyone can reopen it any time via the "Setup" button in the topbar.
+- **Account panel.** The "Account" button in the topbar shows the signed-in person's email, Google Drive connection status, and Asana connection status with save/disconnect controls for `asana_pat`, so connecting or removing Asana doesn't require replaying the whole setup walkthrough.
+- **Admin impersonation.** `/admin` can create throwaway test users (synthetic `@daily-brief.local` emails, `is_test = TRUE`) and impersonate them to exercise the new-user onboarding flow without touching real data. A banner shows while impersonating, with a one-click return to the admin's own session. Impersonation can only ever target a test user — never a real one, even via a crafted user ID.
 - **Image tag pinning.** Currently `:latest` for simplicity during testing.
 - **Schema migrations.** `schema.sql` only runs once, on first Postgres init (see step 4). There's no migration tooling yet for changing the schema after that.

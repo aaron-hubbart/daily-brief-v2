@@ -87,9 +87,8 @@ Everything else lives in `/config/config.json` inside your brief-data Drive fold
   "recurring_activities_project_gid": "...",
   "status_update_cache_file_id": "...",
   "slack_user_id": "UXXXXXXXXXX",
-  "key_contacts": ["First Last", "..."],
-  "sync_state": { "skill_source_sha": "...", "references_source_sha": "...", "sync_check_last_run": "..." }
+  "key_contacts": ["First Last", "..."]
 }
 ```
 
-`sync_state` is maintained automatically by the Skill Sync Check. `account-config.json` is a separate file in the same `/config` folder holding the per-account mapping (name, tier, run day, main + supporting Slack channels, Asana board, docs folder); the First-Run Setup flow builds and updates it for you (discover → confirm) — see `references/item-sync.md`. Accounts are tiered: primary accounts run every day; secondary accounts run one configured weekday per week (with catch-up if a run day is missed) and appear in their own brief subsection, hidden on other days.
+`account-config.json` is a separate file in the same `/config` folder holding the per-account mapping (name, tier, run day, main + supporting Slack channels, Asana board, docs folder); the First-Run Setup flow builds and updates it for you (discover → confirm) — see `references/item-sync.md`. Accounts are tiered: primary accounts run every day; secondary accounts run one configured weekday per week (with catch-up if a run day is missed) and appear in their own brief subsection, hidden on other days.
