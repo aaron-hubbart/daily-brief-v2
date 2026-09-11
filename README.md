@@ -87,8 +87,7 @@ Everything else lives in `/config/config.json` inside your brief-data Drive fold
   "recurring_activities_project_gid": "...",
   "status_update_cache_file_id": "...",
   "slack_user_id": "UXXXXXXXXXX",
-  "key_contacts": ["First Last", "..."],
-  "sync_state": { "skill_source_sha": "...", "references_source_sha": "...", "sync_check_last_run": "..." }
+  "key_contacts": ["First Last", "..."]
 }
 ```
 
