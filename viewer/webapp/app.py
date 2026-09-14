@@ -175,37 +175,47 @@ def _validate_asana_pat(pat):
 
 def _fetch_live_action_items(pat, account_projects, exclude_gids):
     """
-    Pulls open tasks that are either assigned to the signed-in user or
-    unassigned, directly from Asana, for every project GID in
-    account_projects, excluding any task GID already tracked in Postgres
-    as a New Item (see references/item-sync.md in the skill repo — only
-    newly-created tasks are upserted there now). Returns a flat list of
-    item dicts shaped like the skill's own action-items rows, so
-    _group_action_items can bucket them exactly the same way it already
-    does for New Items.
+    Pulls open tasks directly from Asana as the union of two sources,
+    excluding any task GID already tracked in Postgres as a New Item (see
+    references/item-sync.md in the skill repo — only newly-created tasks
+    are upserted there now). Returns a flat list of item dicts shaped like
+    the skill's own action-items rows, so _group_action_items can bucket
+    them exactly the same way it already does for New Items.
 
-    Unassigned tasks are included on purpose: an unassigned task sitting
-    in one of the person's own account projects is still their problem to
-    triage, and a live pull that silently hid those would understate what
-    actually needs attention.
+    1. Every open task in each project GID in account_projects (already
+       filtered to primary-tier accounts by
+       gdrive_briefs.get_account_projects — secondary accounts never reach
+       this function). Assignee is irrelevant here: a primary account's
+       board is fully in scope, whoever a given task happens to be
+       assigned to.
+    2. Every open task assigned to the signed-in user anywhere in their
+       Asana workspace, regardless of project. This is what surfaces the
+       person's own work even when it lives on a secondary-account board
+       or a project with no account-config mapping at all.
+
+    A task can land in both sources (e.g. a primary-account task assigned
+    to the signed-in user) — de-duplicated by GID via seen_gids, first
+    source wins.
 
     Asana's /tasks endpoint rejects a query that specifies both `project`
     and `assignee` — its own API error is "Must specify exactly one of
     project, tag, section, user task list, or assignee + workspace". So
-    this queries by `project` alone (every task in the project, done or
-    not, hence `completed_since=now` to only get incomplete ones) and
-    filters client-side to tasks with no assignee or assigned to the
-    signed-in person's own Asana user gid, resolved once per call rather
-    than per project.
+    source 1 queries by `project` alone and source 2 by `assignee` +
+    `workspace` — two separate calls rather than one filtered call.
+    `completed_since=now` on both queries limits results to incomplete
+    tasks.
 
-    Best-effort per project: one project's fetch failing (bad GID, Asana
-    outage, rate limit) doesn't block the others — it's just logged and
-    skipped, since there's no per-item place in this flat list to surface
-    a project-level error.
+    Best-effort per project/query: one project's fetch failing (bad GID,
+    Asana outage, rate limit) doesn't block the others — it's just logged
+    and skipped, since there's no per-item place in this flat list to
+    surface a project-level error.
     """
     try:
-        me = _asana_api_get(pat, '/users/me', {'opt_fields': 'gid'})
-        me_gid = me.get('data', {}).get('gid')
+        me = _asana_api_get(pat, '/users/me', {'opt_fields': 'gid,workspaces.gid'})
+        me_data = me.get('data', {})
+        me_gid = me_data.get('gid')
+        workspaces = me_data.get('workspaces') or []
+        workspace_gid = workspaces[0].get('gid') if workspaces else None
     except (urllib.error.URLError, json.JSONDecodeError) as e:
         logger.warning('live action items: could not resolve Asana user gid, aborting pull: %s', e)
         return []
@@ -215,13 +225,49 @@ def _fetch_live_action_items(pat, account_projects, exclude_gids):
 
     items = []
     seen_gids = set(exclude_gids)
+
+    def _add_task(task):
+        task_gid = task.get('gid')
+        if not task_gid or task_gid in seen_gids:
+            return
+        seen_gids.add(task_gid)
+        projects = task.get('projects') or []
+        project_name = ', '.join(p['name'] for p in projects if p.get('name')) or None
+        assignee = task.get('assignee') or {}
+        if not assignee:
+            badge = {'label': 'unassigned', 'class': 'bwarn'}
+        elif assignee.get('gid') != me_gid:
+            badge = {'label': f"assigned to {assignee.get('name')}" if assignee.get('name') else 'assigned to someone else', 'class': 'bwarn'}
+        else:
+            badge = None
+        items.append({
+            'item_key': f'{ASANA_ACTION_ITEM_PREFIX}{task_gid}',
+            'title': task.get('name') or '(untitled task)',
+            'subtitle': None,
+            'badge': badge,
+            'links': [{
+                'label': 'Open in Asana',
+                'url': task.get('permalink_url') or f'https://app.asana.com/0/0/{task_gid}/f',
+                'class': 'lbtn',
+            }],
+            'content': {
+                'due_on': task.get('due_on'),
+                'is_new': False,
+                'project_name': project_name,
+            },
+            'checked': False,
+        })
+
+    opt_fields = 'name,due_on,permalink_url,projects.name,assignee.gid,assignee.name'
+
+    # Source 1: every open task in each primary-tier account project.
     for ap in account_projects:
         gid = ap['project_gid']
         try:
             data = _asana_api_get(pat, '/tasks', {
                 'project': gid,
                 'completed_since': 'now',
-                'opt_fields': 'name,due_on,permalink_url,projects.name,assignee.gid',
+                'opt_fields': opt_fields,
                 'limit': 100,
             })
         except urllib.error.HTTPError as e:
@@ -231,49 +277,50 @@ def _fetch_live_action_items(pat, account_projects, exclude_gids):
             except Exception:
                 pass
             logger.warning(
-                'live action items: Asana /tasks fetch failed for %s (account=%s): HTTP %s %s',
+                'live action items: Asana /tasks fetch failed for project %s (account=%s): HTTP %s %s',
                 gid, ap.get('account_name'), e.code, body,
             )
             continue
         except (urllib.error.URLError, json.JSONDecodeError) as e:
             logger.warning(
-                'live action items: Asana /tasks fetch failed for %s (account=%s): %s',
+                'live action items: Asana /tasks fetch failed for project %s (account=%s): %s',
                 gid, ap.get('account_name'), e,
             )
             continue
         fetched = data.get('data', [])
-        mine = [
-            t for t in fetched
-            if t.get('assignee') is None or (t.get('assignee') or {}).get('gid') == me_gid
-        ]
         logger.info(
-            'live action items: %s (account=%s) returned %d task(s), %d mine or unassigned',
-            gid, ap.get('account_name'), len(fetched), len(mine),
+            'live action items: project %s (account=%s) returned %d task(s)',
+            gid, ap.get('account_name'), len(fetched),
         )
-        for task in mine:
-            task_gid = task.get('gid')
-            if not task_gid or task_gid in seen_gids:
-                continue
-            seen_gids.add(task_gid)
-            projects = task.get('projects') or []
-            project_name = ', '.join(p['name'] for p in projects if p.get('name')) or None
-            items.append({
-                'item_key': f'{ASANA_ACTION_ITEM_PREFIX}{task_gid}',
-                'title': task.get('name') or '(untitled task)',
-                'subtitle': None,
-                'badge': None if task.get('assignee') else {'label': 'unassigned', 'class': 'bwarn'},
-                'links': [{
-                    'label': 'Open in Asana',
-                    'url': task.get('permalink_url') or f'https://app.asana.com/0/0/{task_gid}/f',
-                    'class': 'lbtn',
-                }],
-                'content': {
-                    'due_on': task.get('due_on'),
-                    'is_new': False,
-                    'project_name': project_name,
-                },
-                'checked': False,
+        for task in fetched:
+            _add_task(task)
+
+    # Source 2: every open task assigned to the signed-in user, regardless of project.
+    if workspace_gid:
+        try:
+            data = _asana_api_get(pat, '/tasks', {
+                'assignee': me_gid,
+                'workspace': workspace_gid,
+                'completed_since': 'now',
+                'opt_fields': opt_fields,
+                'limit': 100,
             })
+            fetched = data.get('data', [])
+            logger.info('live action items: assignee=me across workspace returned %d task(s)', len(fetched))
+            for task in fetched:
+                _add_task(task)
+        except urllib.error.HTTPError as e:
+            body = ''
+            try:
+                body = e.read().decode('utf-8', errors='replace')[:500]
+            except Exception:
+                pass
+            logger.warning('live action items: Asana /tasks assignee=me fetch failed: HTTP %s %s', e.code, body)
+        except (urllib.error.URLError, json.JSONDecodeError) as e:
+            logger.warning('live action items: Asana /tasks assignee=me fetch failed: %s', e)
+    else:
+        logger.warning('live action items: no workspace gid resolved on /users/me, skipping assignee=me pull')
+
     return items
 
 
