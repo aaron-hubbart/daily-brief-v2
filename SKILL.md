@@ -219,10 +219,14 @@ Consolidate what used to be five separate searches into fewer calls:
 Consolidate into a single Slack section. Surface only items that need attention or are informational — skip noise, bot messages, and automated notifications.
 
 ### Zoom (Zoom for Claude: search_meetings + get_meeting_assets)
-- Search for meetings completed in the recap window (last business day for the morning brief, today so far for midday/evening)
-- Pull AI summary, transcript availability, recording availability, and next steps for each completed meeting via `get_meeting_assets`. This is a per-meeting call today (search_meetings, then one get_meeting_assets call per meeting) — if the Zoom MCP server later exposes a batched or multi-meeting assets lookup, switch to that; until then this N+1 pattern is accepted as a known cost on days with several completed meetings.
+Zoom is the transcript system of record for every meeting on the calendar, regardless of hosting platform. The user records every meeting through Zoom - a Teams, Webex, Clari, or Google Meet meeting still produces a Zoom recording/transcript that must be checked, not skipped.
+
+- For every meeting in the recap window (and later, every Today meeting), run `search_meetings` with the meeting title (or a distinctive substring) scoped to that meeting's date - the Zoom title usually mirrors the calendar title. If the title search returns nothing, fall back to a date-range search and match on start time within a few minutes. Do this even when the calendar shows a Teams/Webex/Clari/Google Meet join URL.
+- For each match, call `get_meeting_assets` to pull AI summary, transcript, recording, and next steps.
+- The "check every meeting" rule in Yesterday's Meetings (Part A) is enforced by this - never skip the Zoom lookup based on the hosted platform, whether the calendar shows a Zoom link, or a prior assumption that "Zoom won't have this."
+- This is a per-meeting call (search_meetings, then one get_meeting_assets per matched meeting). N+1 is accepted.
+- The Yesterday's Meetings status list (Section 1, Part A) is where this shows up as recording/transcript found or not.
 - If no summary is available, note the meeting occurred and that recording/transcript status still needs checking
-- For the Yesterday's Meetings status list (Section 1, Part A — see Output Format), this is the primary source for "recording/transcript found or not"
 - Only surface meetings in the account/initiative recap (Part B) that produced meaningful content (skip 1:1 standups with no summary) — Part A still lists every meeting regardless of content, since its purpose is processing status, not narrative
 
 ### Asana (Asana: get_my_tasks / search_tasks)
@@ -257,11 +261,13 @@ List every meeting from the last business day (yesterday, or the prior Friday if
 
 **Every meeting in this list gets a recording/transcript check, with no exceptions.** This is not conditional on the meeting looking important, on the person not having mentioned it, or on a prior run having already covered it — check every single time, every meeting, every run. Skipping this check (or checking it but not following through on the "not found" path below) is a known failure mode of this skill; treat "I already noted it was missing" as not having actually done this step; noting a gap without asking is exactly the silent-and-move-on behavior this rule exists to prevent.
 
+A specific past failure mode: assuming a Teams/Webex/Clari/Google Meet calendar entry means Zoom will have nothing, and skipping the lookup on that assumption. Do not skip on that assumption. The user records everything through Zoom - the calendar platform is unrelated to the transcript source. Every meeting gets the Zoom search + `get_meeting_assets` call, full stop.
+
 For each meeting, report:
 - Title, time, attendees
-- **Recording/transcript status** — checked via Zoom `get_meeting_assets`:
+- **Recording/transcript status** — checked via Zoom `search_meetings` (by title + date) then `get_meeting_assets` on any match. Every meeting gets this check regardless of the platform shown on the calendar - Zoom is the recording source of truth for Teams, Webex, Clari, Google Meet, and Zoom-hosted meetings alike:
   - Found: link directly to the meeting summary doc (`summary_doc_url`) and/or recording, and note whether a transcript is available
-  - Not found: flag it with a `bbad` badge reading "not found — needs input" (matches the badge shape in `references/item-sync.md`) — this is the trigger condition below, and it applies whether or not the meeting was ever on Zoom to begin with (a Webex/Teams meeting with no Zoom presence at all is still "not found", not exempt from the check)
+  - Not found means the Zoom title+date search returned no match, or a match returned but `get_meeting_assets` reported no transcript and no recording. It never means "the meeting wasn't hosted on Zoom so I skipped the check." A Teams, Webex, Clari, or Google Meet meeting with a genuine Zoom recording gets found here; only meetings with no captured Zoom asset end up flagged. Flag them with a `bbad` badge reading "not found — needs input" (matches the badge shape in `references/item-sync.md`) - this is the trigger condition below.
 - **Asana action-item status** — checked per the Asana data-source note above (run log sheet first, Asana project search as fallback):
   - Found: note that items were logged, with a link to the task(s) or the account project
   - Not found: say so plainly — "no action items logged yet"
