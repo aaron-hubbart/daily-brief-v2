@@ -378,8 +378,12 @@ def read_brief_manifest(brief_date: str, refresh_token: str, folder_id: Optional
 def get_account_projects(refresh_token: str, folder_id: Optional[str] = None) -> List[Dict]:
     """Read account-config.json from the /config subfolder in Drive and return
     a flat list of {'account_name': ..., 'project_gid': ...} dicts suitable for
-    the live Asana pull.  Includes every entry from accounts[] that has a
-    project_gid, plus the top-level internal_project_gid (labelled 'Internal').
+    the live Asana pull.  Includes only primary-tier entries from accounts[]
+    that have a project_gid (secondary accounts are excluded from the live
+    pull on purpose — they're not in scope for every run, see Resolve
+    In-Scope Accounts in SKILL.md), plus the top-level internal_project_gid
+    (labelled 'Internal'). An account with no `tier` field is treated as
+    primary, since the schema always sets it explicitly going forward.
 
     Results are cached for 5 minutes (same TTL as folder lookups) since the
     config changes rarely — at most when the skill syncs new accounts."""
@@ -428,11 +432,11 @@ def get_account_projects(refresh_token: str, folder_id: Optional[str] = None) ->
         if internal_gid:
             projects.append({'account_name': 'Internal', 'project_gid': str(internal_gid)})
 
-        # Per-account project GIDs
+        # Per-account project GIDs — primary tier only (see docstring)
         for acct in config.get('accounts', []):
             gid = acct.get('project_gid')
             name = acct.get('name') or acct.get('account_name', 'Unknown')
-            if gid:
+            if gid and acct.get('tier', 'primary') == 'primary':
                 projects.append({'account_name': name, 'project_gid': str(gid)})
 
         logger.info('get_account_projects: loaded %d projects from Drive config', len(projects))
