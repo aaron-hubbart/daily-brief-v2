@@ -27,6 +27,24 @@
 </div>
 {% endmacro %}
 
+{% macro checkable_item(item) %}
+<div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}">
+  <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
+  {% if item.get('content', {}).get('time') %}<div class="itime">{{ item.get('content', {}).get('time') }}</div>{% endif %}
+  <div class="ibody">
+    <div class="ititle">{{ item.title|autolink_jira }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
+    {% if item.subtitle %}<div class="isub">{{ item.subtitle|autolink_jira }}</div>{% endif %}
+    {% if item.links %}
+    <div class="ilinks">
+      {% for link in item.links %}
+      <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url|resolve_link_url }}" target="_blank">{{ link.label }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
 {% if section_slug == 'fyi' %}
   {% for item in section_items %}
   <div class="fyi-item" data-id="{{ item.item_key }}">
@@ -120,20 +138,7 @@
     </div>
   </details>
   {% else %}
-  <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}">
-    <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
-    <div class="ibody">
-      <div class="ititle">{{ item.title|autolink_jira }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
-      {% if item.subtitle %}<div class="isub">{{ item.subtitle|autolink_jira }}</div>{% endif %}
-      {% if item.links %}
-      <div class="ilinks">
-        {% for link in item.links %}
-        <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url|resolve_link_url }}" target="_blank">{{ link.label }}</a>
-        {% endfor %}
-      </div>
-      {% endif %}
-    </div>
-  </div>
+  {{ checkable_item(item) }}
   {% endif %}
   {% endfor %}
 
@@ -154,40 +159,12 @@
     </div>
   </details>
   {% else %}
-  <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}">
-    <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
-    {% if item.get('content', {}).get('time') %}<div class="itime">{{ item.get('content', {}).get('time') }}</div>{% endif %}
-    <div class="ibody">
-      <div class="ititle">{{ item.title|autolink_jira }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
-      {% if item.subtitle %}<div class="isub">{{ item.subtitle|autolink_jira }}</div>{% endif %}
-      {% if item.links %}
-      <div class="ilinks">
-        {% for link in item.links %}
-        <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url|resolve_link_url }}" target="_blank">{{ link.label }}</a>
-        {% endfor %}
-      </div>
-      {% endif %}
-    </div>
-  </div>
+  {{ checkable_item(item) }}
   {% endif %}
   {% endfor %}
 
 {% else %}
   {% for item in section_items %}
-  <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}">
-    <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
-    {% if item.get('content', {}).get('time') %}<div class="itime">{{ item.get('content', {}).get('time') }}</div>{% endif %}
-    <div class="ibody">
-      <div class="ititle">{{ item.title|autolink_jira }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
-      {% if item.subtitle %}<div class="isub">{{ item.subtitle|autolink_jira }}</div>{% endif %}
-      {% if item.links %}
-      <div class="ilinks">
-        {% for link in item.links %}
-        <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url|resolve_link_url }}" target="_blank">{{ link.label }}</a>
-        {% endfor %}
-      </div>
-      {% endif %}
-    </div>
-  </div>
+  {{ checkable_item(item) }}
   {% endfor %}
 {% endif %}

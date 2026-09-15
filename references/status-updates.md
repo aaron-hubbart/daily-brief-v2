@@ -21,7 +21,7 @@ Key by Account Name exactly as it appears in `/config/account-config.json`'s `ac
 
 `STATUS_UPDATE_CACHE_FILE_ID` is unchanged from v1: it is still its own separately-configured Drive file, not inside `BRIEF_DATA_FOLDER_ID` and not part of the `/briefs/{date}/` layout described in `references/item-sync.md`. It tracks generation state across however many brief runs happen in a day — a different lifetime than one day's section content, which is why it stays outside that per-day layout rather than becoming, say, a `/briefs/{date}/status-cache.json` file.
 
-## Generation gate (check this first, every run that reaches Section 3/4)
+## Generation gate (check this first, every run that reaches Section 2's Team Standup card, or Section 3/4)
 
 Evaluate this **per account** (and separately for the manager update and the Today section's Team Standup card), not once for the whole section — a full brief run can end up reusing six cached accounts and regenerating two, all in the same pass.
 

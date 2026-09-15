@@ -42,8 +42,15 @@ def _resolve_link_url(url):
 def make_env():
     """A Jinja2 Environment wired up like app.py's Flask app, minus
     anything that needs a running Flask app (callers that render a
-    template using `url_for` must stub it themselves via env.globals)."""
-    env = jinja2.Environment(loader=jinja2.FileSystemLoader(str(TEMPLATES_DIR)))
+    template using `url_for` must stub it themselves via env.globals).
+    Autoescape matches Flask's `select_autoescape` default for `.html`
+    templates — without this, hostile content renders differently here
+    than in production, which would let a real escaping bug pass these
+    tests unnoticed."""
+    env = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(str(TEMPLATES_DIR)),
+        autoescape=jinja2.select_autoescape(['html', 'htm', 'xml', 'xhtml']),
+    )
     env.filters['autolink_jira'] = _autolink_jira
     env.filters['resolve_link_url'] = _resolve_link_url
     return env

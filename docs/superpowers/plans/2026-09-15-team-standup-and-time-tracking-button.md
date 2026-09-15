@@ -937,4 +937,5 @@ git commit -m "feat: add Weekly Time Tracking button to viewer toolbar"
 ## Final check
 
 - [ ] Run `cd viewer/webapp && python -m pytest tests/ -v` one more time from a clean `git status` to confirm everything is committed and green.
-- [ ] Run `grep -rn "D0A25TNDGJJ\|Bank of America\|JPMorgan Chase" SKILL.md references/` — expect no matches, confirming both the hardcoded manager channel and the real customer names are fully gone from the touched files.
+- [ ] Run `grep -rn "D0A25TNDGJJ" SKILL.md references/` — expect no matches, confirming the hardcoded manager channel is fully gone.
+- [ ] Run `grep -n "Bank of America\|JPMorgan Chase" references/status-updates.md` — expect no matches, confirming the cache-schema example names are de-identified. (Real account names may still appear as examples elsewhere in `SKILL.md`/`references/` — sanitizing those was explicitly out of scope for this branch; see the design doc's "Out of scope" section.)
