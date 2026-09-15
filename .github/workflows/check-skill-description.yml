@@ -1,0 +1,29 @@
+name: Check SKILL.md description length
+
+on:
+  pull_request:
+    paths:
+      - "SKILL.md"
+  push:
+    branches:
+      - main
+    paths:
+      - "SKILL.md"
+
+jobs:
+  check-description-length:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: pip install --quiet pyyaml
+
+      - name: Check description length
+        run: python .github/scripts/check_skill_description.py
