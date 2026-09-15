@@ -38,7 +38,7 @@ Everything else (the brief-data folder ID, the meeting run-log sheet ID, the rec
 
 1. **Resolve `CONFIG_FILE_ID`.** If your project instructions (project-folder instructions / Claude Project custom instructions) define a `CONFIG_FILE_ID`, use that value — it takes precedence. The `CONFIG_FILE_ID` line in the Admin Config block above is only a fallback for a single-user local copy.
 2. If the resolved `CONFIG_FILE_ID` is empty or still the placeholder text, do not attempt a brief. Offer to run First-Run Setup instead (see that section).
-3. Otherwise, read `config.json` from Drive by that file ID (`Google Drive` connector — the same read path already used for `account-config.json` and the status-update cache). It provides, as top-level keys: `brief_data_folder_id`, `meeting_run_log_sheet_id`, `recurring_activities_project_gid`, `status_update_cache_file_id`, `slack_user_id`, `key_contacts`, and optionally a `google_drive_pat_file_id`. Everywhere below that refers to one of the old Admin Config IDs (e.g. `BRIEF_DATA_FOLDER_ID`), use the corresponding value from `config.json`.
+3. Otherwise, read `config.json` from Drive by that file ID (`Google Drive` connector — the same read path already used for `account-config.json` and the status-update cache). It provides, as top-level keys: `brief_data_folder_id`, `meeting_run_log_sheet_id`, `recurring_activities_project_gid`, `status_update_cache_file_id`, `slack_user_id`, `key_contacts`, `geekbot_channel_id`, `manager_channel_id`, and optionally a `google_drive_pat_file_id`. `geekbot_channel_id` is the Slack channel/DM the Today section's Team Standup card posts to (see Section 2 below); `manager_channel_id` is the Manager Update's Slack DM target — both replace what used to be a hardcoded ID. Everywhere below that refers to one of the old Admin Config IDs (e.g. `BRIEF_DATA_FOLDER_ID`), use the corresponding value from `config.json`.
 
 ### Google Drive write mechanics
 
@@ -322,6 +322,8 @@ For each, include:
 **Every meeting in Today gets both a pre-meeting-prep deep-link and a post-meeting deep-link, with no exceptions and no qualifying criteria.** This used to be gated on the meeting "qualifying" (customer meetings and substantive internal meetings, i.e. anything with attendees beyond the user) — that gate is gone. Every meeting gets both links regardless of type, size, or whether meeting-prep already exists for it: a personal solo block has no attendees and isn't a meeting at all for this purpose (same exclusion as Yesterday's Meetings), but anything with attendees gets both links, full stop. See `references/item-sync.md` for the exact link shape and the `claude://` deep-link targets for each (pre-meeting prep before the meeting concludes, post-meeting notes after).
 
 End with a brief **Open Time** note if there are meaningful unblocked blocks in the day.
+
+Today also includes a Team Standup subsection: a single cached card (`item_key: today-standup`) giving a terse, Geekbot-ready recap of the day split into Customer and Internal bullets, editable in the viewer before posting. Same generate-once-per-day caching as Sections 3/4 below — see `references/status-updates.md` for content/format and the generation gate, and `references/item-sync.md` for the item shape. Unlike the rest of Today, a whole-section Refresh does not regenerate this card; only its own Refresh link does (see `references/section-refresh.md`).
 
 ---
 
