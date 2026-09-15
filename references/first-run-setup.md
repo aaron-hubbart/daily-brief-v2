@@ -18,15 +18,25 @@ review and edit before anything is written to Drive.
 
 ## Phase 1: Minimal Configuration
 
-Ask for exactly two values, one at a time:
+Ask for exactly four values, one at a time:
 
 1. **Drive folder ID** — "Where should I save your briefs? Paste the ID
    from your Drive folder's URL (the part after `folders/`)." If the user
    doesn't have one yet, tell them to create an empty Drive folder first.
 2. **Slack user ID** — "What's your Slack user ID? (Format `UXXXXXXXXXX`
    — find it in your Slack profile under 'Copy member ID'.)"
+3. **Geekbot channel/DM ID** — "What Slack channel or DM do you post your
+   daily standup to (e.g. Geekbot's prompt)? Paste its ID — right-click
+   the channel/DM in Slack → 'Copy link', and the ID is the last path
+   segment (`C...`/`D...`/`G...`)." This powers the Today section's Team
+   Standup card's "Post to Slack" button (`geekbot_channel_id`). If the
+   user doesn't have one to post to, skip this and leave it blank — the
+   card still generates, just without a working post button.
+4. **Manager DM ID** — "What's your manager's Slack DM ID, for posting
+   your weekly/manager update?" Same ID format and lookup method as
+   above (`manager_channel_id`). Skip and leave blank if not applicable.
 
-Hold both values in the conversation. Do not write anything to Drive yet.
+Hold all four values in the conversation. Do not write anything to Drive yet.
 
 ## Phase 2: Automated Discovery
 
@@ -112,7 +122,9 @@ do not write anything to Drive until they explicitly confirm.
 Once the user confirms:
 
 1. Create `/config/config.json` via `Google Drive: create_file` with:
-   `brief_data_folder_id`, `slack_user_id`, `key_contacts`, and empty-string
+   `brief_data_folder_id`, `slack_user_id`, `key_contacts`,
+   `geekbot_channel_id` and `manager_channel_id` (from Phase 1, either as
+   entered or blank if the user skipped them), and empty-string
    placeholders for `meeting_run_log_sheet_id`,
    `recurring_activities_project_gid`, `status_update_cache_file_id` (the
    user can fill these in later, or by re-running setup — see
@@ -142,12 +154,15 @@ If neither exists, this is a first run — proceed with Phase 1 as written.
 If one or both already exist, read them first and seed the flow from
 their existing values instead of starting from zero:
 
-- **Phase 1 starting point.** Use the existing `brief_data_folder_id` and
-  `slack_user_id` from `config.json` as the answers to Phase 1's two
-  questions instead of re-asking them — confirm the values with the user
-  ("Re-running setup — still using folder `<id>` and Slack user
-  `<id>`?") rather than prompting from scratch. Only ask again if the
-  user explicitly wants to change one.
+- **Phase 1 starting point.** Use the existing `brief_data_folder_id`,
+  `slack_user_id`, `geekbot_channel_id`, and `manager_channel_id` from
+  `config.json` as the answers to Phase 1's four questions instead of
+  re-asking them — confirm the values with the user ("Re-running setup —
+  still using folder `<id>`, Slack user `<id>`, standup channel `<id>`,
+  and manager DM `<id>`?") rather than prompting from scratch. Only ask
+  again if the user explicitly wants to change one. If either channel ID
+  is blank/missing on the existing config (e.g. it predates this field),
+  ask for it fresh rather than carrying forward a blank.
 - **Phase 2/3 starting point.** Treat the existing `accounts` array (and
   `internal_project_gid` / `internal_project_name`) as the starting
   candidate list, not just something to check for duplicates against.
