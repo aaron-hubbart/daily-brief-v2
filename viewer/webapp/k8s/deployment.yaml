@@ -44,7 +44,7 @@ spec:
                   key: AZURE_TENANT_ID
             # Plain value, not a secret — matches the dashboard app's own
             # pattern of keeping the redirect URI as a visible env value.
-            # Includes the /daily-brief prefix this app is mounted at (see
+            # Includes the /daily-brief-v2 prefix this app is mounted at (see
             # ingress.yaml) — must exactly match the Redirect URI registered
             # on the app registration in the Azure Portal.
             - name: AZURE_REDIRECT_URI
@@ -77,7 +77,7 @@ spec:
                   name: postgres-credentials
                   key: POSTGRES_DB
             - name: DATABASE_URL
-              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.daily-brief:5432/$(POSTGRES_DB)"
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
             - name: APP_PATH_PREFIX
               value: "/daily-brief-v2"
             - name: GOOGLE_CLIENT_ID

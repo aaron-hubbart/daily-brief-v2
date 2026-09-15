@@ -21,7 +21,7 @@ additional allowlist right now; ALLOWED_GROUPS below is a marked, inactive
 extension point for later if this needs to narrow to a specific group.
 
 Path-prefix aware: this app is deployed alongside an existing app on the
-same host, reachable at a sub-path (e.g. dashboard.es-sandbox.com/daily-brief/)
+same host, reachable at a sub-path (e.g. dashboard.es-sandbox.com/daily-brief-v2/)
 via an nginx-ingress Ingress rather than at a domain root. See
 k8s/ingress.yaml and DEPLOYMENT.md for the reverse-proxy config this depends
 on (X-Forwarded-Prefix, X-Forwarded-Proto).
@@ -439,7 +439,7 @@ GOOGLE_DRIVE_BRIEFS_FOLDER_ID = os.environ.get('GOOGLE_DRIVE_BRIEFS_FOLDER_ID')
 # If DATABASE_URL is not set, operate in read-only mode from Google Drive
 DATABASE_URL = os.environ.get('DATABASE_URL')
 # Full callback URL Azure AD redirects back to, e.g.
-# https://dashboard.es-sandbox.com/daily-brief/auth/callback — must exactly
+# https://dashboard.es-sandbox.com/daily-brief-v2/auth/callback — must exactly
 # match a Redirect URI registered on the app registration in the Portal.
 AZURE_REDIRECT_URI = _require_env('AZURE_REDIRECT_URI')
 
@@ -494,7 +494,7 @@ app.config.update(
     # again and bounced back to /login. Scoping both name and path to this
     # app's mount point keeps the two cookies distinct.
     SESSION_COOKIE_NAME='daily_brief_session',
-    SESSION_COOKIE_PATH=os.environ.get('APP_PATH_PREFIX', '/daily-brief'),
+    SESSION_COOKIE_PATH=os.environ.get('APP_PATH_PREFIX', '/daily-brief-v2'),
 )
 
 class ForcePrefixMiddleware:
@@ -504,7 +504,7 @@ class ForcePrefixMiddleware:
     the daily-brief-proxy-headers ConfigMap) to inject X-Forwarded-Prefix,
     and for ProxyFix(x_prefix=1) to turn that into SCRIPT_NAME so url_for()
     and login_required's redirect(url_for('login')) would come out as
-    /daily-brief/login. In practice that annotation is only a documented
+    /daily-brief-v2/login. In practice that annotation is only a documented
     *global* ingress-nginx-controller ConfigMap key, not a per-Ingress one —
     confirmed by dumping the controller's rendered nginx.conf, which has no
     proxy_set_header for X-Forwarded-Prefix anywhere in this app's location
@@ -527,7 +527,7 @@ class ForcePrefixMiddleware:
 # Trust nginx's forwarded headers for scheme, host, and client IP; the path
 # prefix is hardcoded above instead of trusted from a header (see
 # ForcePrefixMiddleware) since nginx never actually sends one for this app.
-_app_path_prefix = os.environ.get('APP_PATH_PREFIX', '/daily-brief')
+_app_path_prefix = os.environ.get('APP_PATH_PREFIX', '/daily-brief-v2')
 app.wsgi_app = ForcePrefixMiddleware(
     ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1),
     _app_path_prefix,
@@ -607,7 +607,7 @@ def login_required(view):
         user = current_user()
         if not user:
             # request.path alone is the path AFTER nginx has already
-            # stripped the /daily-brief prefix (that's the whole point of
+            # stripped the /daily-brief-v2 prefix (that's the whole point of
             # the Ingress rewrite-target) — it's just "/" for the viewer's
             # root, with no prefix on it. request.script_root is where
             # ForcePrefixMiddleware put that prefix back (hardcoded, not
@@ -615,7 +615,7 @@ def login_required(view):
             # url_for(), a plain redirect(dest) does NOT automatically
             # prepend script_root to a literal string — skipping this here
             # sent people back to the domain root after sign-in instead of
-            # back under /daily-brief.
+            # back under /daily-brief-v2.
             session['post_login_redirect'] = request.script_root + request.path
             return redirect(url_for('login'))
         request.brief_user = user
@@ -915,7 +915,7 @@ def api_client_config():
     window.location (this app is deployed at a sub-path)."""
     return jsonify({
         # request.script_root is where ForcePrefixMiddleware put the
-        # /daily-brief prefix back (see its docstring).
+        # /daily-brief-v2 prefix back (see its docstring).
         'api_base_url': request.host_url.rstrip('/') + request.script_root,
     })
 
