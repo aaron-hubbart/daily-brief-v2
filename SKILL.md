@@ -1,17 +1,17 @@
 ---
 name: daily-brief-v2
 description: >
-  Generates a personalized daily briefing for Aaron Hubbart, Senior TAM at Camunda, pulling from Outlook calendar/email, Slack (DMs, account channels, tiger team, mentions), Zoom summaries, and Asana tasks. Produces a structured recap of the day so far and a plan ahead.
+  Generates a daily briefing for Aaron Hubbart, Senior TAM at Camunda, from Outlook calendar/email, Slack (DMs, account channels, tiger team, mentions), Zoom summaries, and Asana tasks. Produces a recap of the day so far and a plan.
 
-  Trigger on: "daily brief", "morning brief", "evening brief", "brief me", "catch me up", "what's my day look like", "what happened today", "eod brief", "sod brief", or "brief" alone. Also trigger when asked to catch up on the day, communications, or schedule.
+  Trigger on: "daily brief", "morning brief", "evening brief", "brief me", "catch me up", "what's my day look like", "what happened today", "eod brief", "sod brief", or "brief" alone. Also trigger for catching up on the day, communications, or schedule.
 
-  Also trigger on "refresh the [account] update", "regenerate manager update", "refresh section:[slug]", or any message starting with "/daily-brief Refresh" — these patch a single card/section, not a full brief.
+  Also trigger on "refresh the [account] update", "regenerate manager update", "refresh section:[slug]", or "/daily-brief Refresh" — these patch a single card/section, not a full brief.
 
-  Also trigger the setup flow on "/daily-brief setup", "set up daily brief", or "configure daily brief" — see the First-Run Setup section.
+  Also trigger setup on "/daily-brief setup", "set up daily brief", or "configure daily brief" (see First-Run Setup).
 
-  Also trigger the on-demand account-discovery flow on "find new accounts", "scan for customers", or "find more accounts" — see the "On-Demand: Find New Accounts" section of references/first-run-setup.md.
+  Also trigger account discovery on "find new accounts", "scan for customers", or "find more accounts" (see references/first-run-setup.md).
 
-  Don't require morning vs. evening — infer from context or current time. Always run without asking for confirmation first.
+  Infer morning vs. evening from context or time. Always run without asking for confirmation first.
 ---
 
 # Daily Brief Skill
