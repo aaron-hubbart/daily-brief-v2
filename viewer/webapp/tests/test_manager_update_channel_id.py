@@ -14,7 +14,7 @@ def render_manager_update(items):
     )
 
 
-def test_post_to_manager_link_built_from_channel_id():
+def test_post_to_manager_button_carries_channel_id():
     items = [{
         'item_key': 'mgr-update',
         'item_type': 'text-block',
@@ -27,5 +27,7 @@ def test_post_to_manager_link_built_from_channel_id():
 
     html = render_manager_update(items)
 
-    assert 'https://slack.com/app_redirect?channel=D0TESTMANAGER' in html
+    assert 'data-item-key="mgr-update"' in html
+    assert 'data-section="manager-update"' in html
+    assert 'value="D0TESTMANAGER"' in html
     assert 'Post to Manager' in html

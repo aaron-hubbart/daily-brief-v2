@@ -65,9 +65,9 @@
     </summary>
     <div class="acct-card-body">
       <textarea class="update-textarea">{{ item.get('content', {}).get('textarea', '') }}</textarea>
-      <div class="update-row">
+      <div class="update-row" data-item-key="{{ item.item_key }}" data-section="{{ section_slug }}">
         <input class="channel-input" type="text" value="{{ item.get('content', {}).get('channel_id', '') }}" readonly>
-        <a class="post-btn" href="https://slack.com/app_redirect?channel={{ item.get('content', {}).get('channel_id', '') }}" target="_blank">Post to Slack</a>
+        <button type="button" class="post-btn">Post to Slack</button>
         <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh customer update for ' ~ (item.title or 'Unnamed account') ~ ' date:' ~ brief_date)|urlencode }}" target="_blank">Refresh</a>
       </div>
     </div>
@@ -77,8 +77,9 @@
 {% elif section_slug == 'manager-update' %}
   {% for item in section_items %}
   <textarea class="update-textarea">{{ item.get('content', {}).get('textarea', '') }}</textarea>
-  <div class="update-row">
-    <a class="post-btn" href="https://slack.com/app_redirect?channel={{ item.get('content', {}).get('channel_id', '') }}" target="_blank">Post to Manager</a>
+  <div class="update-row" data-item-key="{{ item.item_key }}" data-section="{{ section_slug }}">
+    <input class="channel-input" type="text" value="{{ item.get('content', {}).get('channel_id', '') }}" hidden>
+    <button type="button" class="post-btn">Post to Manager</button>
     <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh manager update date:' ~ brief_date)|urlencode }}" target="_blank">Refresh</a>
   </div>
   {% endfor %}
@@ -151,9 +152,9 @@
     </summary>
     <div class="acct-card-body">
       <textarea class="update-textarea">{{ item.get('content', {}).get('textarea', '') }}</textarea>
-      <div class="update-row">
+      <div class="update-row" data-item-key="{{ item.item_key }}" data-section="{{ section_slug }}">
         <input class="channel-input" type="text" value="{{ item.get('content', {}).get('channel_id', '') }}" readonly>
-        <a class="post-btn" href="https://slack.com/app_redirect?channel={{ item.get('content', {}).get('channel_id', '') }}" target="_blank">Post to Slack</a>
+        <button type="button" class="post-btn">Post to Slack</button>
         <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh section:today date:' ~ brief_date ~ ' item:' ~ item.item_key)|urlencode }}" target="_blank">Refresh</a>
       </div>
     </div>

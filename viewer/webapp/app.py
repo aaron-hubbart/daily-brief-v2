@@ -86,6 +86,8 @@ ASANA_ACTION_ITEM_PREFIX = 'action-'
 
 ASANA_API_BASE = 'https://app.asana.com/api/1.0'
 
+SLACK_API_BASE = 'https://slack.com/api'
+
 
 def _sync_asana_completed(pat, item_key: str, checked: bool):
     """
@@ -159,6 +161,36 @@ def _asana_api_get(pat, path, params):
     )
     with urllib.request.urlopen(req, timeout=10) as resp:
         return json.loads(resp.read().decode('utf-8'))
+
+
+def _post_to_slack(channel_id: str, text: str):
+    """
+    Posts a message to Slack via chat.postMessage, authenticated as the
+    workspace's shared bot (SLACK_BOT_TOKEN) rather than the signed-in user.
+    Slack's API returns HTTP 200 even for a rejected call (e.g. the bot
+    isn't in a private channel, or the channel id is wrong), so success is
+    read from the JSON body's "ok" field, not the status code. Returns
+    (ok, error) — error is None on success, otherwise Slack's own error
+    code, or 'request_failed' if the HTTP call itself didn't complete.
+    """
+    req = urllib.request.Request(
+        f'{SLACK_API_BASE}/chat.postMessage',
+        data=json.dumps({'channel': channel_id, 'text': text}).encode('utf-8'),
+        method='POST',
+        headers={
+            'Authorization': f'Bearer {SLACK_BOT_TOKEN}',
+            'Content-Type': 'application/json; charset=utf-8',
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+    except (urllib.error.URLError, json.JSONDecodeError) as e:
+        logger.warning('Slack chat.postMessage request failed: %s', e)
+        return False, 'request_failed'
+    if not data.get('ok'):
+        return False, data.get('error', 'unknown_error')
+    return True, None
 
 
 def _validate_asana_pat(pat):
@@ -447,6 +479,15 @@ AZURE_REDIRECT_URI = _require_env('AZURE_REDIRECT_URI')
 # Google Drive OAuth credentials (from secrets, optional)
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
+
+# Bot User OAuth Token (xoxb-...) for the workspace's shared Slack app —
+# lets Post to Slack/Post to Manager call chat.postMessage directly instead
+# of just deep-linking into the Slack client. One token for the whole app,
+# not per-user: messages post as the app's bot identity, not as whoever
+# clicked the button. Optional — if unset, api_post_item_to_slack below
+# 503s instead of the app failing to start, since this is an add-on feature
+# rather than something the rest of the app depends on.
+SLACK_BOT_TOKEN = os.environ.get('SLACK_BOT_TOKEN')
 
 # Optional, inactive by default — comma-separated Azure AD group object IDs.
 # If set, sign-in additionally requires the user's token to include one of
@@ -1460,6 +1501,35 @@ def set_item_due_date(section, item_key):
     if attempted:
         result['asana_synced'] = ok
     return jsonify(result)
+
+
+@app.route('/api/items/<section>/<item_key>/post-to-slack', methods=['POST'])
+@login_required
+def post_item_to_slack(section, item_key):
+    """
+    Called by the Post to Slack / Post to Manager buttons. Posts whatever
+    is currently in the item's textarea — including edits the person made
+    but never saved anywhere, since this app doesn't persist that draft
+    text server-side — to the given channel via chat.postMessage. channel_id
+    and text both come from the request body (what's on screen right now),
+    not looked up from Postgres, so an in-progress edit posts exactly what
+    the person sees.
+    """
+    if not SLACK_BOT_TOKEN:
+        abort(503, 'Slack posting is not configured (SLACK_BOT_TOKEN unset)')
+    body = request.get_json(silent=True) or {}
+    channel_id = (body.get('channel_id') or '').strip()
+    text = (body.get('text') or '').strip()
+    if not channel_id:
+        abort(400, 'channel_id is required')
+    if not text:
+        abort(400, 'text is required')
+
+    ok, error = _post_to_slack(channel_id, text)
+    if not ok:
+        logger.warning('post_item_to_slack failed: section=%s item_key=%s error=%s', section, item_key, error)
+        return jsonify({'status': 'error', 'error': error}), 502
+    return jsonify({'status': 'ok'})
 
 
 @app.route('/healthz')

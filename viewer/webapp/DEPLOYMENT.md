@@ -150,6 +150,18 @@ Part of merging this viewer into the TAM Dashboard shell (`dashboard.es-sandbox.
 4. **Not done yet**: the dashboard app's own side of this (reading the shared cookie, calling this endpoint, and retiring its own `/auth/login`, `/auth/callback`, `/auth/logout` in favor of redirecting here) lives in the `dashboard` repo, not this one — that's the other half of Phase 1.
 5. **Expiry cleanup**: `sso_sessions` rows expire (`expires_at`, 8 hours from creation) but nothing deletes old rows yet — low volume for now, but worth folding into `archive_briefs.py`'s daily run if this sees real traffic.
 
+## Enabling Post to Slack
+
+The Post to Slack / Post to Manager buttons call Slack's `chat.postMessage` directly, authenticated as the Slack app's bot rather than the signed-in person — one shared credential for the whole deployment, not a per-user OAuth flow. Off by default (buttons return a "not configured" error) until a Slack app exists and its token is in place:
+
+1. Create a Slack app in the workspace (or reuse one), add the `chat:write` scope under OAuth & Permissions (add `chat:write.public` too if it shouldn't need to be invited into every channel it posts to), and install it.
+2. Copy the Bot User OAuth Token (`xoxb-...`) and put it in the live `daily-brief-secrets` Secret under `SLACK_BOT_TOKEN` (see `k8s/secret.template.yaml`):
+   ```powershell
+   kubectl -n daily-brief-v2 patch secret daily-brief-secrets --type merge -p "{\"stringData\":{\"SLACK_BOT_TOKEN\":\"xoxb-...\"}}"
+   kubectl -n daily-brief-v2 rollout restart deployment/daily-brief-viewer
+   ```
+3. That's it — `k8s/deployment.yaml` already wires `SLACK_BOT_TOKEN` in as `optional: true`, so it's a no-op for anyone who hasn't set it.
+
 ## Updating the deployed image later
 
 ```powershell

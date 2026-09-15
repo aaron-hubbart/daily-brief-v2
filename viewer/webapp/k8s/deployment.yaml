@@ -106,6 +106,16 @@ spec:
                   name: daily-brief-secrets
                   key: INTERNAL_SSO_SECRET
                   optional: true
+            # optional: true — same reasoning as INTERNAL_SSO_SECRET above:
+            # this key won't exist in the live Secret until DEPLOYMENT.md's
+            # "Enabling Post to Slack" step is run, and it should just leave
+            # that feature off (503) rather than crash-loop the pod.
+            - name: SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: daily-brief-secrets
+                  key: SLACK_BOT_TOKEN
+                  optional: true
           resources:
             requests:
               cpu: 50m
