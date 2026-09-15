@@ -492,10 +492,16 @@ def list_available_briefs(refresh_token: str, folder_id: Optional[str] = None) -
         return []
 
 
+_EMPTY_ACCOUNT_CONFIG = {'accounts': [], 'internal_project_gid': '', 'internal_project_name': ''}
+
+
 def read_account_config(refresh_token: str, folder_id: Optional[str] = None) -> Optional[Dict]:
     """Read the raw account-config.json from Drive's /config subfolder.
     Returns the parsed JSON dict (with 'accounts' array and
-    'internal_project_gid'), or None on failure."""
+    'internal_project_gid'). A missing /config folder or account-config.json
+    is not an error — it just means this customer hasn't saved one yet, so
+    an empty default config is returned so the management UI can bootstrap
+    it. Returns None only on an actual Drive/auth failure."""
     parent_folder = folder_id or BRIEFS_FOLDER_ID
     if not parent_folder or not refresh_token:
         return None
@@ -507,8 +513,8 @@ def read_account_config(refresh_token: str, folder_id: Optional[str] = None) -> 
 
         config_folder_id = _find_folder_cached(drive, parent_folder, 'config')
         if not config_folder_id:
-            logger.warning('read_account_config: no /config folder found')
-            return None
+            logger.info('read_account_config: no /config folder found — returning empty config')
+            return dict(_EMPTY_ACCOUNT_CONFIG)
 
         query = (
             f"parents='{config_folder_id}' "
@@ -520,8 +526,8 @@ def read_account_config(refresh_token: str, folder_id: Optional[str] = None) -> 
         ).execute()
         files = results.get('files', [])
         if not files:
-            logger.warning('read_account_config: account-config.json not found')
-            return None
+            logger.info('read_account_config: account-config.json not found — returning empty config')
+            return dict(_EMPTY_ACCOUNT_CONFIG)
 
         return _download_json(drive, files[0]['id'])
 
@@ -532,7 +538,9 @@ def read_account_config(refresh_token: str, folder_id: Optional[str] = None) -> 
 
 def write_account_config(config_data: Dict, refresh_token: str,
                          folder_id: Optional[str] = None) -> Union[bool, str]:
-    """Write account-config.json back to Drive (in-place update).
+    """Write account-config.json back to Drive. Creates the /config folder
+    and/or the account-config.json file if either doesn't exist yet — a
+    brand-new customer saving for the first time has neither.
     Returns True on success, or an error string on failure."""
     parent_folder = folder_id or BRIEFS_FOLDER_ID
     if not parent_folder:
@@ -550,8 +558,16 @@ def write_account_config(config_data: Dict, refresh_token: str,
 
         config_folder_id = _find_folder_cached(drive, parent_folder, 'config')
         if not config_folder_id:
-            logger.warning('write_account_config: no /config folder found')
-            return 'Config folder not found in Drive'
+            logger.info('write_account_config: no /config folder found — creating it')
+            folder_metadata = {
+                'name': 'config',
+                'mimeType': 'application/vnd.google-apps.folder',
+                'parents': [parent_folder],
+            }
+            created_folder = drive.files().create(body=folder_metadata, fields='id').execute()
+            config_folder_id = created_folder['id']
+            with _cache_lock:
+                _folder_cache[f'{parent_folder}/config'] = (config_folder_id, time.monotonic() + _FOLDER_TTL)
 
         query = (
             f"parents='{config_folder_id}' "
@@ -562,21 +578,25 @@ def write_account_config(config_data: Dict, refresh_token: str,
             q=query, spaces='drive', pageSize=1, fields='files(id)',
         ).execute()
         files = results.get('files', [])
-        if not files:
-            logger.warning('write_account_config: account-config.json not found')
-            return 'account-config.json not found in Drive config folder'
 
-        file_id = files[0]['id']
         payload = json.dumps(config_data, indent=2).encode('utf-8')
         media = MediaIoBaseUpload(BytesIO(payload), mimetype='application/json', resumable=False)
-        drive.files().update(fileId=file_id, media_body=media).execute()
+
+        if not files:
+            logger.info('write_account_config: account-config.json not found — creating it')
+            file_metadata = {'name': 'account-config.json', 'parents': [config_folder_id]}
+            created_file = drive.files().create(body=file_metadata, media_body=media, fields='id').execute()
+            file_id = created_file['id']
+        else:
+            file_id = files[0]['id']
+            drive.files().update(fileId=file_id, media_body=media).execute()
 
         # Invalidate the account-projects cache so next read picks up changes
         cache_key = f'account-config:{parent_folder}'
         with _cache_lock:
             _folder_cache.pop(cache_key, None)
 
-        logger.info('write_account_config: updated account-config.json (file_id=%s)', file_id)
+        logger.info('write_account_config: saved account-config.json (file_id=%s)', file_id)
         return True
 
     except Exception as e:
