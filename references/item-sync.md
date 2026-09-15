@@ -104,6 +104,7 @@ Every item written is: `{section, item_key, item_type, title?, subtitle?, badge?
 5. **FYI** — `fyi-{n}` (1-indexed within the run). No patch flow reads this section, so positional numbering is fine here.
 6. **Customer Updates** — `cust-update-{slug(account name)}`, one card per assigned account.
 7. **Manager Update** — always exactly `mgr-update`.
+8. **Team Standup Card** (Today) — always exactly `today-standup`.
 
 ### Section-specific notes
 
@@ -118,6 +119,8 @@ Every item written is: `{section, item_key, item_type, title?, subtitle?, badge?
 - **Post-meeting notes**: `href="claude://claude.ai/new?q=" + encodeURIComponent('/meeting-manager Run post-meeting notes for: ' + meetingTitle + ' (' + dateOrTime + ')')`, labeled "Process in Claude Desktop" (same pattern already used for Yesterday's Meetings and the "recording not found" flow). For use once the meeting has concluded.
 
 Both links are added to every Today item unconditionally, in addition to the Join link and any meeting-prep output link — they do not replace either of those, and their presence is independent of whether meeting-prep has already run for that meeting.
+
+Today also includes exactly one `card` item, `item_key: today-standup` — a Team Standup Update summarizing the day for Geekbot, gated by the same daily cache as Customer Updates/Manager Update (see `references/status-updates.md` for the full generation/format spec). `content`: `{"textarea": "<generated bullets>", "channel_id": "<geekbot_channel_id from config.json>"}` — no `last_posted_at`, since there's no searchable prior-post history to check for a daily standup prompt. A whole-section Today refresh regenerates the checkable meeting items above but leaves this card untouched; only its own Refresh link (see `references/section-refresh.md`) regenerates it.
 
 **Action Items** — checkable item per actionable thing needing attention today. **Every action item must resolve to a real Asana task, created automatically if one doesn't already exist, and every such task must always land on a project — never bare "My Tasks" with no project at all.** Before generating this section, collect the full list of action items needing a new task, then create them in a single `Asana:create_tasks` call (accepts 1-50 tasks per call) rather than one at a time. Search Asana first for an existing matching task (by text, scoped to the relevant account project if known); only include items with no existing match in the batch create call. Use `assignee: "me"`, `due_on` today, and set `project_id` per this priority, in order:
 

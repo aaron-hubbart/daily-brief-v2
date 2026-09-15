@@ -323,6 +323,8 @@ For each, include:
 
 End with a brief **Open Time** note if there are meaningful unblocked blocks in the day.
 
+Today also includes a Team Standup subsection: a single cached card (`item_key: today-standup`) giving a terse, Geekbot-ready recap of the day split into Customer and Internal bullets, editable in the viewer before posting. Same generate-once-per-day caching as Sections 3/4 below — see `references/status-updates.md` for content/format and the generation gate, and `references/item-sync.md` for the item shape. Unlike the rest of Today, a whole-section Refresh does not regenerate this card; only its own Refresh link does (see `references/section-refresh.md`).
+
 ---
 
 ### Section 3: Customer Updates & Section 4: Manager/Leadership Update

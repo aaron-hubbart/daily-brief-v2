@@ -39,6 +39,40 @@ A card's Refresh button (see `references/section-refresh.md`) is the normal path
 
 ---
 
+## Team Standup (Section 2 Addendum)
+
+Same cache gate as Sections 3/4 above, keyed by `team_standup` in `STATUS_UPDATE_CACHE_FILE_ID`. Generated fresh only on a cache miss or explicit refresh (`/daily-brief Refresh section:today date:{brief_date} item:today-standup` — see `references/section-refresh.md`).
+
+**Source data:** no new data pulls. Synthesize over the same "organize by customer account or internal initiative" buckets already computed for Section 2 (Today/Tomorrow Ahead — see `SKILL.md`), plus Action Items due today folded in per account/initiative. Include one bullet per account/initiative with something on today's docket (a meeting or a due-today action item); omit anything with nothing to report, same rule used everywhere else in this skill. A "Training" bullet appears under Internal only when a calendar block or task actually indicates a training session today.
+
+**Format** — plain text in `content.textarea`, two fixed top-level groups, each bullet a short name-plus-note line:
+
+```
+Customer
+- {Account Name} — {short note on what's driving today's docket for this account}
+- {Account Name} — {short note}
+
+Internal
+- Training — {short note, only when a training block exists today}
+- {Initiative Name} — {short note}
+```
+
+Example (fictional names only):
+
+```
+Customer
+- Acme, Inc. — renewal call prep, contract review due
+- Test Customer — quarterly business review at 2pm
+
+Internal
+- Training — 10am required compliance session
+- AI-First CS Tiger Team — PR review with a teammate
+```
+
+Generate this as a `card` item (`section: today`, `item_key: today-standup`) with `content: {"textarea": "<generated bullets>", "channel_id": "<geekbot_channel_id from config.json>"}` — full item shape and the Drive write mechanics are in `references/item-sync.md`. No `last_posted_at` — unlike the TAM-UPDATE posts, there's no searchable prior-post history to check for a daily standup prompt, so this field is simply omitted.
+
+---
+
 ## Section 3: Customer Updates
 
 One collapsible card per customer account on your assigned list — every in-scope account — all primary accounts plus any in-scope secondary accounts (see the Resolve In-Scope Accounts step in `SKILL.md`, and `references/item-sync.md` for the file's Drive location and shape) — not just accounts with signals in the current pull. Read the account list fresh from that file each time this section is actually generated (i.e., on a cache miss or explicit refresh) — do not rely on a previously-known or hardcoded list, since accounts can be added or removed in the config independent of this skill. The entire section is also collapsed by default.
