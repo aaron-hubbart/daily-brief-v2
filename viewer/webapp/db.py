@@ -80,6 +80,54 @@ def get_user_by_id(user_id: int):
         return cur.fetchone()
 
 
+def create_sso_session(user_id: int, ttl_hours: int = 8) -> str:
+    """Creates a shared cross-app SSO session row and returns its opaque
+    token. Called from /auth/callback once Flask's own sign-in succeeds —
+    the token is what gets set as the shared cookie a second app (the TAM
+    Dashboard's Express proxy) can hand to /internal/sso/verify to resolve
+    the signed-in user without ever seeing this app's own session cookie."""
+    token = secrets.token_urlsafe(32)
+    with cursor(commit=True) as cur:
+        cur.execute(
+            """
+            INSERT INTO sso_sessions (token, user_id, expires_at)
+            VALUES (%s, %s, now() + (%s || ' hours')::interval)
+            """,
+            (token, user_id, ttl_hours),
+        )
+    return token
+
+
+def get_user_by_sso_token(token: str):
+    """Resolves a shared-cookie token to its user, or None if the token is
+    missing, unknown, or expired. Also bumps last_seen_at so an idle-session
+    cleanup pass (not implemented yet) could distinguish idle from active."""
+    with cursor(commit=True) as cur:
+        cur.execute(
+            """
+            UPDATE sso_sessions SET last_seen_at = now()
+            WHERE token = %s AND expires_at > now()
+            RETURNING user_id
+            """,
+            (token,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        cur.execute(
+            "SELECT id, email, slug FROM users WHERE id = %s",
+            (row['user_id'],),
+        )
+        return cur.fetchone()
+
+
+def invalidate_sso_session(token: str) -> None:
+    """Called from /logout so a signed-out user's shared cookie can't still
+    resolve to a valid session in another app after this app forgets them."""
+    with cursor(commit=True) as cur:
+        cur.execute("DELETE FROM sso_sessions WHERE token = %s", (token,))
+
+
 def get_asana_pat(user_id: int):
     """Returns the user's Asana PAT, or None if they've never set one (or
     skipped that step of setup). None disables the live Action Items pull

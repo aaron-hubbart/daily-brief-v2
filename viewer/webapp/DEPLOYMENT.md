@@ -80,6 +80,12 @@ Get-Content -Raw viewer/webapp/db/migrations/003_add_asana_pat.sql | kubectl exe
 Get-Content -Raw viewer/webapp/db/migrations/004_add_account_projects.sql | kubectl exec -i -n daily-brief-v2 postgres-0 -- psql -U dailybrief -d dailybrief
 ```
 
+Same again for the `sso_sessions` table added for cross-app single sign-on (see "Shared SSO with the TAM Dashboard" below) — safe to run more than once, and a no-op for this app's own behavior until `SSO_COOKIE_DOMAIN` is actually set:
+
+```powershell
+Get-Content -Raw viewer/webapp/db/migrations/008_add_sso_sessions.sql | kubectl exec -i -n daily-brief-v2 postgres-0 -- psql -U dailybrief -d dailybrief
+```
+
 
 ## 5. The app
 
@@ -128,6 +134,21 @@ This is fully self-service — no `kubectl` step per person:
 4. **Their skill starts writing briefs to Drive**, and their brief shows up next time they load the viewer (after connecting Drive).
 
 Signing in and having reports show up are still two separate things — a person can sign in today and see an empty state until they've connected Google Drive and run the skill at least once.
+
+## Shared SSO with the TAM Dashboard
+
+Part of merging this viewer into the TAM Dashboard shell (`dashboard.es-sandbox.com/`) is single sign-on between the two apps, so a person doesn't have to log in twice on the same host. This app is the chosen identity authority (it already does a real MSAL sign-in with token refresh; the dashboard's Express proxy currently does its own hand-rolled OAuth and would otherwise need to be reconciled anyway) — off by default until the dashboard side is wired up to consume it:
+
+1. **This app**, on every successful sign-in, creates a row in the `sso_sessions` table (see migration 008 above) and — only if `SSO_COOKIE_DOMAIN` is set — sets a `dashboard_sso` cookie scoped to the whole host (`Domain=dashboard.es-sandbox.com; Path=/`, unlike this app's own `daily_brief_session` cookie which stays scoped to `/daily-brief-v2`). `/logout` invalidates the row and clears the cookie.
+2. **`GET /internal/sso/verify?token=...`** resolves that token to `{authenticated: true, user: {id, email, slug}}` (or `{authenticated: false}`) for any caller presenting the right `X-Internal-Auth: <INTERNAL_SSO_SECRET>` header. This is how the dashboard's Express proxy is meant to recognize a signed-in user — it already receives the shared cookie automatically (same domain), so it just needs to read `req.cookies.dashboard_sso` and forward it to this endpoint instead of running its own Azure AD callback.
+3. **To turn this on**: generate a secret, put it in the live `daily-brief-secrets` Secret under `INTERNAL_SSO_SECRET` (see `k8s/secret.template.yaml`), configure the *same* value on the dashboard app, then set `SSO_COOKIE_DOMAIN=dashboard.es-sandbox.com` in `k8s/deployment.yaml` and roll out:
+   ```powershell
+   $internalSsoSecret = python3 -c "import secrets; print(secrets.token_hex(32))"
+   kubectl -n daily-brief-v2 patch secret daily-brief-secrets --type merge -p "{\"stringData\":{\"INTERNAL_SSO_SECRET\":\"$internalSsoSecret\"}}"
+   ```
+   Until the dashboard app actually calls `/internal/sso/verify`, this is inert — the cookie gets set but nothing reads it, and the endpoint 404s for anyone without the secret.
+4. **Not done yet**: the dashboard app's own side of this (reading the shared cookie, calling this endpoint, and retiring its own `/auth/login`, `/auth/callback`, `/auth/logout` in favor of redirecting here) lives in the `dashboard` repo, not this one — that's the other half of Phase 1.
+5. **Expiry cleanup**: `sso_sessions` rows expire (`expires_at`, 8 hours from creation) but nothing deletes old rows yet — low volume for now, but worth folding into `archive_briefs.py`'s daily run if this sees real traffic.
 
 ## Updating the deployed image later
 

@@ -90,6 +90,22 @@ spec:
                 secretKeyRef:
                   name: daily-brief-secrets
                   key: GOOGLE_CLIENT_SECRET
+            # Off by default (empty = no shared cookie, /internal/sso/verify
+            # 404s). Flip to "dashboard.es-sandbox.com" only once the TAM
+            # Dashboard's Express proxy is actually calling that endpoint —
+            # see viewer/webapp/DEPLOYMENT.md's SSO section.
+            - name: SSO_COOKIE_DOMAIN
+              value: ""
+            # optional: true — this key doesn't exist in the live Secret
+            # until DEPLOYMENT.md's SSO step is run; without optional, a
+            # missing key here would crash-loop the pod (CreateContainerConfigError)
+            # instead of just leaving the SSO feature off.
+            - name: INTERNAL_SSO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: daily-brief-secrets
+                  key: INTERNAL_SSO_SECRET
+                  optional: true
           resources:
             requests:
               cpu: 50m
