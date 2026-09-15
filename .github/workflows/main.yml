@@ -60,7 +60,7 @@ jobs:
             --exclude='staging' \
             --exclude='docs' \
             --exclude='viewer' \
-            --exclude='deploy.md' \
+            --exclude='deploy.ps1' \
             --exclude='daily-brief-viewer-requirements.md' \
             . staging/
           cd staging && zip -r ../$ZIP_NAME .
