@@ -85,7 +85,7 @@ Seven fixed section slugs, matching the webapp's `SECTIONS` list and the existin
 
 Every item written is: `{section, item_key, item_type, title?, subtitle?, badge?, links?, content?, checked?, display_order?}`. See `viewer-backend/drive_store.py`'s `get_items_for_day` and the "Drive data layout" section above for the authoritative shape; this section maps each brief section onto it.
 
-- **`item_type`** — one of `checkable`, `card`, `fyi`, `text-block`. Sections 1 (both parts), Today, and Action Items are `checkable`. FYI is `fyi`. Customer Updates cards are `card`. Manager Update is `text-block`.
+- **`item_type`** — one of `checkable`, `card`, `fyi`, `text-block`. Sections 1 (both parts), Today, and Action Items are `checkable`, except Today's single `today-standup` entry, which is `card`. FYI is `fyi`. Customer Updates cards are `card`. Manager Update is `text-block`.
 - **`title` is required on every `card` item** (the account name, e.g. `"Acme Financial"`) — the webapp's card header and its Refresh link both read `item.title` directly, and a missing value throws a template `TypeError` (string concatenation with `None`) that 500s the whole `/brief/{date}` page, not just that one card. Set it explicitly on every Customer Updates entry you write even though the general shape line above marks `title` as optional at the field level — that optionality is real for `checkable`/`fyi` items (where `subtitle` alone can carry the content) but not for `card`. Set `title` on the Manager Update's single `text-block` item too (e.g. `"Manager Update"`) for the same reason, even though today's template doesn't yet read it there — keeps both content-heavy types to the same rule rather than relying on the current template not needing it.
 - **`badge`** — `{"label": "...", "class": "bwarn"|"bbad"}` or omit/null. `bwarn` for tentative/needs-confirmation/time-sensitive; `bbad` for overdue/blocking/critical.
 - **`links`** — array of `{"label": "...", "url": "...", "class": "lbtn primary"|"lbtn"}`. Use `lbtn primary` for the primary CTA (Join Zoom, Open doc), `lbtn` for secondary links (Asana task, Slack thread, email). Every `url` must be a real URL from the data — never a placeholder. Omit the link entirely when no real URL exists; never send a placeholder link.
@@ -146,7 +146,7 @@ New Items' due date can still be edited directly from the webapp's due-date box 
 
 ### Slack posting affordances
 
-The webapp renders a "Post to Slack" button on each Customer Update card (`https://slack.com/app_redirect?channel={channel_id}`, from `content.channel_id`) and a "Post to Manager" button on the Manager Update (`https://slack.com/app_redirect?channel=D0A25TNDGJJ`) — these are static links the template builds from the item's own content, not something the skill needs to construct or send separately. The skill just needs `content.channel_id` populated correctly.
+The webapp renders a "Post to Slack" button on each Customer Update card, on the Manager Update, and on the Today section's Team Standup card — all three build the same `https://slack.com/app_redirect?channel={channel_id}` URL from that item's own `content.channel_id`, not something the skill needs to construct or send separately. Customer Updates source `channel_id` from the account's entry in `/config/account-config.json`; Manager Update and the Team Standup card source theirs from `config.json`'s `manager_channel_id` and `geekbot_channel_id` respectively. The skill just needs `content.channel_id` populated correctly in each case.
 
 ### Error handling
 
