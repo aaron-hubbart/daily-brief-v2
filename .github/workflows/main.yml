@@ -59,7 +59,9 @@ jobs:
             --exclude='jest.config*' \
             --exclude='staging' \
             --exclude='docs' \
-            --exclude='viewer-backend' \
+            --exclude='viewer' \
+            --exclude='deploy.md' \
+            --exclude='daily-brief-viewer-requirements.md' \
             . staging/
           cd staging && zip -r ../$ZIP_NAME .
           echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
