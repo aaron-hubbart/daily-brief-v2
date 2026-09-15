@@ -32,7 +32,7 @@ The following connectors must be enabled in your Claude workspace:
 
 ### Daily Brief webapp
 
-See `viewer-backend/DEPLOYMENT.md` in this repo for deploying and linking the hosted webapp; there is no API token to retrieve, since the skill never calls the webapp directly.
+See `viewer/webapp/DEPLOYMENT.md` in this repo for deploying and linking the hosted webapp; there is no API token to retrieve, since the skill never calls the webapp directly.
 
 ### Google Drive
 
@@ -68,7 +68,7 @@ Setup itself now only asks for this folder ID and your Slack user ID up front �
 
 ## Hosted deployment
 
-The hosted viewer is `viewer-backend/` in this same repo — a Flask app that uses MSAL for Entra ID sign-in (unchanged from before) plus its own per-user Google OAuth so it can read each signed-in person's Drive on their behalf. See `viewer-backend/DEPLOYMENT.md` for the full walkthrough: app registration, Google OAuth client setup, building and pushing the image, standing up the deployment, verification, and linking a Drive folder per user.
+The hosted viewer is `viewer/webapp/` in this same repo — a Flask app that uses MSAL for Entra ID sign-in (unchanged from before) plus its own per-user Google OAuth so it can read each signed-in person's Drive on their behalf. See `viewer/webapp/DEPLOYMENT.md` for the full walkthrough: app registration, Google OAuth client setup, building and pushing the image, standing up the deployment, verification, and linking a Drive folder per user.
 
 ## Configuration
 

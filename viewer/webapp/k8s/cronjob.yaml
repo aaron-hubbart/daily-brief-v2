@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: daily-brief-archive
-  namespace: daily-brief
+  namespace: daily-brief-v2
 spec:
   # 09:00 UTC daily — adjust to taste; nothing about this job is
   # time-sensitive beyond "runs once a day." Early UTC morning is US
