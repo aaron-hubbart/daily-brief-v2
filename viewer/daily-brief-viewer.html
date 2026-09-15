@@ -739,17 +739,8 @@ async function loadAccountChannels() {
     console.log('Loaded', Object.keys(ACCOUNT_CHANNELS).length, 'accounts from config file');
   } catch(e) {
     console.warn('Could not load account config:', e.message);
-    // Fall back to built-in defaults so the viewer still works
-    ACCOUNT_CHANNELS = {
-      'Acme Financial':       { id: 'C0XXXXXXX', name: '#acct-acme-financial' },
-      'Zebra Financial':        { id: 'C0XXXXXXX', name: '#acct-zebra-financial' },
-      'Umbrella Financial':           { id: 'C0XXXXXXX', name: '#acct-umbrella-financial' },
-      'Initech Financial':         { id: 'C0XXXXXXX', name: '#acct-initech-financial' },
-      'Acme Health':                 { id: 'C0XXXXXXX', name: '#acct-acme-health' },
-      'Zebra Health':          { id: 'C0XXXXXXX', name: '#acct-zebra-health' },
-      'Umbrella Clinical Research LLC': { id: 'C0XXXXXXX', name: '#acct-umbrella-clinical-research' },
-      'Globex System Services': { id: 'C0XXXXXXX', name: '#acct-globex-system-services' },
-    };
+    console.error('No account config available; no accounts loaded.');
+    ACCOUNT_CHANNELS = {};
   }
 }
 
