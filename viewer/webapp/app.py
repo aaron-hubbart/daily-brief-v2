@@ -31,6 +31,7 @@ scoped to their own row in Postgres by user_id — every query filters on the
 current session's verified identity, never anything client-supplied. See
 db.py and db/README.md for the storage model.
 """
+import hmac
 import json
 import logging
 import os
@@ -462,6 +463,20 @@ ALLOWED_GROUPS = {g.strip() for g in _allowed_groups_raw.split(',') if g.strip()
 _admin_emails_raw = os.environ.get('ADMIN_EMAILS', '').strip()
 ADMIN_EMAILS = {e.strip().lower() for e in _admin_emails_raw.split(',') if e.strip()} if _admin_emails_raw else None
 
+# Optional, inactive unless set — enables the shared cross-app SSO cookie
+# (see db.create_sso_session) so another app on the same host can recognize
+# a signed-in user via /internal/sso/verify. Leave both unset to run this
+# app standalone with no cross-app coupling (e.g. local dev): no cookie is
+# set, and the verify endpoint always 404s. Domain must NOT be path-scoped
+# — it needs to reach every path on the host, not just this app's own
+# /daily-brief-v2 mount point, unlike SESSION_COOKIE_PATH above.
+SSO_COOKIE_DOMAIN = os.environ.get('SSO_COOKIE_DOMAIN', '').strip() or None
+SSO_COOKIE_NAME = 'dashboard_sso'
+# Shared secret the calling app must present (X-Internal-Auth header) to
+# use /internal/sso/verify — this endpoint resolves an opaque token to a
+# real identity, so it can't be left open to anyone who can reach the host.
+INTERNAL_SSO_SECRET = os.environ.get('INTERNAL_SSO_SECRET', '').strip() or None
+
 AZURE_AUTHORITY = f'https://login.microsoftonline.com/{AZURE_TENANT_ID}'
 GRAPH_SCOPES = []  # no Graph calls made — sign-in identity only, nothing to scope
 
@@ -704,12 +719,24 @@ def auth_callback():
     }
 
     dest = session.pop('post_login_redirect', None) or url_for('index')
-    return redirect(dest)
+    response = redirect(dest)
+    if SSO_COOKIE_DOMAIN:
+        sso_token = db.create_sso_session(user_row['id'])
+        response.set_cookie(
+            SSO_COOKIE_NAME, sso_token,
+            domain=SSO_COOKIE_DOMAIN, path='/',
+            secure=True, httponly=True, samesite='Lax',
+            max_age=8 * 60 * 60,
+        )
+    return response
 
 
 @app.route('/logout')
 def logout():
     session.clear()
+    sso_token = request.cookies.get(SSO_COOKIE_NAME)
+    if sso_token:
+        db.invalidate_sso_session(sso_token)
     # Also end the Azure AD session itself, not just this app's session —
     # otherwise a fresh /login silently re-signs the person in without a
     # prompt, which is surprising after clicking "logout."
@@ -717,7 +744,31 @@ def logout():
         f'{AZURE_AUTHORITY}/oauth2/v2.0/logout'
         f'?post_logout_redirect_uri={url_for("index", _external=True)}'
     )
-    return redirect(logout_url)
+    response = redirect(logout_url)
+    if SSO_COOKIE_DOMAIN:
+        response.delete_cookie(SSO_COOKIE_NAME, domain=SSO_COOKIE_DOMAIN, path='/')
+    return response
+
+
+@app.route('/internal/sso/verify')
+def internal_sso_verify():
+    """Lets another app on the same host (the TAM Dashboard's Express proxy)
+    resolve the shared SSO cookie to a real identity, without ever handing
+    that app a Postgres connection of its own. Gated by a shared secret
+    rather than login_required — the caller is a backend service, not a
+    signed-in browser session reaching this route directly."""
+    if not INTERNAL_SSO_SECRET:
+        abort(404)
+    presented = request.headers.get('X-Internal-Auth', '')
+    if not hmac.compare_digest(presented, INTERNAL_SSO_SECRET):
+        abort(403)
+    token = request.args.get('token', '')
+    user = db.get_user_by_sso_token(token) if token else None
+    if not user:
+        return jsonify({'authenticated': False})
+    return jsonify({'authenticated': True, 'user': {
+        'id': user['id'], 'email': user['email'], 'slug': user['slug'],
+    }})
 
 
 # ── Google Drive OAuth ────────────────────────────────────────────────────────

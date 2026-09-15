@@ -73,4 +73,18 @@ CREATE TABLE IF NOT EXISTS items (
 
 CREATE INDEX IF NOT EXISTS idx_items_brief_day ON items (brief_day_id, section, display_order);
 
+-- Shared cross-app SSO session store — see migrations/008_add_sso_sessions.sql
+-- for why this exists (lets the TAM Dashboard's Express proxy recognize a
+-- signed-in user via /internal/sso/verify instead of replicating Flask's
+-- own cookie-signing scheme).
+CREATE TABLE IF NOT EXISTS sso_sessions (
+    token        TEXT PRIMARY KEY,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at   TIMESTAMPTZ NOT NULL,
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sso_sessions_user ON sso_sessions (user_id);
+CREATE INDEX IF NOT EXISTS idx_sso_sessions_expires ON sso_sessions (expires_at);
 
