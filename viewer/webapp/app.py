@@ -1516,14 +1516,19 @@ def post_item_to_slack(section, item_key):
     the person sees.
     """
     if not SLACK_BOT_TOKEN:
-        abort(503, 'Slack posting is not configured (SLACK_BOT_TOKEN unset)')
+        # jsonify, not abort() — this route's whole contract is JSON
+        # responses, and abort() renders Werkzeug's default HTML error page,
+        # which breaks the frontend's response.json() call with a
+        # confusing "Unexpected token '<'" parse error instead of the real
+        # "not configured" message.
+        return jsonify({'status': 'error', 'error': 'not_configured'}), 503
     body = request.get_json(silent=True) or {}
     channel_id = (body.get('channel_id') or '').strip()
     text = (body.get('text') or '').strip()
     if not channel_id:
-        abort(400, 'channel_id is required')
+        return jsonify({'status': 'error', 'error': 'channel_id is required'}), 400
     if not text:
-        abort(400, 'text is required')
+        return jsonify({'status': 'error', 'error': 'text is required'}), 400
 
     ok, error = _post_to_slack(channel_id, text)
     if not ok:

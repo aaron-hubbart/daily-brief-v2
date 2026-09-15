@@ -250,7 +250,19 @@ details.sec>.sec-body{padding:4px 14px 10px;}
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({channel_id: channelId, text: text}),
         })
-          .then(function (r) { return r.json().then(function (data) { return {ok: r.ok, data: data}; }); })
+          .then(function (r) {
+            return r.text().then(function (raw) {
+              var data;
+              try { data = JSON.parse(raw); } catch (e) {
+                // A non-JSON body (e.g. a login redirect page after the
+                // session expired, or a proxy error page) means something
+                // other than post_item_to_slack itself handled the
+                // request — surface that instead of a raw parse error.
+                throw new Error('unexpected response (HTTP ' + r.status + ') — try reloading the page');
+              }
+              return {ok: r.ok, data: data};
+            });
+          })
           .then(function (result) {
             if (!result.ok) throw new Error(result.data.error || 'request_failed');
             btn.textContent = 'Posted ✓';
