@@ -76,8 +76,22 @@ spec:
                 secretKeyRef:
                   name: postgres-credentials
                   key: POSTGRES_DB
+            # Cross-namespace on purpose, unlike everything else in this
+            # file: commit 976e68e ("reconcile daily-brief-v2 path/namespace
+            # drift") standardized every OTHER manifest on daily-brief-v2
+            # and changed this to same-namespace "postgres", on the
+            # assumption that postgres-statefulset.yaml/postgres-service.yaml
+            # would get (re)applied there too. That never happened — the
+            # real Postgres StatefulSet, with the real data, still runs in
+            # the old "daily-brief" namespace. Pointing here at same-namespace
+            # "postgres" (no such Service exists in daily-brief-v2) is what
+            # left new pods stuck failing /readyz forever. Revert this back
+            # to same-namespace "postgres" only once Postgres has actually
+            # been migrated into daily-brief-v2 (pg_dump/restore, not just
+            # re-applying the StatefulSet fresh — that Service has this
+            # app's real user data on it).
             - name: DATABASE_URL
-              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.daily-brief:5432/$(POSTGRES_DB)"
             - name: APP_PATH_PREFIX
               value: "/daily-brief-v2"
             - name: GOOGLE_CLIENT_ID

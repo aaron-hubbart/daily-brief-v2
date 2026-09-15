@@ -46,6 +46,8 @@ There's no `UPLOAD_TOKENS` secret anymore — each person's API token now lives 
 
 ## 4. Postgres
 
+**Current reality (as of the SLACK_BOT_TOKEN rollout on 2026-09-15): Postgres actually runs in the `daily-brief` namespace, not `daily-brief-v2`**, even though every command below and `k8s/deployment.yaml`'s comments say `daily-brief-v2`. Commit `976e68e` ("reconcile daily-brief-v2 path/namespace drift") standardized every other manifest on `daily-brief-v2` and assumed Postgres would be (re)applied there too — that migration never happened, so `deployment.yaml`'s `DATABASE_URL` was reverted to point cross-namespace at `postgres.daily-brief` to match what's actually running (the real user data lives there). Don't re-apply `postgres-statefulset.yaml`/`postgres-service.yaml` into `daily-brief-v2` expecting that to "fix" anything — that creates a second, empty Postgres; actually consolidating into one namespace needs a real `pg_dump`/restore, done deliberately, with `DATABASE_URL` flipped back to same-namespace `postgres` only afterward.
+
 ```powershell
 kubectl create configmap postgres-schema --namespace daily-brief-v2 --from-file=viewer/webapp/db/schema.sql
 
