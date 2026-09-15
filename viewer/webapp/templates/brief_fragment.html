@@ -87,6 +87,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
 .update-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
 .channel-input{flex:1;min-width:120px;height:28px;padding:0 8px;font-family:var(--font);font-size:11px;color:var(--t2);background:var(--surface2);border:1px solid var(--border-strong);border-radius:4px;}
 .post-btn{height:28px;padding:0 12px;font-family:var(--font);font-size:11px;font-weight:500;color:#fff;background:#4a1fa8;border:none;border-radius:4px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;}
+.post-btn:disabled{opacity:.6;cursor:default;}
 .footer{margin-top:1.5rem;padding-top:1rem;border-top:.5px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
 .foot-note{font-size:11px;color:var(--t3);}
 .reset-btn{font-size:11px;color:var(--t3);background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--border-strong);padding:0;}
@@ -214,6 +215,55 @@ details.sec>.sec-body{padding:4px 14px 10px;}
   // Use url_for to build correct absolute paths regardless of app mount point
   var sectionUrlBase = '{{ url_for("api_section", date_str="__DATE__", slug="__SLUG__") }}'.replace('__DATE__', briefDate);
   var liveActionUrl = '{{ url_for("api_live_action_items", date_str="__DATE__") }}'.replace('__DATE__', briefDate);
+  var postToSlackUrlBase = '{{ url_for("post_item_to_slack", section="__SECTION__", item_key="__ITEM_KEY__") }}';
+
+  // Wires each section's Post to Slack / Post to Manager button: reads the
+  // channel id and current textarea text straight out of the DOM (including
+  // an edit the person just typed but never saved anywhere else) and posts
+  // them to post_item_to_slack in app.py, which calls Slack's
+  // chat.postMessage using the shared bot token. Safe to call repeatedly —
+  // rows already wired are skipped.
+  function wirePostButtons(root) {
+    root.querySelectorAll('.update-row[data-item-key]').forEach(function (row) {
+      var btn = row.querySelector('.post-btn');
+      if (!btn || btn.dataset.wired) return;
+      btn.dataset.wired = '1';
+      var defaultLabel = btn.textContent;
+      btn.addEventListener('click', function () {
+        var card = row.closest('.acct-card') || row.parentElement;
+        var textarea = card ? card.querySelector('.update-textarea') : null;
+        var channelInput = row.querySelector('.channel-input');
+        var channelId = channelInput ? channelInput.value.trim() : '';
+        var text = textarea ? textarea.value.trim() : '';
+        if (!channelId || !text) {
+          window.alert('Add a channel and a message before posting.');
+          return;
+        }
+        btn.disabled = true;
+        btn.textContent = 'Posting…';
+        var url = postToSlackUrlBase
+          .replace('__SECTION__', encodeURIComponent(row.dataset.section))
+          .replace('__ITEM_KEY__', encodeURIComponent(row.dataset.itemKey));
+        fetch(url, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({channel_id: channelId, text: text}),
+        })
+          .then(function (r) { return r.json().then(function (data) { return {ok: r.ok, data: data}; }); })
+          .then(function (result) {
+            if (!result.ok) throw new Error(result.data.error || 'request_failed');
+            btn.textContent = 'Posted ✓';
+            setTimeout(function () { btn.textContent = defaultLabel; btn.disabled = false; }, 2000);
+          })
+          .catch(function (err) {
+            window.alert('Could not post to Slack: ' + err.message);
+            btn.textContent = defaultLabel;
+            btn.disabled = false;
+          });
+      });
+    });
+  }
 
   {% if progressive %}
   // Progressive section loading: fire parallel fetches, inject each as it arrives
@@ -247,6 +297,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
         // so it counted/wired zero items. It's safe to call again: it
         // re-queries the live DOM and re-clones nodes each time.
         if (window.initBriefState) window.initBriefState(window.__briefFilename);
+        wirePostButtons(body);
         // After action-items section loads, kick off the Asana live pull
         if (slug === 'action-items') {
           loadLiveActionItems();

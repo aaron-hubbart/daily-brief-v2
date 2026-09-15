@@ -31,7 +31,9 @@ def test_standup_card_renders_textarea_and_post_to_slack_link():
 
     assert 'Team Standup Update' in html
     assert 'Customer\n- Acme, Inc. — renewal call prep' in html
-    assert 'https://slack.com/app_redirect?channel=D0TESTGEEKBOT' in html
+    assert 'data-item-key="today-standup"' in html
+    assert 'data-section="today"' in html
+    assert 'value="D0TESTGEEKBOT"' in html
     assert 'Post to Slack' in html
 
 
