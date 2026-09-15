@@ -8,7 +8,7 @@ The buttons send a structured command, not a bare label:
 
 - Card-level: `/daily-brief Refresh customer update for {Account Name} date:{brief_date}` or `/daily-brief Refresh manager update date:{brief_date}`.
 - Section-level: `/daily-brief Refresh section:{slug} date:{brief_date}`, where `{slug}` is one of `yesterday-meetings`, `account-recap`, `today`, `action-items`, `fyi` (matching the canonical slugs in `references/item-sync.md`).
-- Single-item section refresh: `/daily-brief Refresh section:{slug} date:{brief_date} item:{item_key}` — narrower than a full section refresh, regenerates only that one item's entry. Not yet sent by any viewer button, but recognize it when typed or sent by a future per-item control.
+- Single-item section refresh: `/daily-brief Refresh section:{slug} date:{brief_date} item:{item_key}` — narrower than a full section refresh, regenerates only that one item's entry. Sent by the Today section's Team Standup card's own Refresh link (`item:today-standup`); recognize it for any other item typed or sent by a future per-item control too.
 
 `date:{brief_date}` is the date shown on the page the button was clicked from — always trust it over "today." This matters most when someone refreshes a section on an archived (non-today) brief; without the explicit date the skill would regenerate today's entry instead of the one on screen.
 
@@ -27,6 +27,16 @@ Recognize close variations typed directly by the user the same way — match on 
 
 If the Refresh click arrives well after the day's brief was first generated, that's expected and fine — this flow only ever touches the one card, so staleness elsewhere is not this flow's concern.
 
+## Card-level refresh (Team Standup)
+
+The Today section's Team Standup card (`item_key: today-standup`) is cache-gated like Customer Updates/Manager Update, but — unlike those two, which each live in their own per-item file — it lives inside `today.json`, an array-shaped file. Its Refresh link sends the single-item syntax above: `/daily-brief Refresh section:today date:{brief_date} item:today-standup`.
+
+1. **Use `brief_date` from the command.**
+2. **Regenerate just this entry.** Run the Team Standup generation process from `references/status-updates.md` — no other Today items, no other section.
+3. **Update the cache.** Write the new `content` and `generated_at` (now) into the `team_standup` entry in `STATUS_UPDATE_CACHE_FILE_ID`. Leave `customer_updates` and `manager_update` untouched.
+4. **Write `today.json`.** Read the current `/briefs/{brief_date}/today.json` array, replace the entry matching `item_key: today-standup` (or append it, if this is the first time it's been generated this run), keep every other item in the array byte-for-byte untouched, and write the complete array back via `Google Drive: create_file` — the same read-current-array/replace-by-`item_key`/write-complete-array mechanic used for the "Single-item refresh" case under Section-level refresh below, and by `references/post-meeting-patch.md`.
+5. **Respond briefly.** Same one-line confirmation convention as the other card-level refreshes above.
+
 ## Section-level refresh (the other five sections)
 
 The viewer's other five sections (Yesterday's Meetings, Account / Initiative Recap, Today, Action Items, FYI) each have their own section-header Refresh button. This is a whole-section regeneration, not a single-item patch — there's no per-account cache involved here (that's specific to Customer Updates/Manager Update), so it always does a fresh pull.
@@ -38,6 +48,8 @@ The viewer's other five sections (Yesterday's Meetings, Account / Initiative Rec
 3. **Re-run that section's normal data pull and generation logic only** — the same source calls and item shape described in `references/item-sync.md`'s per-section notes for that slug (e.g. Outlook + Zoom + Asana for Yesterday's Meetings, Asana search/create for Action Items — see the Action Items exception below). Skip every other section's data sources entirely; this is the whole point of a section-level refresh over a full brief run.
 4. **Write the section's file.** For an array-shaped section (`meetings.json`, `today.json`, `action-items.json`, `fyi.json` — per `references/item-sync.md`), this is a full-section refresh, so write the complete regenerated array for that one file via `Google Drive: create_file` — unlike the single-item merge in `references/post-meeting-patch.md`, there's nothing to read-and-merge first, since every item in the section is being regenerated. For the one-file-per-account sections (`accounts/{slug}.json`), refreshing "a section" doesn't really apply the same way — Account/Initiative Recap is a whole-section refresh across every account/initiative subsection at once, so write each account's file that changed. Files for every other section (or, for `accounts/`, every other account) are untouched by definition, since each lives in its own path.
 5. **Respond briefly.** One line confirming which section refreshed; note that the refresh is reflected in the hosted viewer on next page load, without needing to construct or share a direct link. Same no-reproduction rule as a normal brief run and the card-level refresh above. If step 3 hit partial failures, name them here (see below) rather than only reporting success.
+
+**Exception for `today`:** a whole-section refresh of `today` regenerates only the checkable meeting items — it never regenerates the `today-standup` card, which is cached separately (see "Card-level refresh (Team Standup)" above and `references/status-updates.md`). When reading the current `today.json` to merge in the freshly-regenerated meeting items, always carry the existing `today-standup` entry forward unchanged, unless the command explicitly targets `item:today-standup` (in which case follow "Card-level refresh (Team Standup)" instead of this section-level flow).
 
 ### Partial run handling
 
