@@ -218,15 +218,21 @@ Consolidate what used to be five separate searches into fewer calls:
 
 Consolidate into a single Slack section. Surface only items that need attention or are informational — skip noise, bot messages, and automated notifications.
 
-### Zoom (Zoom for Claude: search_meetings + get_meeting_assets)
+### Zoom (Zoom for Claude: search + get_meeting_assets)
 Zoom is the transcript system of record for every meeting on the calendar, regardless of hosting platform. The user records every meeting through Zoom - a Teams, Webex, Clari, or Google Meet meeting still produces a Zoom recording/transcript that must be checked, not skipped.
 
-- For every meeting in the recap window (and later, every Today meeting), run `search_meetings` with the meeting title (or a distinctive substring) scoped to that meeting's date - the Zoom title usually mirrors the calendar title. If the title search returns nothing, fall back to a date-range search and match on start time within a few minutes. Do this even when the calendar shows a Teams/Webex/Clari/Google Meet join URL.
-- For each match, call `get_meeting_assets` to pull AI summary, transcript, recording, and next steps.
-- The "check every meeting" rule in Yesterday's Meetings (Part A) is enforced by this - never skip the Zoom lookup based on the hosted platform, whether the calendar shows a Zoom link, or a prior assumption that "Zoom won't have this."
-- This is a per-meeting call (search_meetings, then one get_meeting_assets per matched meeting). N+1 is accepted.
+**Every meeting has two independent transcript sources, and both must be checked** — they are separate records, not fallbacks for each other:
+- **Host-side cloud recording transcript** — lives on the `zoom_meeting` datasource (`has_transcript` field). Only populated when the user hosted the meeting (or the actual host enabled cloud recording with transcription).
+- **Attendee-side My Notes transcript** — lives on the separate `zoom_my_notes` datasource (`has_my_notes` field, plus transcript content on the note itself). Populated from the user's own attendee-side capture regardless of who hosted. A meeting someone else hosted will show `has_transcript: false` on `zoom_meeting` while still having a real transcript here — that is expected, not a gap, and checking `zoom_meeting` alone will silently miss it.
+
+- For every meeting in the recap window (and later, every Today meeting), use `search` scoped to that meeting's title/date, with `datasource_filters` covering BOTH `zoom_meeting` and `zoom_my_notes` — never `zoom_meeting` alone. If the title search returns nothing on either datasource, fall back to a date-range search and match on start time within a few minutes. Do this even when the calendar shows a Teams/Webex/Clari/Google Meet join URL, and even when the user did not host.
+- For any `zoom_meeting` match, call `get_meeting_assets` to pull AI summary, transcript, recording, and next steps.
+- For any `zoom_my_notes` match with `has_my_notes: true`, call `my_notes_get_note_content` with `include=transcript` to confirm and retrieve the attendee-side transcript — do not report "no transcript" based on the `has_my_notes` flag alone without fetching the note content.
+- A meeting only counts as "no transcript found" when BOTH checks come up empty — see the Part A "Not found" definition below for the exact condition.
+- The "check every meeting" rule in Yesterday's Meetings (Part A) is enforced by this - never skip either lookup based on the hosted platform, whether the calendar shows a Zoom link, whether the user hosted, or a prior assumption that "Zoom won't have this."
+- This is a per-meeting call (search, then get_meeting_assets and/or my_notes_get_note_content per matched result). N+1 is accepted.
 - The Yesterday's Meetings status list (Section 1, Part A) is where this shows up as recording/transcript found or not.
-- If no summary is available, note the meeting occurred and that recording/transcript status still needs checking
+- If no summary is available from either source, note the meeting occurred and that recording/transcript status still needs checking
 - Only surface meetings in the account/initiative recap (Part B) that produced meaningful content (skip 1:1 standups with no summary) — Part A still lists every meeting regardless of content, since its purpose is processing status, not narrative
 
 ### Asana (Asana: get_my_tasks / search_tasks)
@@ -263,11 +269,13 @@ List every meeting from the last business day (yesterday, or the prior Friday if
 
 A specific past failure mode: assuming a Teams/Webex/Clari/Google Meet calendar entry means Zoom will have nothing, and skipping the lookup on that assumption. Do not skip on that assumption. The user records everything through Zoom - the calendar platform is unrelated to the transcript source. Every meeting gets the Zoom search + `get_meeting_assets` call, full stop.
 
+A second, related past failure mode: checking only the host-side `zoom_meeting` datasource (`has_transcript`) and concluding no transcript exists when that field is `false`. For a meeting someone else hosted, `has_transcript` on `zoom_meeting` is expected to be `false` even when a real transcript exists — it lives on the separate `zoom_my_notes` datasource instead, as the user's own attendee-side capture (`has_my_notes: true`, with transcript content on the note). Checking `zoom_meeting` alone and stopping there is not a complete check; both datasources must be searched (see Zoom data source section above) before a meeting is flagged as missing a transcript.
+
 For each meeting, report:
 - Title, time, attendees
-- **Recording/transcript status** — checked via Zoom `search_meetings` (by title + date) then `get_meeting_assets` on any match. Every meeting gets this check regardless of the platform shown on the calendar - Zoom is the recording source of truth for Teams, Webex, Clari, Google Meet, and Zoom-hosted meetings alike:
-  - Found: link directly to the meeting summary doc (`summary_doc_url`) and/or recording, and note whether a transcript is available
-  - Not found means the Zoom title+date search returned no match, or a match returned but `get_meeting_assets` reported no transcript and no recording. It never means "the meeting wasn't hosted on Zoom so I skipped the check." A Teams, Webex, Clari, or Google Meet meeting with a genuine Zoom recording gets found here; only meetings with no captured Zoom asset end up flagged. Flag them with a `bbad` badge reading "not found — needs input" (matches the badge shape in `references/item-sync.md`) - this is the trigger condition below.
+- **Recording/transcript status** — checked via Zoom `search` against BOTH the `zoom_meeting` (host-side cloud recording transcript) and `zoom_my_notes` (attendee-side transcript) datasources, by title + date, then `get_meeting_assets` (for a `zoom_meeting` match) and `my_notes_get_note_content` with `include=transcript` (for a `zoom_my_notes` match). Every meeting gets both checks regardless of the platform shown on the calendar or who hosted it - Zoom is the recording/transcript source of truth for Teams, Webex, Clari, Google Meet, and Zoom-hosted meetings alike, and the two datasources are independent records, not duplicates of each other:
+  - Found: link directly to the meeting summary doc (`summary_doc_url`) and/or recording when the host-side asset exists. If only the attendee-side My Notes transcript exists (common when someone else hosted — `has_transcript: false` on `zoom_meeting` but `has_my_notes: true` with transcript content on `zoom_my_notes`), report it as found via My Notes rather than flagging it missing.
+  - Not found means BOTH checks came up empty: the `zoom_meeting` search (by title+date) returned no match, or a match returned but `get_meeting_assets` reported no transcript and no recording — AND the `zoom_my_notes` search (by title+date) returned no match, or a match returned but its note has no transcript content. `has_transcript: false` on `zoom_meeting` alone is never sufficient to call a meeting "not found" — the `zoom_my_notes` check must also come up empty. It never means "the meeting wasn't hosted on Zoom so I skipped the check," and it never means "the user didn't host so I skipped the My Notes check." A Teams, Webex, Clari, or Google Meet meeting with a genuine Zoom recording or My Notes transcript gets found here; only meetings with no captured asset on either datasource end up flagged. Flag them with a `bbad` badge reading "not found — needs input" (matches the badge shape in `references/item-sync.md`) - this is the trigger condition below.
 - **Asana action-item status** — checked per the Asana data-source note above (run log sheet first, Asana project search as fallback):
   - Found: note that items were logged, with a link to the task(s) or the account project
   - Not found: say so plainly — "no action items logged yet"
