@@ -33,6 +33,9 @@ def test_standup_card_renders_textarea_and_post_to_slack_link():
     assert 'Customer\n- Acme, Inc. — renewal call prep' in html
     assert 'data-item-key="today-standup"' in html
     assert 'data-section="today"' in html
+    # copy-to-clipboard + app_redirect, not the chat.postMessage API route —
+    # a bot can't reliably post into a Geekbot channel prompt.
+    assert 'data-mode="copy"' in html
     assert 'value="D0TESTGEEKBOT"' in html
     assert 'Post to Slack' in html
 

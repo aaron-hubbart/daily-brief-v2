@@ -217,12 +217,19 @@ details.sec>.sec-body{padding:4px 14px 10px;}
   var liveActionUrl = '{{ url_for("api_live_action_items", date_str="__DATE__") }}'.replace('__DATE__', briefDate);
   var postToSlackUrlBase = '{{ url_for("post_item_to_slack", section="__SECTION__", item_key="__ITEM_KEY__") }}';
 
-  // Wires each section's Post to Slack / Post to Manager button: reads the
-  // channel id and current textarea text straight out of the DOM (including
-  // an edit the person just typed but never saved anywhere else) and posts
-  // them to post_item_to_slack in app.py, which calls Slack's
-  // chat.postMessage using the shared bot token. Safe to call repeatedly —
-  // rows already wired are skipped.
+  // Wires each section's Post to Slack / Post to Manager button. Two modes,
+  // picked per-row by data-mode:
+  //  - "copy" (Team Standup, Manager Update): these post to a Geekbot
+  //    channel prompt or a manager's personal DM — a bot token can't
+  //    reliably post into either (DMs especially: Slack has no API for a
+  //    bot to post into a human-to-human DM it isn't a party to), so
+  //    instead this copies the message to the clipboard and opens the
+  //    channel via app_redirect for a manual paste.
+  //  - default (Customer Updates): posts straight to Slack via
+  //    post_item_to_slack in app.py, which calls chat.postMessage with the
+  //    shared bot token — these go to real account channels the bot can be
+  //    invited into.
+  // Safe to call repeatedly — rows already wired are skipped.
   function wirePostButtons(root) {
     root.querySelectorAll('.update-row[data-item-key]').forEach(function (row) {
       var btn = row.querySelector('.post-btn');
@@ -239,6 +246,31 @@ details.sec>.sec-body{padding:4px 14px 10px;}
           window.alert('Add a channel and a message before posting.');
           return;
         }
+
+        if (row.dataset.mode === 'copy') {
+          function resetBtn() { btn.textContent = defaultLabel; btn.disabled = false; }
+          function openChannel() {
+            window.open('https://slack.com/app_redirect?channel=' + encodeURIComponent(channelId), '_blank');
+          }
+          btn.disabled = true;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () {
+              btn.textContent = 'Copied ✓ opening Slack…';
+              openChannel();
+              setTimeout(resetBtn, 2500);
+            }, function () {
+              btn.textContent = 'Copy failed — opening Slack…';
+              openChannel();
+              setTimeout(resetBtn, 2500);
+            });
+          } else {
+            btn.textContent = 'Clipboard unavailable';
+            openChannel();
+            setTimeout(resetBtn, 2500);
+          }
+          return;
+        }
+
         btn.disabled = true;
         btn.textContent = 'Posting…';
         var url = postToSlackUrlBase

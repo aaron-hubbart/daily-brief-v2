@@ -77,7 +77,7 @@
 {% elif section_slug == 'manager-update' %}
   {% for item in section_items %}
   <textarea class="update-textarea">{{ item.get('content', {}).get('textarea', '') }}</textarea>
-  <div class="update-row" data-item-key="{{ item.item_key }}" data-section="{{ section_slug }}">
+  <div class="update-row" data-item-key="{{ item.item_key }}" data-section="{{ section_slug }}" data-mode="copy">
     <input class="channel-input" type="text" value="{{ item.get('content', {}).get('channel_id', '') }}" hidden>
     <button type="button" class="post-btn">Post to Manager</button>
     <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh manager update date:' ~ brief_date)|urlencode }}" target="_blank">Refresh</a>
@@ -152,7 +152,7 @@
     </summary>
     <div class="acct-card-body">
       <textarea class="update-textarea">{{ item.get('content', {}).get('textarea', '') }}</textarea>
-      <div class="update-row" data-item-key="{{ item.item_key }}" data-section="{{ section_slug }}">
+      <div class="update-row" data-item-key="{{ item.item_key }}" data-section="{{ section_slug }}" data-mode="copy">
         <input class="channel-input" type="text" value="{{ item.get('content', {}).get('channel_id', '') }}" readonly>
         <button type="button" class="post-btn">Post to Slack</button>
         <a class="lbtn" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh section:today date:' ~ brief_date ~ ' item:' ~ item.item_key)|urlencode }}" target="_blank">Refresh</a>

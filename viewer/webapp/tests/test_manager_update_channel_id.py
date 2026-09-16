@@ -29,5 +29,8 @@ def test_post_to_manager_button_carries_channel_id():
 
     assert 'data-item-key="mgr-update"' in html
     assert 'data-section="manager-update"' in html
+    # copy-to-clipboard + app_redirect, not the chat.postMessage API route —
+    # a bot can't post into a personal manager DM it isn't a party to.
+    assert 'data-mode="copy"' in html
     assert 'value="D0TESTMANAGER"' in html
     assert 'Post to Manager' in html
