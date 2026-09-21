@@ -108,6 +108,8 @@ select{cursor:pointer;}
   <label>Internal Asana Project:</label>
   <input type="text" id="internal-name" placeholder="Project name" style="width:200px">
   <input type="text" id="internal-gid" placeholder="Project GID" class="mono" style="width:200px">
+  <label>Default Section:</label>
+  <input type="text" id="internal-section" placeholder="Section name" style="width:160px">
 </div>
 
 <div class="panel">
@@ -127,11 +129,12 @@ select{cursor:pointer;}
           <th>Run Day</th>
           <th>Slack Channel</th>
           <th>Asana Project</th>
+          <th>Default Section</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody id="acct-body">
-        <tr><td colspan="6" class="empty">Loading…</td></tr>
+        <tr><td colspan="7" class="empty">Loading…</td></tr>
       </tbody>
     </table>
     <div class="add-row">
@@ -147,6 +150,7 @@ select{cursor:pointer;}
       </select>
       <input type="text" id="new-slack-name" placeholder="Slack channel name"><input type="text" id="new-slack" placeholder="Slack Channel ID" class="mono">
       <input type="text" id="new-asana-name" placeholder="Asana project name"><input type="text" id="new-gid" placeholder="Asana Project GID" class="mono">
+      <input type="text" id="new-section" placeholder="Default section name">
       <button class="btn primary" onclick="addAccount()">Add account</button>
     </div>
     <div class="msg" id="msg"></div>
@@ -166,6 +170,7 @@ document.getElementById('new-tier').addEventListener('change', function() {
 
 document.getElementById('internal-gid').addEventListener('input', () => markDirty());
 document.getElementById('internal-name').addEventListener('input', () => markDirty());
+document.getElementById('internal-section').addEventListener('input', () => markDirty());
 
 async function load() {
   try {
@@ -177,17 +182,18 @@ async function load() {
     );
     document.getElementById('internal-gid').value = CONFIG.internal_project_gid || '';
     document.getElementById('internal-name').value = CONFIG.internal_project_name || '';
+    document.getElementById('internal-section').value = CONFIG.internal_default_section_name || '';
     render();
   } catch(e) {
     document.getElementById('acct-body').innerHTML =
-      `<tr><td colspan="6" class="empty" style="color:var(--bad-t)">Failed to load: ${e.message}</td></tr>`;
+      `<tr><td colspan="7" class="empty" style="color:var(--bad-t)">Failed to load: ${e.message}</td></tr>`;
   }
 }
 
 function render() {
   const tbody = document.getElementById('acct-body');
   if (!CONFIG.accounts.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">No accounts configured</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">No accounts configured</td></tr>';
     return;
   }
   const primary = [];
@@ -199,7 +205,7 @@ function render() {
   });
 
   function rowsHtml(entries) {
-    if (!entries.length) return '<tr><td colspan="6" class="empty">None</td></tr>';
+    if (!entries.length) return '<tr><td colspan="7" class="empty">None</td></tr>';
     return entries.map(({a, i}) => `
       <tr data-idx="${i}">
         <td class="acct-name">${esc(a.account_name || '')}</td>
@@ -207,6 +213,7 @@ function render() {
         <td class="day-tag">${a.tier === 'secondary' && a.run_day ? a.run_day : '—'}</td>
         <td>${a.slack_channel_name ? esc(a.slack_channel_name) : ''}<span class="mono sub">${a.slack_channel_id ? (a.slack_channel_name ? ' ' : '') + esc(a.slack_channel_id) : '—'}</span></td>
         <td>${a.asana_board_name ? esc(a.asana_board_name) : ''}<span class="mono sub">${a.project_gid ? (a.asana_board_name ? ' ' : '') + esc(a.project_gid) : '—'}</span></td>
+        <td>${a.default_section_name ? esc(a.default_section_name) : '—'}</td>
         <td class="actions">
           <button class="btn" onclick="editRow(${i})">Edit</button>
           <button class="btn danger" onclick="removeRow(${i})">Remove</button>
@@ -216,9 +223,9 @@ function render() {
   }
 
   tbody.innerHTML =
-    `<tr class="section-head"><td colspan="6">Primary Accounts (${primary.length})</td></tr>` +
+    `<tr class="section-head"><td colspan="7">Primary Accounts (${primary.length})</td></tr>` +
     rowsHtml(primary) +
-    `<tr class="section-head"><td colspan="6">Secondary Accounts (${secondary.length})</td></tr>` +
+    `<tr class="section-head"><td colspan="7">Secondary Accounts (${secondary.length})</td></tr>` +
     rowsHtml(secondary);
 }
 
@@ -240,6 +247,7 @@ function editRow(idx) {
     </select></td>
     <td><input type="text" id="e-slack-name" value="${esc(a.slack_channel_name||'')}" placeholder="Channel name" style="width:100%;margin-bottom:4px"><input type="text" id="e-slack" value="${esc(a.slack_channel_id||'')}" placeholder="Channel ID" class="mono" style="width:100%;font-size:10px"></td>
     <td><input type="text" id="e-asana-name" value="${esc(a.asana_board_name||'')}" placeholder="Project name" style="width:100%;margin-bottom:4px"><input type="text" id="e-gid" value="${esc(a.project_gid||'')}" placeholder="Project GID" class="mono" style="width:100%;font-size:10px"></td>
+    <td><input type="text" id="e-section" value="${esc(a.default_section_name||'')}" placeholder="Section name" style="width:100%"></td>
     <td class="actions">
       <button class="btn save" onclick="saveRow(${idx})">OK</button>
       <button class="btn" onclick="render()">Cancel</button>
@@ -256,6 +264,7 @@ function saveRow(idx) {
   a.slack_channel_id = document.getElementById('e-slack').value.trim() || '';
   a.asana_board_name = document.getElementById('e-asana-name').value.trim() || '';
   a.project_gid = document.getElementById('e-gid').value.trim() || '';
+  a.default_section_name = document.getElementById('e-section').value.trim() || '';
   CONFIG.accounts.sort((a,b) =>
     (a.account_name||'').localeCompare(b.account_name||'', undefined, {sensitivity:'base'})
   );
@@ -272,10 +281,11 @@ function addAccount() {
   const slack = document.getElementById('new-slack').value.trim();
   const asanaName = document.getElementById('new-asana-name').value.trim();
   const gid = document.getElementById('new-gid').value.trim();
+  const sectionName = document.getElementById('new-section').value.trim();
   CONFIG.accounts.push({
     account_name: name, tier: tier, run_day: day,
     slack_channel_name: slackName, slack_channel_id: slack, supporting_slack_channel_ids: [],
-    asana_board_name: asanaName, project_gid: gid, gdrive_folder_id: null
+    asana_board_name: asanaName, project_gid: gid, default_section_name: sectionName, gdrive_folder_id: null
   });
   CONFIG.accounts.sort((a,b) =>
     (a.account_name||'').localeCompare(b.account_name||'', undefined, {sensitivity:'base'})
@@ -285,6 +295,7 @@ function addAccount() {
   document.getElementById('new-slack').value = '';
   document.getElementById('new-asana-name').value = '';
   document.getElementById('new-gid').value = '';
+  document.getElementById('new-section').value = '';
   markDirty();
   render();
 }
@@ -326,6 +337,7 @@ async function saveConfig() {
 
   CONFIG.internal_project_name = document.getElementById('internal-name').value.trim() || '';
   CONFIG.internal_project_gid = document.getElementById('internal-gid').value.trim() || '';
+  CONFIG.internal_default_section_name = document.getElementById('internal-section').value.trim() || '';
 
   try {
     const r = await fetch(`${BASE}api/customers/config`, {
@@ -396,7 +408,7 @@ function addScannedAccounts() {
     CONFIG.accounts.push({
       account_name: name, tier: 'primary', run_day: null,
       slack_channel_name: '', slack_channel_id: '', supporting_slack_channel_ids: [],
-      asana_board_name: c.name, project_gid: c.gid, gdrive_folder_id: null
+      asana_board_name: c.name, project_gid: c.gid, default_section_name: '', gdrive_folder_id: null
     });
     added++;
   });
