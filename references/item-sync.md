@@ -56,6 +56,7 @@ The `/config` folder inside `BRIEF_DATA_FOLDER_ID` holds two hand-relevant files
       "supporting_slack_channel_ids": ["C0XXXXXXX"],
       "project_gid": "111222333",
       "asana_board_name": "Acme Financial",
+      "default_section_name": "New Requests",
       "gdrive_folder_id": "1AbCdEf..."
     },
     {
@@ -66,14 +67,16 @@ The `/config` folder inside `BRIEF_DATA_FOLDER_ID` holds two hand-relevant files
       "supporting_slack_channel_ids": [],
       "project_gid": "222333444",
       "asana_board_name": "Acme Financial",
+      "default_section_name": "New Requests",
       "gdrive_folder_id": null
     }
   ],
-  "internal_project_gid": "444555666"
+  "internal_project_gid": "444555666",
+  "internal_default_section_name": "Inbox"
 }
 ```
 
-Field semantics: `tier` is `primary` or `secondary`. `run_day` is a weekday name (`Monday`…`Sunday`) for secondary accounts, `null` for primary. `slack_channel_id` is the account's main Slack channel; `supporting_slack_channel_ids` lists additional channels to include in that account's Slack pull (may be empty). `project_gid` is the Asana board's GID (required — the webapp reads it); `asana_board_name` is the human-facing board name the setup flow resolves to that GID. `gdrive_folder_id` is the account's docs folder ID or `null` (stored only; the brief does not act on it yet).
+Field semantics: `tier` is `primary` or `secondary`. `run_day` is a weekday name (`Monday`…`Sunday`) for secondary accounts, `null` for primary. `slack_channel_id` is the account's main Slack channel; `supporting_slack_channel_ids` lists additional channels to include in that account's Slack pull (may be empty). `project_gid` is the Asana board's GID (required — the webapp reads it); `asana_board_name` is the human-facing board name the setup flow resolves to that GID. `default_section_name` is the Asana section name (not GID — see Action Items below for why) that new tasks created for this account should land in; `""` or omitted means "use whatever Asana defaults to for a task created with just `project_id`," which is the earlier, section-less behavior. `internal_default_section_name` is the same thing for `internal_project_gid`, at the top level since that project has no per-account entry of its own. `gdrive_folder_id` is the account's docs folder ID or `null` (stored only; the brief does not act on it yet).
 
 The First-Run Setup flow builds and updates this file (discover → confirm — see `SKILL.md`). The skill reads it on every run but never writes it during a normal brief. The hosted webapp also reads it directly (its own Drive access) to poll Asana live for Overdue/Due Next 7 Days/No Due Date — it uses only `account_name` and `project_gid` and ignores the other keys, so those two keys must always be present. There is no `daily_brief_sync_account_projects`-equivalent call in v2; that entire sync step is gone.
 
@@ -128,6 +131,15 @@ Today also includes exactly one `card` item, `item_key: today-standup` — a Tea
 2. **The Internal Asana Project GID** — read from `/config/account-config.json`'s top-level `internal_project_gid` key, for anything not tied to a specific customer account: internal admin, tiger-team work, personal follow-ups, or a customer-account item where the account genuinely has no configured project GID in `account-config.json`. This is a different project than `RECURRING_ACTIVITIES_PROJECT_GID` (that one is specifically for recurring TAM activities, not a general catch-all) — don't conflate the two.
 
 There is no third option and no "leave it unassigned" fallback — a missing account mapping is a reason to use the internal board, never a reason to omit `project_id` and let the task land bare in My Tasks. Always put the real Asana permalink (`https://app.asana.com/0/0/{gid}/f`) in `links` — never a placeholder.
+
+**Route new tasks into the project's configured default section, not whatever Asana defaults to.** `create_tasks`/`create_task` accept a section membership only by GID, never by name, but `account-config.json` stores `default_section_name` (per account) and `internal_default_section_name` (top-level, paired with `internal_project_gid`) as names — that's the field people actually edit in the Manage Customers page, not a GID they'd have to go look up in Asana. Resolve name → GID at task-creation time, once per project per run (cache it for the rest of the run rather than re-resolving per task):
+
+1. Look up the section name that applies to the `project_id` you're about to use (the account's `default_section_name` if this task is going to that account's project, otherwise `internal_default_section_name` if it's going to the internal project). If that name is blank/missing, skip section routing entirely for tasks on that project — fall back to the old project-only `project_id` behavior rather than guessing.
+2. Call Asana's sections list for that project (`Asana: search` scoped to project sections, or the equivalent "get sections for project" call) and match the configured name exactly (case-sensitive) against the returned section names.
+3. If it matches, create the task with that project *and* section together — via `memberships: [{"project": project_id, "section": section_gid}]` if `create_tasks` accepts memberships directly, otherwise create the task on the project first and then move it into the section with a follow-up `add_task_to_section`-equivalent call. Either way, the task must end up in the named section before this run finishes, not left for a later manual move.
+4. If no section on the project matches the configured name (typo, renamed section, wrong project), don't fail the whole task — create it on the project without a section (the old behavior) and note once in the brief's error handling that `default_section_name` for that account/internal board didn't resolve, so it gets fixed in config rather than silently mis-filing every task run after run.
+
+This is what fixes tasks landing in the wrong section: previously `create_tasks` only ever set `project_id`, so Asana placed every new task in whatever section it treats as the default for that project (often not the section the team actually triages from) — now the run explicitly routes each task into the section named in config.
 
 **Only write newly-created tasks to `action-items.json`.** As of the live-pull architecture below, this skill only writes an Action Items entry for a task where `content.is_new` is `true` — i.e. the exact tasks this run just created via `Asana:create_tasks`. Do NOT write an entry for a task that already existed and was found via search rather than created. The webapp pulls those directly from Asana itself at page-render time (see "Live-pulled subsections" below), so a skill-side entry for them would just be a second, staler copy of the same task competing with the live one. This means the search-first step above still matters for avoiding duplicate task creation, but its result (a found match) no longer needs a corresponding entry written — only its absence (triggering a create) does.
 

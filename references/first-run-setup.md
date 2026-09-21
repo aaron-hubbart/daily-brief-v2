@@ -137,7 +137,20 @@ Once the user confirms:
    `tier`, `run_day`, `slack_channel_id`, `slack_channel_name` (the
    human-readable Slack channel name, alongside the ID),
    `supporting_slack_channel_ids`, `project_gid`, `asana_board_name`,
-   `gdrive_folder_id` (set `null` for anything not resolved).
+   `default_section_name` (leave `""` if not provided — see below),
+   `gdrive_folder_id` (set `null` for anything not resolved). Also write
+   top-level `internal_default_section_name` (`""` if not provided),
+   paired with `internal_project_gid` the same way `default_section_name`
+   pairs with each account's `project_gid`.
+
+   Setup doesn't need to ask for `default_section_name`/
+   `internal_default_section_name` as a Phase 1/3 question — leave them
+   blank on initial write and point the user at the Manage Customers page
+   (`viewer/webapp/templates/customers.html`) to fill in the section name
+   per account (and the internal board) once they know which Asana
+   section their team triages from. If the user volunteers a section name
+   unprompted during Phase 3 confirmation, capture it then instead of
+   leaving it blank.
 3. Run the Folder Existence Check (see `SKILL.md`) to create `/briefs`,
    `/config`, `/state` under the brief-data folder if they don't already
    exist.
@@ -171,9 +184,10 @@ their existing values instead of starting from zero:
   accounts and the newly-discovered ones together, clearly marked which
   is which.
 - **Never silently clobber hand-set fields.** Every existing account's
-  current `tier`, `run_day`, `supporting_slack_channel_ids`, and
-  `gdrive_folder_id` must carry forward unchanged unless the user
-  explicitly changes them during Phase 3 confirmation. A re-run's
+  current `tier`, `run_day`, `supporting_slack_channel_ids`,
+  `default_section_name`, and `gdrive_folder_id` (and the top-level
+  `internal_default_section_name`) must carry forward unchanged unless
+  the user explicitly changes them during Phase 3 confirmation. A re-run's
   discovery pass not re-finding the same Slack/Asana match for an
   already-configured account is not a reason to blank out or drop fields
   that were already set — discovery only fills gaps and proposes
