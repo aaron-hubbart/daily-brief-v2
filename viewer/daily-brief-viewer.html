@@ -40,7 +40,7 @@ html,body{height:100%;}
 body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100vh;max-width:1400px;margin:0 auto;}
 
 /* ── Topbar ── */
-.topbar{background:var(--surface);border-bottom:1px solid var(--border-strong);padding:0 1.25rem;display:flex;align-items:center;gap:.75rem;height:52px;flex-shrink:0;position:sticky;top:0;z-index:10;}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border-strong);padding:.5rem 1.25rem;display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;min-height:52px;flex-shrink:0;position:sticky;top:0;z-index:10;}
 .topbar-title{font-size:13px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;}
 .mode-btn{height:28px;width:28px;padding:0;background:none;border:1px solid var(--border-strong);border-radius:var(--r);cursor:pointer;color:var(--t2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .1s;}
 .mode-btn:hover{background:var(--surface2);color:var(--t1);}
@@ -159,6 +159,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 .brief-content{display:none;}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:.5rem;color:var(--t3);font-size:13px;padding:2rem;text-align:center;}
 .empty-state svg{opacity:.25;margin-bottom:.5rem;}
+
+/* ── Topbar: stack the brief selector above the nav buttons on narrow screens
+   instead of letting flex-shrink squeeze everything into overlapping text ── */
+@media(max-width:640px){
+  .topbar>*{flex-shrink:0;}
+  .selector-wrap{flex-basis:100%;flex-grow:0;order:1;}
+  .topbar-title,.sep{order:0;}
+  #google-connect-btn,#customers-btn,#setup-btn,#account-btn,#admin-btn,.mode-btn{order:2;}
+}
 </style>
 </head>
 <body>
@@ -378,8 +387,11 @@ function setActiveDot(idx) {
 
 
 // ── Brief state management ──────────────────────────────────────
-// Persists checkbox state in the viewer's own localStorage, keyed by filename.
-// This works regardless of how the brief was generated or what KEY it uses internally.
+// The server (Postgres, via /api/items/.../checked) is the source of truth
+// and is what the fragment's checked/done markup is rendered from. localStorage
+// here is just a per-device write-through cache: it makes a toggle feel instant
+// and survives a refresh without waiting on the network, but a device that never
+// touched a given item locally falls back to whatever the server rendered.
 
 function briefStateKey(filename) {
   return 'viewer:state:' + filename;
@@ -475,7 +487,13 @@ function initBriefState(filename) {
     const items = liveItems();
     let done = 0;
     items.forEach(el => {
-      const on = !!state[el.dataset.id];
+      const id = el.dataset.id;
+      // No local record for this item yet (first load on this device, or it
+      // was checked/unchecked from a different device) — trust the checked
+      // state the server already rendered into the fragment instead of
+      // defaulting to unchecked.
+      if (!(id in state)) state[id] = el.classList.contains('done');
+      const on = !!state[id];
       el.classList.toggle('done', on);
       const cb = el.querySelector('input[type=checkbox]');
       if (cb) cb.checked = on;
@@ -496,10 +514,11 @@ function initBriefState(filename) {
     syncCheckedToServer(section, id, state[id]);
   }
 
-  // Best-effort server sync — persists across devices and, for Action
-  // Items (item_key action-{asana_gid}), mirrors onto the linked Asana
-  // task's completed state. localStorage above is the UI's actual source
-  // of truth, so a failed or slow request here never blocks the toggle.
+  // Persists the toggle server-side (source of truth, shared across devices)
+  // and, for Action Items (item_key action-{asana_gid}), mirrors onto the
+  // linked Asana task's completed state. Fire-and-forget: the local toggle
+  // already updated the UI and localStorage, so a failed or slow request
+  // here never blocks it — it'll just re-sync from the server on next load.
   function syncCheckedToServer(section, itemKey, checked) {
     if (!section) return;
     fetch('api/items/' + encodeURIComponent(section) + '/' + encodeURIComponent(itemKey) + '/checked?date=' + encodeURIComponent(filename), {
@@ -554,7 +573,13 @@ function initBriefState(filename) {
     resetBtn.parentNode.replaceChild(freshReset, resetBtn);
     freshReset.addEventListener('click', () => {
       if (!confirm('Reset all checkboxes?')) return;
-      Object.keys(state).forEach(k => delete state[k]);
+      liveItems().forEach(el => {
+        const id = el.dataset.id;
+        state[id] = false;
+        const sectionEl = el.closest('[data-section]');
+        const section = sectionEl ? sectionEl.dataset.section : null;
+        syncCheckedToServer(section, id, false);
+      });
       saveBriefState(filename, state);
       applyState();
     });
