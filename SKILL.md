@@ -29,16 +29,16 @@ This file is the core: trigger, timing, and what to pull. Three things are delib
 This skill keeps exactly one configuration value in your local copy of `SKILL.md` — a pointer to a single JSON config file on Google Drive that holds everything else. Set it here (this repo's committed copy keeps it as a placeholder, since the value is account-specific):
 
 ```
-CONFIG_FILE_ID: <Drive file ID of your config.json — created for you by the setup flow below>
+CONFIG_FILE_ID: <Drive file ID of your config.json — set automatically by the setup flow below>
 ```
 
-Everything else (the brief-data folder ID, the meeting run-log sheet ID, the recurring-activities Asana GID, the status-update cache file ID, your Slack user ID, and your key contacts) lives inside `config.json`, not here. If `CONFIG_FILE_ID` is still the placeholder, run the setup flow (see "First-Run Setup" below) — don't hand-edit values into this file. In a multi-user install, leave this line a placeholder and put each user's `CONFIG_FILE_ID` in their own project instructions instead (see the resolution rule below) — that keeps this shared skill definition free of any one user's data.
+Everything else (the brief-data folder ID, the meeting run-log sheet ID, the recurring-activities Asana GID, the status-update cache file ID, your Slack user ID, your key contacts, and your optional Slack completion-notification settings) lives inside `config.json`, not here. If `CONFIG_FILE_ID` is still the placeholder, run the setup flow (see "First-Run Setup" below) — don't hand-edit values into this file. The setup flow writes `CONFIG_FILE_ID` to your Claude project instructions automatically once `config.json` is created, so you never need to open or edit `SKILL.md` yourself. If the running environment has no way to write project instructions directly, the setup flow instead announces the exact `CONFIG_FILE_ID` line clearly in chat for you to paste into your project instructions — never into this file. In a multi-user install, this line stays a placeholder and each user's `CONFIG_FILE_ID` lives in their own project instructions instead (see the resolution rule below) — that keeps this shared skill definition free of any one user's data.
 
 ### Loading config (do this at the start of every run)
 
 1. **Resolve `CONFIG_FILE_ID`.** If your project instructions (project-folder instructions / Claude Project custom instructions) define a `CONFIG_FILE_ID`, use that value — it takes precedence. The `CONFIG_FILE_ID` line in the Admin Config block above is only a fallback for a single-user local copy.
 2. If the resolved `CONFIG_FILE_ID` is empty or still the placeholder text, do not attempt a brief. Offer to run First-Run Setup instead (see that section).
-3. Otherwise, read `config.json` from Drive by that file ID (`Google Drive` connector — the same read path already used for `account-config.json` and the status-update cache). It provides, as top-level keys: `brief_data_folder_id`, `meeting_run_log_sheet_id`, `recurring_activities_project_gid`, `status_update_cache_file_id`, `slack_user_id`, `key_contacts`, `geekbot_channel_id`, `manager_channel_id`, and optionally a `google_drive_pat_file_id`. `geekbot_channel_id` is the Slack channel/DM the Today section's Team Standup card posts to (see Section 2 below); `manager_channel_id` is the Manager Update's Slack DM target — both replace what used to be a hardcoded ID. Everywhere below that refers to one of the old Admin Config IDs (e.g. `BRIEF_DATA_FOLDER_ID`), use the corresponding value from `config.json`.
+3. Otherwise, read `config.json` from Drive by that file ID (`Google Drive` connector — the same read path already used for `account-config.json` and the status-update cache). It provides, as top-level keys: `brief_data_folder_id`, `meeting_run_log_sheet_id`, `recurring_activities_project_gid`, `status_update_cache_file_id`, `slack_user_id`, `key_contacts`, `geekbot_channel_id`, `manager_channel_id`, an optional `slack_notify` object (`enabled` boolean, `channel_id` string — see "Run-Complete Slack Notification" below), and optionally a `google_drive_pat_file_id`. `geekbot_channel_id` is the Slack channel/DM the Today section's Team Standup card posts to (see Section 2 below); `manager_channel_id` is the Manager Update's Slack DM target — both replace what used to be a hardcoded ID. Everywhere below that refers to one of the old Admin Config IDs (e.g. `BRIEF_DATA_FOLDER_ID`), use the corresponding value from `config.json`.
 
 ### Google Drive write mechanics
 
@@ -75,7 +75,11 @@ See references/item-sync.md for the file layout and folder hierarchy.
 
 Runs when the user explicitly asks (`/daily-brief setup`, "set up daily brief", etc.), and is auto-offered whenever a normal run finds `CONFIG_FILE_ID` still set to the placeholder (per the config-load step above — offer setup instead of erroring).
 
-Read `references/first-run-setup.md` in full before running this flow — it documents the minimal-configuration phase, the automated discovery pass (email, Slack, Asana, and internal-board detection), the confirmation-and-edit step, and the final write-and-hand-off step. It also documents the on-demand "find new accounts" flow used outside of full setup.
+Read `references/first-run-setup.md` in full before running this flow — it documents the connector pre-flight check, the minimal-configuration phase, the automated discovery pass (email, Slack, Asana, and internal-board detection), the confirmation-and-edit step, and the final write-and-hand-off step. It also documents the on-demand "find new accounts" flow used outside of full setup.
+
+Before anything else, the flow runs a **connector pre-flight check** (Phase 0 in `references/first-run-setup.md`): confirm which connectors are active, report connected vs. missing, and stop to ask the user to connect Google Drive first if it isn't connected — Google Drive is required, the rest are recommended.
+
+Once `config.json` is written, the flow stores `CONFIG_FILE_ID` in the user's Claude project instructions automatically rather than asking for a manual `SKILL.md` edit — see Admin Config above and Phase 4 of `references/first-run-setup.md`.
 
 **Re-running setup** loads both existing config files first, uses them as the Phase 1/2 starting point, re-confirms, and writes a fresh version of each file once — never a per-key incremental write.
 
@@ -149,6 +153,22 @@ See `references/item-sync.md` for the exact item shape, field requirements, and 
 **Step 5: Update Status Cache In Place** — Update `STATUS_UPDATE_CACHE_FILE_ID` with new `generated_at` timestamps for each account and the manager entry generated this run. **This must be an in-place update of the existing file, not a new file creation**, because the file ID is a stable reference stored in `config.json`. Use the Google Drive REST API v3 PATCH method described in "Google Drive write mechanics" above. If the API update fails (e.g. network egress restriction), fall back to writing via the connector's `create_file` and note in the brief output that the status cache file ID has changed and `config.json` needs updating.
 
 **All five steps are mandatory on every run.** A brief run that completes steps 1–3 but skips 4–5 has produced an in-chat response but NO persistent brief — the webapp has no files to read. Always finish all five steps before ending the run. If a Drive write fails, note it in the brief output and do not move on as though sync succeeded.
+
+---
+
+## Connector Health Check
+
+Before pulling any data — before Timezone Resolution and before Data Sources below — probe each configured connector once, lightly, so a dead connector is caught up front instead of mid-run:
+
+- **Google Drive** — verify access to `BRIEF_DATA_FOLDER_ID` (e.g. a `list_files` call on it).
+- **Microsoft 365 / Outlook** — pull 1 recent email (e.g. `outlook_email_search` scoped to the last day, limited to 1 result).
+- **Slack** — a minimal connectivity check (e.g. a scoped `slack_search_public_and_private` call, or `slack_read_user_profile` on `slack_user_id`).
+- **Zoom** — a minimal `search` call.
+- **Asana** — a minimal `get_my_tasks` or `search_tasks` call.
+
+If a probe fails, do not fail the whole run: record that source under "Unavailable Sources" (see Error Handling below) and skip further pulls from it for the rest of this run. Specifically for Outlook, if the probe fails, add a note in the brief output suggesting the user may need to reconnect the Microsoft 365 connector.
+
+This runs on every normal brief. First-Run Setup has its own, separate pre-flight connector check (Phase 0 in `references/first-run-setup.md`) that runs before configuration begins.
 
 ---
 
@@ -292,7 +312,7 @@ Once the user supplies the recording/transcript, run the meeting-manager skill's
 
 After pulling all data sources, consolidate everything by **customer account or internal initiative** — not by source. Each subsection covers one account or initiative and synthesizes across calendar, email, Slack, and Zoom for that topic. This grouping is mandatory — never output a source-by-source list (e.g. a "Calendar" section followed by a "Slack" section).
 
-Order subsections by priority: customer accounts with active signals first (in rough order of urgency), then internal initiatives, then a mandatory catch-all "General / Admin" bucket for anything that doesn't fit elsewhere (personal calendar blocks, admin tasks, notifications with no clear account/initiative tie). Every item pulled from a data source must land in exactly one bucket — nothing gets silently dropped for lack of a clean category.
+Order subsections by priority: customer accounts with active signals first (in rough order of urgency), then internal initiatives, then a mandatory catch-all "General / Admin" bucket for anything that doesn't fit elsewhere (personal calendar blocks, admin tasks, notifications with no clear account/initiative tie). Every item pulled from a data source must land in exactly one bucket — nothing gets silently dropped for lack of a clean category. Whether an entry is labeled as a customer account or an internal initiative is driven by its `account_type` field in `account-config.json` (`"customer"` default, `"initiative"` otherwise) — see First-Run Setup for how it's set.
 
 In-scope secondary accounts (see Resolve In-Scope Accounts) are grouped into a dedicated "Secondary Accounts" subsection placed after the primary customer-account and internal-initiative subsections and before the General / Admin bucket. Secondary accounts that are not in scope this run do not appear at all. Primary accounts are grouped as usual above.
 
@@ -360,7 +380,7 @@ Configure your accounts in `/config/account-config.json` and your key colleagues
 
 Use this context to prioritize and flag items — a Slack DM from your AE about a strategic account matters more than a general announcement channel.
 
-The Slack channel ID mapping for Customer Updates is read from `/config/account-config.json` — see `references/item-sync.md` for its Drive location and shape, and the note in Section 3/4 above. The First-Run Setup flow builds and updates this file (discover → confirm — see the First-Run Setup section); this skill reads it on every run but never writes it during a normal brief.
+The Slack channel ID mapping for Customer Updates is read from `/config/account-config.json` — see `references/item-sync.md` for its Drive location and shape, and the note in Section 3/4 above. The First-Run Setup flow builds and updates this file (discover → confirm — see the First-Run Setup section); this skill reads it on every run but never writes it during a normal brief. Each entry also carries an `account_type` field — `"customer"` (default) or `"initiative"` — set during First-Run Setup, which controls only how the entry is labeled in the brief (Section 1 Part B, Section 2); everything else about how it's processed is identical.
 
 ---
 
@@ -369,6 +389,35 @@ The Slack channel ID mapping for Customer Updates is read from `/config/account-
 If a data source is unavailable (connector auth issue, timeout), note it briefly at the bottom of the brief under "Unavailable Sources" and proceed with what's available. Do not fail the whole brief because one source errored.
 
 If there is genuinely nothing to report in a section, omit it silently.
+
+---
+
+## Run-Complete Slack Notification
+
+After the Mandatory Sync Flow finishes — the last thing a normal run does — check `config.json` for a `slack_notify` object: `enabled` (boolean) and `channel_id` (string — the user's Slack DM channel, or a channel ID).
+
+If `slack_notify.enabled` is not `true`, or the object is absent, skip this step silently — it's opt-in.
+
+If enabled, send one Slack DM to `channel_id` via the Slack connector:
+
+```
+Your daily brief for [date] is ready. [N] meetings, [M] action items. View it at [viewer URL].
+```
+
+- `[date]` — the date this brief covers
+- `[N]` — meeting count from Section 1, Part A
+- `[M]` — action items created/logged this run
+- `[viewer URL]` — only if a viewer URL is configured in `config.json`; otherwise drop the "View it at" clause entirely
+
+If this run hit any Unavailable Sources (connector auth issues, timeouts, or a failed probe from Connector Health Check), append one line per source:
+
+```
+Heads up: [source] was unavailable during this run.
+```
+
+Use the existing Slack connector to send (e.g. `Slack: slack_send_message`) — do not stand up a new integration path. If the notification send itself fails, note it in the chat response; don't retry indefinitely, and don't fail the brief run over a failed notification.
+
+First-Run Setup can offer to configure this — see Phase 4 of `references/first-run-setup.md`.
 
 ---
 

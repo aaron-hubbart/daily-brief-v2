@@ -158,6 +158,32 @@ def count_users_with_asana_pat() -> int:
         return cur.fetchone()['n']
 
 
+def get_notification_prefs(user_id: int) -> dict:
+    """Returns the signed-in user's Slack notification preferences. Falls
+    back to disabled/unset if the row somehow isn't found, so callers don't
+    need their own None-handling."""
+    with cursor() as cur:
+        cur.execute(
+            "SELECT slack_notify_enabled, slack_notify_channel_id FROM users WHERE id = %s",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return {'slack_notify_enabled': False, 'slack_notify_channel_id': None}
+        return dict(row)
+
+
+def set_notification_prefs(user_id: int, enabled: bool, channel_id: Optional[str]) -> None:
+    """Saves the signed-in user's Slack notification preferences — called
+    from the Account panel. channel_id is None to clear it (e.g. the person
+    unchecked the enable toggle without picking a channel)."""
+    with cursor(commit=True) as cur:
+        cur.execute(
+            "UPDATE users SET slack_notify_enabled = %s, slack_notify_channel_id = %s WHERE id = %s",
+            (enabled, channel_id, user_id),
+        )
+
+
 def mark_onboarding_complete(user_id: int) -> None:
     """Idempotent — only sets the timestamp the first time; re-completing
     (e.g. clicking through the walkthrough again from the Account panel)

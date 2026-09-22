@@ -16,9 +16,28 @@ Setup is **minimal → discovery → confirmation**: gather only the two
 essentials up front, auto-discover everything else, then let the user
 review and edit before anything is written to Drive.
 
+## Phase 0: Connector Pre-Flight Check
+
+Before asking anything, check which connectors are currently active: Google
+Drive, Microsoft 365 / Outlook, Slack, Zoom, and Asana (e.g. via each
+connector's own lightweight list/search call, or however connector status
+is otherwise exposed in the current environment).
+
+Report the result to the user as a short list of connected vs. missing
+connectors.
+
+- **Google Drive is required.** If it isn't connected, stop here — do not
+  proceed to Phase 1. Ask the user to connect the Google Drive connector
+  first, then restart setup.
+- **Microsoft 365 / Outlook, Slack, Zoom, and Asana are recommended, not
+  required.** If any are missing, note which ones and that the
+  corresponding parts of the brief (calendar/email, Slack signals, Zoom
+  transcripts, Asana tasks) won't work until connected — but continue
+  with setup regardless.
+
 ## Phase 1: Minimal Configuration
 
-Ask for exactly four values, one at a time:
+Ask for exactly five values, one at a time:
 
 1. **Drive folder ID** — "Where should I save your briefs? Paste the ID
    from your Drive folder's URL (the part after `folders/`)." If the user
@@ -28,17 +47,43 @@ Ask for exactly four values, one at a time:
 3. **Geekbot channel/DM ID** — "What Slack channel or DM do you post your
    daily standup to (e.g. Geekbot's prompt)? Paste its ID — right-click
    the channel/DM in Slack → 'Copy link', and the ID is the last path
-   segment (`C...`/`D...`/`G...`)." This powers the Today section's Team
-   Standup card's "Post to Slack" button (`geekbot_channel_id`). If the
-   user doesn't have one to post to, skip this and leave it blank — the
-   card still generates, just without a working post button.
+   segment (`C...`/`D...`/`G...`). Respond 'skip' if not applicable." This
+   powers the Today section's Team Standup card's "Post to Slack" button
+   (`geekbot_channel_id`). If the user responds "skip", leave it blank —
+   the card still generates, just without a working post button.
 4. **Manager DM ID** — "What's your manager's Slack DM ID, for posting
-   your weekly/manager update?" Same ID format and lookup method as
-   above (`manager_channel_id`). Skip and leave blank if not applicable.
+   your weekly/manager update? Respond 'skip' if not applicable." Same ID
+   format and lookup method as above (`manager_channel_id`). If the user
+   responds "skip", leave it blank.
+5. **Slack completion notification (optional)** — "Want a Slack DM when
+   each day's brief finishes running? If so, paste the DM channel ID to
+   send it to (same ID format as above — right-click your own DM →
+   'Copy link'). Respond 'skip' if not applicable." If the user gives a
+   channel ID, capture it for `slack_notify.channel_id` and set
+   `slack_notify.enabled: true`. If the user responds "skip", leave
+   `slack_notify` unset.
 
-Hold all four values in the conversation. Do not write anything to Drive yet.
+Hold all five values in the conversation. Do not write anything to Drive yet.
 
 ## Phase 2: Automated Discovery
+
+Before running the discovery passes below, ask: **"Do you manage customer
+accounts, or would you prefer to track internal initiatives and
+projects?"**
+
+- **Customer accounts (default).** Proceed with the discovery passes
+  below as written; every entry gets `account_type: "customer"`.
+- **Internal initiatives/projects.** If the user says they don't manage
+  customer accounts, identifies as an internal-facing role, or otherwise
+  opts for this — run the same discovery passes below, but talk about
+  the results as initiatives/projects rather than customers, and set
+  `account_type: "initiative"` on every entry. Structurally nothing else
+  changes: an initiative still gets a Slack channel, an Asana project, a
+  tier/run_day, etc. the same way a customer account does — only the
+  `account_type` field and the label used in conversation and in the
+  brief differ.
+- A user can mix both in the same setup (some entries `customer`, others
+  `initiative`) if they say so during Phase 3 confirmation.
 
 Run this automatically, without asking the user to confirm each pass —
 show all results together at the end of Phase 2, then move to Phase 3.
@@ -89,7 +134,10 @@ low confidence.
 ## Phase 3: User Confirmation & Edit
 
 Present the full discovered list in chat as a reviewable table, grouped
-by confidence tier, something like:
+by confidence tier, something like (entries answered as initiatives in
+Phase 2 are labeled as initiatives here and everywhere else in the
+conversation, but use the same Slack/Asana columns and confirmation flow
+as customer accounts):
 
 ```
 DISCOVERED ACCOUNTS — Review & Confirm
@@ -124,8 +172,10 @@ Once the user confirms:
 1. Create `/config/config.json` via `Google Drive: create_file` with:
    `brief_data_folder_id`, `slack_user_id`, `key_contacts`,
    `geekbot_channel_id` and `manager_channel_id` (from Phase 1, either as
-   entered or blank if the user skipped them), and empty-string
-   placeholders for `meeting_run_log_sheet_id`,
+   entered or blank if the user skipped them), `slack_notify` (from
+   Phase 1 question 5 — `{"enabled": true, "channel_id": "..."}` if the
+   user opted in, otherwise omit it or write `{"enabled": false}`), and
+   empty-string placeholders for `meeting_run_log_sheet_id`,
    `recurring_activities_project_gid`, `status_update_cache_file_id` (the
    user can fill these in later, or by re-running setup — see
    `references/item-sync.md` for what these three unlock and how they're
@@ -134,8 +184,10 @@ Once the user confirms:
    with the confirmed `accounts` array and top-level `internal_project_gid`
    plus `internal_project_name` (the human-readable name of that internal
    board) — exact field names per `references/item-sync.md`: `account_name`,
-   `tier`, `run_day`, `slack_channel_id`, `slack_channel_name` (the
-   human-readable Slack channel name, alongside the ID),
+   `account_type` (`"customer"` default, or `"initiative"` — from Phase 2's
+   branching question), `tier`, `run_day`, `slack_channel_id`,
+   `slack_channel_name` (the human-readable Slack channel name, alongside
+   the ID),
    `supporting_slack_channel_ids`, `project_gid`, `asana_board_name`,
    `default_section_name` (leave `""` if not provided — see below),
    `gdrive_folder_id` (set `null` for anything not resolved). Also write
@@ -151,12 +203,32 @@ Once the user confirms:
    section their team triages from. If the user volunteers a section name
    unprompted during Phase 3 confirmation, capture it then instead of
    leaving it blank.
-3. Run the Folder Existence Check (see `SKILL.md`) to create `/briefs`,
-   `/config`, `/state` under the brief-data folder if they don't already
-   exist.
-4. Report the new `config.json` file ID and tell the user to paste it
-   into `CONFIG_FILE_ID` at the top of their local `SKILL.md` — this is
-   the only manual edit.
+3. Announce what you're doing before creating anything — e.g. "Creating
+   your Daily Briefs folder structure in Google Drive..." — then run the
+   Folder Existence Check (see `SKILL.md`) to create `/briefs`, `/config`,
+   `/state` under the brief-data folder if they don't already exist.
+   Confirm when it's done (e.g. "Folder structure created.").
+4. Store `CONFIG_FILE_ID` (the new `config.json` file's ID) in the
+   user's Claude project instructions automatically — this is the value
+   `SKILL.md`'s Admin Config resolution rule reads with precedence over
+   the `SKILL.md` placeholder. If the current environment provides no way
+   to write project instructions directly, instead announce the exact
+   line clearly in chat for the user to paste into their project
+   instructions themselves, e.g.:
+
+   ```
+   CONFIG_FILE_ID: 1AbCdEfGhIjKlMnOpQrStUvWxYz
+   ```
+
+   Never tell the user to edit `SKILL.md` — it's shared/committed and
+   should keep the placeholder.
+5. If the user opted into Slack completion notifications in Phase 1
+   (question 5), confirm `slack_notify.enabled: true` and
+   `slack_notify.channel_id` were written into `config.json`. If they
+   didn't opt in during Phase 1 but ask about it later (or during a
+   re-run), ask for their Slack DM channel ID and add `slack_notify` to
+   `config.json` then — see `SKILL.md`'s "Run-Complete Slack
+   Notification" section for how it's used at brief time.
 
 ## Re-running Setup
 
@@ -168,14 +240,17 @@ If one or both already exist, read them first and seed the flow from
 their existing values instead of starting from zero:
 
 - **Phase 1 starting point.** Use the existing `brief_data_folder_id`,
-  `slack_user_id`, `geekbot_channel_id`, and `manager_channel_id` from
-  `config.json` as the answers to Phase 1's four questions instead of
-  re-asking them — confirm the values with the user ("Re-running setup —
-  still using folder `<id>`, Slack user `<id>`, standup channel `<id>`,
-  and manager DM `<id>`?") rather than prompting from scratch. Only ask
-  again if the user explicitly wants to change one. If either channel ID
-  is blank/missing on the existing config (e.g. it predates this field),
-  ask for it fresh rather than carrying forward a blank.
+  `slack_user_id`, `geekbot_channel_id`, `manager_channel_id`, and
+  `slack_notify` from `config.json` as the answers to Phase 1's five
+  questions instead of re-asking them — confirm the values with the user
+  ("Re-running setup — still using folder `<id>`, Slack user `<id>`,
+  standup channel `<id>`, manager DM `<id>`, and completion notifications
+  `<on/off>`?") rather than prompting from scratch. Only ask again if the
+  user explicitly wants to change one. If `slack_notify` is missing on the
+  existing config (e.g. it predates this field), ask question 5 fresh
+  rather than assuming it's off. If either channel ID is blank/missing on
+  the existing config (e.g. it predates this field), ask for it fresh
+  rather than carrying forward a blank.
 - **Phase 2/3 starting point.** Treat the existing `accounts` array (and
   `internal_project_gid` / `internal_project_name`) as the starting
   candidate list, not just something to check for duplicates against.
@@ -184,7 +259,7 @@ their existing values instead of starting from zero:
   accounts and the newly-discovered ones together, clearly marked which
   is which.
 - **Never silently clobber hand-set fields.** Every existing account's
-  current `tier`, `run_day`, `supporting_slack_channel_ids`,
+  current `account_type`, `tier`, `run_day`, `supporting_slack_channel_ids`,
   `default_section_name`, and `gdrive_folder_id` (and the top-level
   `internal_default_section_name`) must carry forward unchanged unless
   the user explicitly changes them during Phase 3 confirmation. A re-run's

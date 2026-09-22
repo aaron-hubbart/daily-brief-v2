@@ -1059,6 +1059,30 @@ def api_asana_pat_clear():
     return jsonify({'status': 'ok'})
 
 
+@app.route('/api/notification-prefs')
+@login_required
+def api_notification_prefs():
+    """Returns the signed-in user's Slack notification preferences, for
+    the Account panel to pre-fill its notification settings form."""
+    prefs = db.get_notification_prefs(request.brief_user['id'])
+    return jsonify({
+        'slack_notify_enabled': prefs.get('slack_notify_enabled', False),
+        'slack_notify_channel_id': prefs.get('slack_notify_channel_id'),
+    })
+
+
+@app.route('/api/notification-prefs', methods=['PATCH'])
+@login_required
+def api_notification_prefs_update():
+    """Saves the signed-in user's Slack notification preferences from the
+    Account panel."""
+    body = request.get_json(silent=True) or {}
+    enabled = bool(body.get('slack_notify_enabled', False))
+    channel_id = (body.get('slack_notify_channel_id') or '').strip() or None
+    db.set_notification_prefs(request.brief_user['id'], enabled, channel_id)
+    return jsonify({'status': 'ok'})
+
+
 
 # ── Customer list management ─────────────────────────────────────────
 
