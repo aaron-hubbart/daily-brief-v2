@@ -12,7 +12,9 @@
   --t1:#1a1916; --t2:#5a5850; --t3:#9a9890;
   --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
   --bad-bg:#fef1f0; --bad-t:#b02520;
+  --good-bg:#eef7ee; --good-t:#2a7a34;
   --font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",monospace;
   --r:6px;
 }
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
@@ -21,6 +23,7 @@
   --t1:#e6e4de; --t2:#9a9890; --t3:#5a5850;
   --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
   --bad-bg:#280e0e; --bad-t:#e06868;
+  --good-bg:#122415; --good-t:#5cc26a;
 }}
 :root[data-theme="dark"]{
   --bg:#18181b; --surface:#1e1e22; --surface2:#26262c;
@@ -28,6 +31,7 @@
   --t1:#e6e4de; --t2:#9a9890; --t3:#5a5850;
   --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
   --bad-bg:#280e0e; --bad-t:#e06868;
+  --good-bg:#122415; --good-t:#5cc26a;
 }
 :root[data-theme="light"]{
   --bg:#f5f4f1; --surface:#fff; --surface2:#f0efe9;
@@ -35,6 +39,7 @@
   --t1:#1a1916; --t2:#5a5850; --t3:#9a9890;
   --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
   --bad-bg:#fef1f0; --bad-t:#b02520;
+  --good-bg:#eef7ee; --good-t:#2a7a34;
 }
 html,body{height:100%;}
 body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100vh;max-width:1400px;margin:0 auto;}
@@ -166,8 +171,95 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
   .topbar>*{flex-shrink:0;}
   .selector-wrap{flex-basis:100%;flex-grow:0;order:1;}
   .topbar-title,.sep{order:0;}
-  #google-connect-btn,#customers-btn,#setup-btn,#account-btn,#admin-btn,.mode-btn{order:2;}
+  #google-connect-btn,#settings-btn,.mode-btn{order:2;}
 }
+
+/* ── Settings modal: tabs ── */
+.settings-modal{max-width:720px;}
+.settings-tabs{display:flex;gap:0;padding:0 18px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:49px;z-index:5;}
+.settings-tab{background:none;border:none;font-family:var(--font);font-size:12.5px;font-weight:500;color:var(--t2);padding:10px 4px;margin-right:18px;cursor:pointer;border-bottom:2px solid transparent;transition:color .1s,border-color .1s;}
+.settings-tab:hover{color:var(--t1);}
+.settings-tab.active{color:var(--accent-t);border-bottom-color:var(--accent);}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+
+/* ── Customers tab (migrated from templates/customers.html) ── */
+#tab-customers{font-size:14px;}
+#tab-customers .cust-internal-gid{font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+#tab-customers .cust-internal-gid label{font-weight:500;font-size:12px;color:var(--t2);}
+#tab-customers .cust-panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);overflow:hidden;}
+#tab-customers .cust-panel-head{padding:10px 14px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
+#tab-customers .cust-panel-body{padding:12px 14px;}
+#tab-customers table{width:100%;border-collapse:collapse;font-size:12.5px;}
+#tab-customers th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
+#tab-customers td{padding:7px 8px;border-bottom:.5px solid var(--border);vertical-align:middle;}
+#tab-customers tr:last-child td{border-bottom:none;}
+#tab-customers tr.editing td{background:var(--accent-bg);}
+#tab-customers .cust-acct-name{font-weight:500;}
+#tab-customers .cust-mono{font-family:var(--mono);font-size:11px;color:var(--t3);}
+#tab-customers .cust-sub{display:block;font-size:10px;opacity:.6;}
+#tab-customers .cust-pill{font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:2px 7px;border-radius:99px;display:inline-block;}
+#tab-customers .cust-pill.primary{background:var(--accent-bg);color:var(--accent-t);}
+#tab-customers .cust-pill.secondary{background:var(--surface2);color:var(--t2);}
+#tab-customers .cust-day-tag{font-size:11px;color:var(--t2);}
+#tab-customers select,#tab-customers input[type="text"]{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+#tab-customers select{cursor:pointer;}
+#tab-customers .cust-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+#tab-customers .cust-btn:hover{filter:brightness(.95);}
+#tab-customers .cust-btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
+#tab-customers .cust-btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
+#tab-customers .cust-btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
+#tab-customers .cust-btn:disabled{opacity:.4;cursor:default;}
+#tab-customers .cust-actions{display:flex;gap:6px;}
+#tab-customers .cust-msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
+#tab-customers .cust-msg.ok{color:var(--good-t);}
+#tab-customers .cust-msg.err{color:var(--bad-t);}
+#tab-customers .cust-empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
+#tab-customers .cust-section-head td{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t2);background:var(--surface2);padding:8px 8px;border-bottom:1px solid var(--border-strong);}
+#tab-customers .cust-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+#tab-customers .cust-add-row input{flex:1;min-width:120px;}
+#cust-toast-container{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;}
+.cust-toast{padding:10px 20px;border-radius:var(--r);font-size:13px;font-weight:500;pointer-events:auto;opacity:0;transform:translateY(-12px);animation:cust-toast-in .25s ease forwards;}
+.cust-toast.ok{background:var(--good-bg);color:var(--good-t);border:1px solid var(--good-t);}
+.cust-toast.err{background:var(--bad-bg);color:var(--bad-t);border:1px solid var(--bad-t);}
+.cust-toast.out{animation:cust-toast-out .25s ease forwards;}
+@keyframes cust-toast-in{to{opacity:1;transform:translateY(0);}}
+@keyframes cust-toast-out{from{opacity:1;transform:translateY(0);}to{opacity:0;transform:translateY(-12px);}}
+#scan-modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000;}
+#scan-modal .cust-modal-inner{background:var(--surface);border-radius:var(--r);max-width:600px;width:90%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border-strong);}
+#scan-modal .cust-modal-head{padding:12px 16px;background:var(--surface2);font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:center;color:var(--t1);}
+#scan-modal .cust-modal-body{padding:14px 16px;overflow-y:auto;flex:1;}
+#scan-modal .cust-modal-foot{padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;}
+.cust-scan-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:.5px solid var(--border);}
+.cust-scan-row input[type="text"]{flex:1;font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+.cust-scan-row .cust-mono{white-space:nowrap;font-family:var(--mono);font-size:11px;color:var(--t3);}
+
+/* ── Admin tab (migrated from templates/admin.html) ── */
+#tab-admin .adm-panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);margin-bottom:16px;overflow:hidden;}
+#tab-admin .adm-panel-head{padding:10px 14px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);}
+#tab-admin .adm-panel-body{padding:12px 14px;}
+#tab-admin .adm-cfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;}
+#tab-admin .adm-cfg-item{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:6px 0;border-bottom:.5px solid var(--border);}
+#tab-admin .adm-cfg-item:last-child{border-bottom:none;}
+#tab-admin .adm-pill{font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:2px 7px;border-radius:99px;}
+#tab-admin .adm-pill.on{background:var(--good-bg);color:var(--good-t);}
+#tab-admin .adm-pill.off{background:var(--bad-bg);color:var(--bad-t);}
+#tab-admin table{width:100%;border-collapse:collapse;font-size:12.5px;}
+#tab-admin th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
+#tab-admin td{padding:8px;border-bottom:.5px solid var(--border);vertical-align:middle;}
+#tab-admin tr:last-child td{border-bottom:none;}
+#tab-admin .adm-email{font-weight:500;}
+#tab-admin .adm-slug{color:var(--t3);font-family:var(--mono);font-size:11px;}
+#tab-admin .adm-muted{color:var(--t3);}
+#tab-admin .adm-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+#tab-admin .adm-btn:hover{filter:brightness(.95);}
+#tab-admin .adm-btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
+#tab-admin .adm-msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
+#tab-admin .adm-msg.ok{color:var(--good-t);}
+#tab-admin .adm-msg.err{color:var(--bad-t);}
+#tab-admin .adm-empty{color:var(--t3);font-size:12px;padding:8px 0;}
+#tab-admin input[type="text"]{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+
 </style>
 </head>
 <body>
@@ -181,10 +273,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
     <span class="brief-count" id="brief-count"></span>
   </div>
   <button class="icon-btn" id="google-connect-btn" onclick="connectGoogleDrive()" style="display:none;" title="Connect Google Drive to view briefs">Connect Google Drive</button>
-  <button class="icon-btn" id="customers-btn" onclick="window.location.href='customers'" title="Manage customer list">Customers</button>
-  <button class="icon-btn" id="setup-btn" onclick="openSetup()" title="Setup guide">Setup</button>
-  <button class="icon-btn" id="account-btn" onclick="openAccount()" title="Account & token">Account</button>
-  <button class="icon-btn" id="admin-btn" onclick="window.location.href='admin'" style="display:none;" title="Admin panel">Admin</button>
+  <button class="icon-btn" id="settings-btn" onclick="openSettings('account')" title="Settings">&#9881; Settings</button>
   <button class="mode-btn" id="mode-btn" onclick="toggleMode()" title="Toggle light/dark mode">☀</button>
 </div>
 
@@ -193,98 +282,235 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
   <span class="timeline-current" id="timeline-current"></span>
 </div>
 
-<div class="modal-overlay" id="setup-overlay">
-  <div class="modal">
+<div class="modal-overlay" id="settings-overlay">
+  <div class="modal settings-modal">
     <div class="modal-head">
-      <h2>Daily Brief setup</h2>
-      <button class="modal-close" onclick="closeSetup()" title="Close">&times;</button>
+      <h2>Settings</h2>
+      <button class="modal-close" onclick="closeSettings()" title="Close">&times;</button>
     </div>
-    <div class="modal-body">
-      <div class="modal-dots" id="setup-dots"></div>
+    <div class="settings-tabs" id="settings-tabs">
+      <button class="settings-tab active" data-tab="setup" onclick="switchSettingsTab('setup')">Setup</button>
+      <button class="settings-tab" data-tab="account" onclick="switchSettingsTab('account')">Account</button>
+      <button class="settings-tab" data-tab="customers" onclick="switchSettingsTab('customers')">Customers</button>
+      <button class="settings-tab" id="settings-tab-admin" data-tab="admin" onclick="switchSettingsTab('admin')" style="display:none;">Admin</button>
+    </div>
+    <div class="modal-body settings-body">
 
-      <div class="setup-step active" data-step="1">
-        <h3>1. Set up the daily-brief skill</h3>
-        <p>Install the skill in a Claude project from <a href="https://github.com/aaron-hubbart/daily-brief-v2" target="_blank" rel="noopener">github.com/aaron-hubbart/daily-brief-v2</a> — copy <code>SKILL.md</code> and the <code>references/</code> folder in.</p>
-        <p>Then, in Claude, run:</p>
-        <p><code>/daily-brief setup</code></p>
-        <p>Follow the prompts — it'll ask for your Drive folder ID and Slack user ID, then discover your customer accounts, Slack channels, and Asana projects automatically. Review and confirm what it finds.</p>
-        <p>When it finishes, it reports a <code>config.json</code> Drive file ID. Paste that into <code>CONFIG_FILE_ID</code> at the top of your local <code>SKILL.md</code> — that's the only manual edit.</p>
-      </div>
+      <div class="tab-panel active" id="tab-setup">
+        <div class="modal-dots" id="setup-dots"></div>
 
-      <div class="setup-step" data-step="2">
-        <h3>2. Connect your data sources</h3>
-        <p>The skill pulls from these — enable whichever apply to you under Claude's <strong>Settings &rarr; Connectors</strong>:</p>
-        <ul>
-          <li><strong>Microsoft 365</strong> — Outlook calendar, email, availability</li>
-          <li><strong>Slack</strong> — DMs, channel activity, mentions, posting status updates</li>
-          <li><strong>Zoom</strong> — meeting summaries</li>
-          <li><strong>Asana</strong> — task tracking</li>
-          <li><strong>Google Drive</strong> — where your briefs, config, and status-update cache all live</li>
-        </ul>
-        <p>Only connect what you actually use — the skill flags a source as "not found" rather than failing when one isn't hooked up.</p>
-      </div>
-
-      <div class="setup-step" data-step="3">
-        <h3>3. A few other things</h3>
-        <ul>
-          <li><strong>Claude Desktop</strong>, if you want the <code>claude://</code> refresh and meeting-manager deep links in your briefs to work</li>
-          <li>See the skill repo's <code>README.md</code> for the full prerequisites list</li>
-        </ul>
-      </div>
-
-      <div class="setup-step" data-step="4">
-        <h3>4. Connect Asana (optional)</h3>
-        <p>Adding your own Asana Personal Access Token lets this viewer pull your Overdue, Due Next 7 Days, and No Due Date tasks directly from Asana every time you load a brief — always current, not just whatever the skill saw on its last run. Only the New Items you saw above come from the brief run itself; this step is what turns on the other three.</p>
-        <p>To create one: sign in to Asana, go to <strong>your profile photo &rarr; My Settings &rarr; Apps &rarr; Manage Developer Apps &rarr; Personal Access Tokens &rarr; Create new token</strong> (or go directly to <a href="https://app.asana.com/0/developer-console" target="_blank" rel="noopener">app.asana.com/0/developer-console</a>). Give it a name like "Daily Brief Viewer" and copy the token — Asana only shows it once.</p>
-        <div class="copy-row">
-          <input class="text-input" id="setup-asana-pat" type="password" placeholder="Paste your Asana PAT here" autocomplete="off">
-          <button class="copy-btn" id="setup-asana-save" onclick="saveAsanaPatFromSetup()">Save</button>
+        <div class="setup-step active" data-step="1">
+          <h3>1. Set up the daily-brief skill</h3>
+          <p>Install the skill in a Claude project from <a href="https://github.com/aaron-hubbart/daily-brief-v2" target="_blank" rel="noopener">github.com/aaron-hubbart/daily-brief-v2</a> — copy <code>SKILL.md</code> and the <code>references/</code> folder in.</p>
+          <p>Then, in Claude, run:</p>
+          <p><code>/daily-brief setup</code></p>
+          <p>Follow the prompts — it'll ask for your Drive folder ID and Slack user ID, then discover your customer accounts, Slack channels, and Asana projects automatically. Review and confirm what it finds.</p>
+          <p>When it finishes, it saves your configuration to Google Drive automatically — no manual edits needed.</p>
         </div>
-        <div class="account-msg" id="setup-asana-msg"></div>
-        <p style="font-size:11.5px;color:var(--t3);">This is entirely optional. Skip it and finish setup — you can always add it later from the Account panel, and New Items will keep working either way.</p>
-        <p>Once your skill runs once, your brief shows up here automatically. Run <code>/daily-brief</code> in Claude any time to generate one — you're all set.</p>
+
+        <div class="setup-step" data-step="2">
+          <h3>2. Connect your data sources</h3>
+          <p>The skill pulls from these — enable whichever apply to you under Claude's <strong>Settings &rarr; Connectors</strong>:</p>
+          <ul>
+            <li><strong>Microsoft 365</strong> — Outlook calendar, email, availability</li>
+            <li><strong>Slack</strong> — DMs, channel activity, mentions, posting status updates</li>
+            <li><strong>Zoom</strong> — meeting summaries</li>
+            <li><strong>Asana</strong> — task tracking</li>
+            <li><strong>Google Drive</strong> — where your briefs, config, and status-update cache all live</li>
+          </ul>
+          <p>Only connect what you actually use — the skill flags a source as "not found" rather than failing when one isn't hooked up.</p>
+        </div>
+
+        <div class="setup-step" data-step="3">
+          <h3>3. A few other things</h3>
+          <ul>
+            <li><strong>Claude Desktop</strong>, if you want the <code>claude://</code> refresh and meeting-manager deep links in your briefs to work</li>
+            <li>See the skill repo's <code>README.md</code> for the full prerequisites list</li>
+          </ul>
+        </div>
+
+        <div class="setup-step" data-step="4">
+          <h3>4. Connect Asana (optional)</h3>
+          <p>Adding your own Asana Personal Access Token lets this viewer pull your Overdue, Due Next 7 Days, and No Due Date tasks directly from Asana every time you load a brief — always current, not just whatever the skill saw on its last run. Only the New Items you saw above come from the brief run itself; this step is what turns on the other three.</p>
+          <p>To create one: sign in to Asana, go to <strong>your profile photo &rarr; My Settings &rarr; Apps &rarr; Personal Access Tokens &rarr; Create new token</strong> (or go directly to <a href="https://app.asana.com/0/developer-console" target="_blank" rel="noopener">app.asana.com/0/developer-console</a>). Give it a name like "Daily Brief Viewer" and copy the token — Asana only shows it once.</p>
+          <div class="copy-row">
+            <input class="text-input" id="setup-asana-pat" type="password" placeholder="Paste your Asana PAT here" autocomplete="off">
+            <button class="copy-btn" id="setup-asana-save" onclick="saveAsanaPatFromSetup()">Save</button>
+          </div>
+          <div class="account-msg" id="setup-asana-msg"></div>
+          <p style="font-size:11.5px;color:var(--t3);">This is entirely optional. Skip it and finish setup — you can always add it later from the Account tab, and New Items will keep working either way.</p>
+          <p>Once your skill runs once, your brief shows up here automatically. Run <code>/daily-brief</code> in Claude any time to generate one — you're all set.</p>
+        </div>
       </div>
+
+      <div class="tab-panel" id="tab-account">
+        <div class="account-row">Signed in as <strong id="account-email">…</strong></div>
+        <hr class="account-hr">
+        <div class="account-row" id="google-status-row">Google Drive: <strong id="google-status">checking…</strong></div>
+        <button class="icon-btn" id="account-google-connect" onclick="connectGoogleDrive()" style="display:none;">Connect Google Drive</button>
+        <button class="icon-btn" id="account-google-disconnect" onclick="disconnectGoogleDrive()" style="display:none;">Disconnect Google Drive</button>
+        <div style="margin-top: 8px; display:none;" id="google-folder-section">
+          <p style="font-size:11.5px;color:var(--t3);margin-bottom:6px;">Google Drive folder ID for briefs:</p>
+          <div class="copy-row">
+            <input class="text-input" id="account-google-folder-id" type="text" placeholder="Paste your Google Drive folder ID here" autocomplete="off">
+            <button class="copy-btn" id="account-google-folder-save" onclick="saveGoogleFolderId()">Save</button>
+          </div>
+        </div>
+        <div class="account-msg" id="account-google-msg"></div>
+        <hr class="account-hr">
+        <div class="account-row" id="asana-status-row">Asana connection: <strong id="asana-status">checking…</strong></div>
+        <div class="copy-row">
+          <input class="text-input" id="account-asana-pat" type="password" placeholder="Paste your Asana PAT to connect or replace it" autocomplete="off">
+          <button class="copy-btn" id="account-asana-save" onclick="saveAsanaPatFromAccount()">Save</button>
+        </div>
+        <button class="icon-btn" id="account-asana-disconnect" onclick="disconnectAsana()" style="display:none;">Disconnect Asana</button>
+        <div class="account-msg" id="account-asana-msg"></div>
+        <hr class="account-hr">
+        <div class="account-row">Slack notifications</div>
+        <div style="display:flex;align-items:center;gap:8px;margin:8px 0 10px;">
+          <input type="checkbox" id="notif-slack-enabled" style="cursor:pointer;">
+          <label for="notif-slack-enabled" style="font-size:12.5px;color:var(--t2);cursor:pointer;">Notify me on Slack when my brief is ready</label>
+        </div>
+        <div class="copy-row">
+          <input class="text-input" id="notif-slack-id" type="text" placeholder="Slack user or channel ID (e.g. U0123456 or C0123456)" autocomplete="off">
+          <button class="copy-btn" id="notif-save-btn" onclick="saveNotificationPrefs()">Save</button>
+        </div>
+        <div class="account-msg" id="notif-msg"></div>
+        <hr class="account-hr">
+        <button class="icon-btn" onclick="openSetup(true)">Replay setup guide</button>
+      </div>
+
+      <div class="tab-panel" id="tab-customers">
+        <div class="cust-internal-gid">
+          <label>Internal Asana Project:</label>
+          <input type="text" id="internal-name" placeholder="Project name" style="width:170px">
+          <input type="text" id="internal-gid" placeholder="Project GID" class="cust-mono" style="width:170px">
+          <label>Default Section:</label>
+          <input type="text" id="internal-section" placeholder="Section name" style="width:150px">
+        </div>
+
+        <div class="cust-panel">
+          <div class="cust-panel-head">
+            <span>Account List</span>
+            <div style="display:flex;gap:8px">
+              <button class="cust-btn" id="scan-btn" onclick="scanForAccounts()">Scan for Accounts</button>
+              <button class="cust-btn save" id="save-btn" onclick="saveConfig()" disabled>Save to Drive</button>
+            </div>
+          </div>
+          <div class="cust-panel-body">
+            <table>
+              <thead>
+                <tr>
+                  <th>Account Name</th>
+                  <th>Tier</th>
+                  <th>Run Day</th>
+                  <th>Slack Channel</th>
+                  <th>Asana Project</th>
+                  <th>Default Section</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="acct-body">
+                <tr><td colspan="7" class="cust-empty">Loading…</td></tr>
+              </tbody>
+            </table>
+            <div class="cust-add-row">
+              <input type="text" id="new-name" placeholder="Account name">
+              <select id="new-tier">
+                <option value="primary">Primary</option>
+                <option value="secondary">Secondary</option>
+              </select>
+              <select id="new-day" disabled>
+                <option value="">—</option>
+                <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+                <option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+              </select>
+              <input type="text" id="new-slack-name" placeholder="Slack channel name"><input type="text" id="new-slack" placeholder="Slack Channel ID" class="cust-mono">
+              <input type="text" id="new-asana-name" placeholder="Asana project name"><input type="text" id="new-gid" placeholder="Asana Project GID" class="cust-mono">
+              <input type="text" id="new-section" placeholder="Default section name">
+              <button class="cust-btn primary" onclick="addAccount()">Add account</button>
+            </div>
+            <div class="cust-msg" id="msg"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-admin">
+        <div class="adm-panel">
+          <div class="adm-panel-head">Deployment status</div>
+          <div class="adm-panel-body">
+            <div class="adm-cfg-grid" id="cfg-grid">
+              <div class="adm-empty">Loading…</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="adm-panel">
+          <div class="adm-panel-head">Test Users</div>
+          <div class="adm-panel-body">
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <input class="adm-btn" id="test-user-label" type="text" placeholder="Optional label" style="flex:1;text-align:left;cursor:text;">
+              <button class="adm-btn" onclick="createTestUser()">Create test user</button>
+            </div>
+            <table id="test-users-table" style="display:none;">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Created</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="test-users-body"></tbody>
+            </table>
+            <div class="adm-empty" id="test-users-loading">Loading…</div>
+            <div class="adm-msg" id="test-users-msg"></div>
+          </div>
+        </div>
+
+        <div class="adm-panel">
+          <div class="adm-panel-head">Users</div>
+          <div class="adm-panel-body">
+            <table id="users-table" style="display:none;">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Slug</th>
+                  <th>Signed up</th>
+                  <th>Active briefs</th>
+                  <th>Last active</th>
+                </tr>
+              </thead>
+              <tbody id="users-body"></tbody>
+            </table>
+            <div class="adm-empty" id="users-loading">Loading…</div>
+            <div class="adm-msg" id="users-msg"></div>
+          </div>
+        </div>
+      </div>
+
     </div>
-    <div class="modal-foot">
+    <div class="modal-foot" id="setup-foot">
       <button class="icon-btn" id="setup-back" onclick="setupStep(-1)">Back</button>
       <button class="icon-btn primary" id="setup-next" onclick="setupStep(1)">Next</button>
     </div>
   </div>
 </div>
 
-<div class="modal-overlay" id="account-overlay">
-  <div class="modal" style="max-width:440px;">
-    <div class="modal-head">
-      <h2>Account</h2>
-      <button class="modal-close" onclick="closeAccount()" title="Close">&times;</button>
+<div id="scan-modal" style="display:none">
+  <div class="cust-modal-inner">
+    <div class="cust-modal-head">
+      <span>Discovered Asana Projects</span>
+      <button class="cust-btn" onclick="closeScanModal()">Close</button>
     </div>
-    <div class="modal-body">
-      <div class="account-row">Signed in as <strong id="account-email">…</strong></div>
-      <hr class="account-hr">
-      <div class="account-row" id="google-status-row">Google Drive: <strong id="google-status">checking…</strong></div>
-      <button class="icon-btn" id="account-google-connect" onclick="connectGoogleDrive()" style="display:none;">Connect Google Drive</button>
-      <button class="icon-btn" id="account-google-disconnect" onclick="disconnectGoogleDrive()" style="display:none;">Disconnect Google Drive</button>
-      <div style="margin-top: 8px; display:none;" id="google-folder-section">
-        <p style="font-size:11.5px;color:var(--t3);margin-bottom:6px;">Google Drive folder ID for briefs:</p>
-        <div class="copy-row">
-          <input class="text-input" id="account-google-folder-id" type="text" placeholder="Paste your Google Drive folder ID here" autocomplete="off">
-          <button class="copy-btn" id="account-google-folder-save" onclick="saveGoogleFolderId()">Save</button>
-        </div>
-      </div>
-      <div class="account-msg" id="account-google-msg"></div>
-      <hr class="account-hr">
-      <div class="account-row" id="asana-status-row">Asana connection: <strong id="asana-status">checking…</strong></div>
-      <div class="copy-row">
-        <input class="text-input" id="account-asana-pat" type="password" placeholder="Paste your Asana PAT to connect or replace it" autocomplete="off">
-        <button class="copy-btn" id="account-asana-save" onclick="saveAsanaPatFromAccount()">Save</button>
-      </div>
-      <button class="icon-btn" id="account-asana-disconnect" onclick="disconnectAsana()" style="display:none;">Disconnect Asana</button>
-      <div class="account-msg" id="account-asana-msg"></div>
-      <hr class="account-hr">
-      <button class="icon-btn" onclick="closeAccount(); openSetup(true);">Replay setup guide</button>
+    <div class="cust-modal-body" id="scan-body"></div>
+    <div class="cust-modal-foot">
+      <button class="cust-btn primary" onclick="addScannedAccounts()">Add Selected</button>
     </div>
   </div>
 </div>
+
+<div id="cust-toast-container"></div>
+
 
 
 <div id="impersonation-banner" style="display:none;position:fixed;top:0;left:0;right:0;background:#b02520;color:#fff;padding:8px 16px;text-align:center;font-size:13px;z-index:2000;">
@@ -1360,7 +1586,7 @@ function renderSetupStep() {
 async function setupStep(delta) {
   if (delta > 0 && setupStepIndex === SETUP_STEP_COUNT) {
     await fetch('api/onboarding/complete', { method: 'POST' }).catch(() => {});
-    closeSetup();
+    closeSettings();
     return;
   }
   setupStepIndex = Math.min(SETUP_STEP_COUNT, Math.max(1, setupStepIndex + delta));
@@ -1370,18 +1596,36 @@ async function setupStep(delta) {
 async function openSetup(fromReplay) {
   setupStepIndex = 1;
   renderSetupStep();
-  document.getElementById('setup-overlay').classList.add('show');
   document.getElementById('setup-asana-pat').value = '';
   document.getElementById('setup-asana-msg').className = 'account-msg';
   document.getElementById('setup-asana-msg').textContent = '';
+  openSettings('setup');
 }
 
-function closeSetup() {
-  document.getElementById('setup-overlay').classList.remove('show');
+// ── Settings modal (tabs) ───────────────────────────────────────
+let custLoaded = false;
+let adminLoaded = false;
+
+function openSettings(tab) {
+  document.getElementById('settings-overlay').classList.add('show');
+  switchSettingsTab(tab || 'setup');
 }
 
-async function openAccount() {
-  document.getElementById('account-overlay').classList.add('show');
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('show');
+}
+
+function switchSettingsTab(tab) {
+  document.querySelectorAll('.settings-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+  const foot = document.getElementById('setup-foot');
+  if (foot) foot.style.display = tab === 'setup' ? 'flex' : 'none';
+  if (tab === 'account') initAccountTab();
+  if (tab === 'customers' && !custLoaded) { custLoaded = true; load(); }
+  if (tab === 'admin' && !adminLoaded) { adminLoaded = true; loadConfig(); loadUsers(); loadTestUsers(); }
+}
+
+async function initAccountTab() {
   document.getElementById('account-asana-msg').className = 'account-msg';
   document.getElementById('account-asana-msg').textContent = '';
   document.getElementById('account-google-msg').className = 'account-msg';
@@ -1398,11 +1642,452 @@ async function openAccount() {
 
   refreshGoogleStatus();
   refreshAsanaStatus();
+  loadNotificationPrefs();
 }
 
-function closeAccount() {
-  document.getElementById('account-overlay').classList.remove('show');
+// ── Notification preferences (Slack) ────────────────────────────
+async function loadNotificationPrefs() {
+  try {
+    const res = await fetch('api/notification-prefs');
+    if (!res.ok) return;
+    const d = await res.json();
+    document.getElementById('notif-slack-enabled').checked = !!d.slack_notify_enabled;
+    document.getElementById('notif-slack-id').value = d.slack_notify_channel_id || '';
+  } catch (e) { /* best effort — endpoint may not be available yet */ }
 }
+
+async function saveNotificationPrefs() {
+  const btn = document.getElementById('notif-save-btn');
+  const msg = document.getElementById('notif-msg');
+  const enabled = document.getElementById('notif-slack-enabled').checked;
+  const slackId = document.getElementById('notif-slack-id').value.trim();
+  btn.disabled = true;
+  msg.className = 'account-msg';
+  msg.textContent = 'Saving…';
+  try {
+    const res = await fetch('api/notification-prefs', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slack_notify_enabled: enabled, slack_notify_channel_id: slackId || null }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    msg.className = 'account-msg ok';
+    msg.textContent = 'Saved.';
+  } catch (e) {
+    msg.className = 'account-msg err';
+    msg.textContent = 'Could not save — try again.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Customers tab (migrated from templates/customers.html) ─────
+let CONFIG = null;
+let dirty = false;
+
+const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+
+document.getElementById('new-tier').addEventListener('change', function() {
+  document.getElementById('new-day').disabled = this.value !== 'secondary';
+});
+
+document.getElementById('internal-gid').addEventListener('input', () => markDirty());
+document.getElementById('internal-name').addEventListener('input', () => markDirty());
+document.getElementById('internal-section').addEventListener('input', () => markDirty());
+
+async function load() {
+  try {
+    const r = await fetch('api/customers/config', {credentials:'include'});
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    CONFIG = await r.json();
+    CONFIG.accounts = (CONFIG.accounts || []).sort((a,b) =>
+      (a.account_name||'').localeCompare(b.account_name||'', undefined, {sensitivity:'base'})
+    );
+    document.getElementById('internal-gid').value = CONFIG.internal_project_gid || '';
+    document.getElementById('internal-name').value = CONFIG.internal_project_name || '';
+    document.getElementById('internal-section').value = CONFIG.internal_default_section_name || '';
+    render();
+  } catch(e) {
+    document.getElementById('acct-body').innerHTML =
+      `<tr><td colspan="7" class="cust-empty" style="color:var(--bad-t)">Failed to load: ${e.message}</td></tr>`;
+  }
+}
+
+function render() {
+  const tbody = document.getElementById('acct-body');
+  if (!CONFIG.accounts.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="cust-empty">No accounts configured</td></tr>';
+    return;
+  }
+  const primary = [];
+  const secondary = [];
+  CONFIG.accounts.forEach((a, i) => {
+    const entry = {a, i};
+    if (a.tier === 'secondary') secondary.push(entry);
+    else primary.push(entry);
+  });
+
+  function rowsHtml(entries) {
+    if (!entries.length) return '<tr><td colspan="7" class="cust-empty">None</td></tr>';
+    return entries.map(({a, i}) => `
+      <tr data-idx="${i}">
+        <td class="cust-acct-name">${esc(a.account_name || '')}</td>
+        <td><span class="cust-pill ${a.tier || 'primary'}">${a.tier || 'primary'}</span></td>
+        <td class="cust-day-tag">${a.tier === 'secondary' && a.run_day ? a.run_day : '—'}</td>
+        <td>${a.slack_channel_name ? esc(a.slack_channel_name) : ''}<span class="cust-mono cust-sub">${a.slack_channel_id ? (a.slack_channel_name ? ' ' : '') + esc(a.slack_channel_id) : '—'}</span></td>
+        <td>${a.asana_board_name ? esc(a.asana_board_name) : ''}<span class="cust-mono cust-sub">${a.project_gid ? (a.asana_board_name ? ' ' : '') + esc(a.project_gid) : '—'}</span></td>
+        <td>${a.default_section_name ? esc(a.default_section_name) : '—'}</td>
+        <td class="cust-actions">
+          <button class="cust-btn" onclick="editRow(${i})">Edit</button>
+          <button class="cust-btn danger" onclick="removeRow(${i})">Remove</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  tbody.innerHTML =
+    `<tr class="cust-section-head"><td colspan="7">Primary Accounts (${primary.length})</td></tr>` +
+    rowsHtml(primary) +
+    `<tr class="cust-section-head"><td colspan="7">Secondary Accounts (${secondary.length})</td></tr>` +
+    rowsHtml(secondary);
+}
+
+function editRow(idx) {
+  const a = CONFIG.accounts[idx];
+  const tbody = document.getElementById('acct-body');
+  const tr = tbody.querySelector(`tr[data-idx="${idx}"]`);
+  const secSel = a.tier === 'secondary';
+  tr.className = 'editing';
+  tr.innerHTML = `
+    <td><input type="text" id="e-name" value="${esc(a.account_name||'')}" style="width:100%"></td>
+    <td><select id="e-tier" onchange="document.getElementById('e-day').disabled=this.value!=='secondary'">
+      <option value="primary" ${a.tier!=='secondary'?'selected':''}>Primary</option>
+      <option value="secondary" ${a.tier==='secondary'?'selected':''}>Secondary</option>
+    </select></td>
+    <td><select id="e-day" ${secSel?'':'disabled'}>
+      <option value="">—</option>
+      ${DAYS.map(d=>`<option ${a.run_day===d?'selected':''}>${d}</option>`).join('')}
+    </select></td>
+    <td><input type="text" id="e-slack-name" value="${esc(a.slack_channel_name||'')}" placeholder="Channel name" style="width:100%;margin-bottom:4px"><input type="text" id="e-slack" value="${esc(a.slack_channel_id||'')}" placeholder="Channel ID" class="cust-mono" style="width:100%;font-size:10px"></td>
+    <td><input type="text" id="e-asana-name" value="${esc(a.asana_board_name||'')}" placeholder="Project name" style="width:100%;margin-bottom:4px"><input type="text" id="e-gid" value="${esc(a.project_gid||'')}" placeholder="Project GID" class="cust-mono" style="width:100%;font-size:10px"></td>
+    <td><input type="text" id="e-section" value="${esc(a.default_section_name||'')}" placeholder="Section name" style="width:100%"></td>
+    <td class="cust-actions">
+      <button class="cust-btn save" onclick="saveRow(${idx})">OK</button>
+      <button class="cust-btn" onclick="render()">Cancel</button>
+    </td>
+  `;
+}
+
+function saveRow(idx) {
+  const a = CONFIG.accounts[idx];
+  a.account_name = document.getElementById('e-name').value.trim();
+  a.tier = document.getElementById('e-tier').value;
+  a.run_day = a.tier === 'secondary' ? (document.getElementById('e-day').value || null) : null;
+  a.slack_channel_name = document.getElementById('e-slack-name').value.trim() || '';
+  a.slack_channel_id = document.getElementById('e-slack').value.trim() || '';
+  a.asana_board_name = document.getElementById('e-asana-name').value.trim() || '';
+  a.project_gid = document.getElementById('e-gid').value.trim() || '';
+  a.default_section_name = document.getElementById('e-section').value.trim() || '';
+  CONFIG.accounts.sort((a,b) =>
+    (a.account_name||'').localeCompare(b.account_name||'', undefined, {sensitivity:'base'})
+  );
+  markDirty();
+  render();
+}
+
+function addAccount() {
+  const name = document.getElementById('new-name').value.trim();
+  if (!name) return;
+  const tier = document.getElementById('new-tier').value;
+  const day = tier === 'secondary' ? (document.getElementById('new-day').value || null) : null;
+  const slackName = document.getElementById('new-slack-name').value.trim();
+  const slack = document.getElementById('new-slack').value.trim();
+  const asanaName = document.getElementById('new-asana-name').value.trim();
+  const gid = document.getElementById('new-gid').value.trim();
+  const sectionName = document.getElementById('new-section').value.trim();
+  CONFIG.accounts.push({
+    account_name: name, tier: tier, run_day: day,
+    slack_channel_name: slackName, slack_channel_id: slack, supporting_slack_channel_ids: [],
+    asana_board_name: asanaName, project_gid: gid, default_section_name: sectionName, gdrive_folder_id: null
+  });
+  CONFIG.accounts.sort((a,b) =>
+    (a.account_name||'').localeCompare(b.account_name||'', undefined, {sensitivity:'base'})
+  );
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-slack-name').value = '';
+  document.getElementById('new-slack').value = '';
+  document.getElementById('new-asana-name').value = '';
+  document.getElementById('new-gid').value = '';
+  document.getElementById('new-section').value = '';
+  markDirty();
+  render();
+}
+
+function removeRow(idx) {
+  const name = CONFIG.accounts[idx].account_name || 'this account';
+  if (!confirm(`Remove ${name}?`)) return;
+  CONFIG.accounts.splice(idx, 1);
+  markDirty();
+  render();
+}
+
+function markDirty() {
+  dirty = true;
+  document.getElementById('save-btn').disabled = false;
+  document.getElementById('msg').textContent = 'Unsaved changes';
+  document.getElementById('msg').className = 'cust-msg';
+}
+
+function showToast(text, type, duration) {
+  duration = duration || 5000;
+  const container = document.getElementById('cust-toast-container');
+  const el = document.createElement('div');
+  el.className = 'cust-toast ' + type;
+  el.textContent = text;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('out');
+    el.addEventListener('animationend', () => el.remove());
+  }, duration);
+}
+
+async function saveConfig() {
+  const btn = document.getElementById('save-btn');
+  const msg = document.getElementById('msg');
+  btn.disabled = true;
+  msg.textContent = 'Saving…';
+  msg.className = 'cust-msg';
+
+  CONFIG.internal_project_name = document.getElementById('internal-name').value.trim() || '';
+  CONFIG.internal_project_gid = document.getElementById('internal-gid').value.trim() || '';
+  CONFIG.internal_default_section_name = document.getElementById('internal-section').value.trim() || '';
+
+  try {
+    const r = await fetch('api/customers/config', {
+      method: 'PUT', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(CONFIG)
+    });
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    dirty = false;
+    msg.textContent = '';
+    msg.className = 'cust-msg';
+    showToast('Configuration saved to Drive', 'ok', 5000);
+  } catch(e) {
+    msg.textContent = '';
+    msg.className = 'cust-msg';
+    showToast('Save failed: ' + e.message, 'err', 5000);
+    btn.disabled = false;
+  }
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
+
+let SCAN_CANDIDATES = [];
+
+async function scanForAccounts() {
+  const modal = document.getElementById('scan-modal');
+  const body = document.getElementById('scan-body');
+  modal.style.display = 'flex';
+  body.innerHTML = '<div class="cust-empty">Scanning Asana…</div>';
+  try {
+    const r = await fetch('api/customers/discover-asana', {credentials:'include'});
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    const data = await r.json();
+    SCAN_CANDIDATES = data.candidates || [];
+    renderScanResults();
+  } catch(e) {
+    body.innerHTML = `<div class="cust-empty" style="color:var(--bad-t)">${esc(e.message)}</div>`;
+  }
+}
+
+function renderScanResults() {
+  const body = document.getElementById('scan-body');
+  if (!SCAN_CANDIDATES.length) {
+    body.innerHTML = '<div class="cust-empty">No new Asana projects found — everything visible to your Asana account is already linked. Note: this only scans Asana; use the skill\'s "find new accounts" to also scan Slack and email.</div>';
+    return;
+  }
+  body.innerHTML = SCAN_CANDIDATES.map((c, i) => `
+    <div class="cust-scan-row">
+      <input type="checkbox" id="scan-check-${i}">
+      <input type="text" id="scan-name-${i}" value="${escAttr(c.name)}" placeholder="Account name">
+      <span class="cust-mono cust-sub">${esc(c.gid)}</span>
+    </div>
+  `).join('');
+}
+
+function closeScanModal() {
+  document.getElementById('scan-modal').style.display = 'none';
+}
+
+function addScannedAccounts() {
+  let added = 0;
+  SCAN_CANDIDATES.forEach((c, i) => {
+    const checkbox = document.getElementById(`scan-check-${i}`);
+    if (!checkbox || !checkbox.checked) return;
+    const name = document.getElementById(`scan-name-${i}`).value.trim();
+    if (!name) return;
+    CONFIG.accounts.push({
+      account_name: name, tier: 'primary', run_day: null,
+      slack_channel_name: '', slack_channel_id: '', supporting_slack_channel_ids: [],
+      asana_board_name: c.name, project_gid: c.gid, default_section_name: '', gdrive_folder_id: null
+    });
+    added++;
+  });
+  CONFIG.accounts.sort((a,b) =>
+    (a.account_name||'').localeCompare(b.account_name||'', undefined, {sensitivity:'base'})
+  );
+  closeScanModal();
+  if (added > 0) {
+    markDirty();
+    render();
+    showToast(`Added ${added} account${added===1?'':'s'} — click "Save to Drive" to persist`, 'ok', 5000);
+  }
+}
+
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+// ── Admin tab (migrated from templates/admin.html) ──────────────
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+async function loadConfig() {
+  const grid = document.getElementById('cfg-grid');
+  try {
+    const res = await fetch('api/admin/config');
+    if (!res.ok) throw new Error('status ' + res.status);
+    const cfg = await res.json();
+    const rows = [
+      ['Azure tenant ID', cfg.azure_tenant_id_set],
+      ['Azure client ID', cfg.azure_client_id_set],
+      ['Group restriction', cfg.allowed_groups_active ? cfg.allowed_groups_count + ' group(s)' : false],
+      ['Admin emails', cfg.admin_emails_count + ' configured'],
+      ['Users with Asana connected', cfg.users_with_asana_pat + ' user(s)'],
+    ];
+    grid.innerHTML = rows.map(([label, val]) => {
+      const on = !!val;
+      const text = typeof val === 'string' ? val : (on ? 'Set' : 'Not set');
+      return `<div class="adm-cfg-item"><span>${label}</span><span class="adm-pill ${on ? 'on' : 'off'}">${text}</span></div>`;
+    }).join('') + `<div class="adm-cfg-item"><span>Redirect URI</span><span class="adm-muted">${cfg.azure_redirect_uri}</span></div>`;
+  } catch (e) {
+    grid.innerHTML = '<div class="adm-empty">Could not load config status.</div>';
+  }
+}
+
+async function loadUsers() {
+  const table = document.getElementById('users-table');
+  const body = document.getElementById('users-body');
+  const loading = document.getElementById('users-loading');
+  try {
+    const res = await fetch('api/admin/users');
+    if (!res.ok) throw new Error('status ' + res.status);
+    const users = await res.json();
+    loading.style.display = 'none';
+    if (!users.length) {
+      loading.style.display = '';
+      loading.textContent = 'No users have signed in yet.';
+      return;
+    }
+    table.style.display = '';
+    body.innerHTML = users.map(u => `
+      <tr data-id="${u.id}">
+        <td class="adm-email">${u.email}</td>
+        <td class="adm-slug">${u.slug}</td>
+        <td>${fmtDate(u.created_at)}</td>
+        <td>${u.active_brief_count}</td>
+        <td>${fmtDate(u.last_active_at)}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    loading.textContent = 'Could not load users.';
+  }
+}
+
+async function loadTestUsers() {
+  const table = document.getElementById('test-users-table');
+  const body = document.getElementById('test-users-body');
+  const loading = document.getElementById('test-users-loading');
+  try {
+    const res = await fetch('api/admin/test-users');
+    if (!res.ok) throw new Error('status ' + res.status);
+    const users = await res.json();
+    loading.style.display = 'none';
+    if (!users.length) {
+      loading.style.display = '';
+      loading.textContent = 'No test users yet.';
+      return;
+    }
+    table.style.display = '';
+    body.innerHTML = users.map(u => `
+      <tr data-id="${u.id}">
+        <td class="adm-email">${u.email}</td>
+        <td>${fmtDate(u.created_at)}</td>
+        <td>
+          <button class="adm-btn" onclick="impersonateUser(${u.id}, '${u.email}')">Impersonate</button>
+          <button class="adm-btn danger" onclick="deleteTestUser(${u.id}, '${u.email}')">Delete</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    loading.textContent = 'Could not load test users.';
+  }
+}
+
+async function createTestUser() {
+  const labelInput = document.getElementById('test-user-label');
+  const msg = document.getElementById('test-users-msg');
+  msg.className = 'adm-msg';
+  msg.textContent = 'Creating…';
+  try {
+    const res = await fetch('api/admin/test-users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: labelInput.value.trim() || null }),
+    });
+    if (!res.ok) throw new Error('status ' + res.status);
+    labelInput.value = '';
+    msg.className = 'adm-msg ok';
+    msg.textContent = 'Test user created.';
+    loadTestUsers();
+  } catch (e) {
+    msg.className = 'adm-msg err';
+    msg.textContent = 'Could not create test user.';
+  }
+}
+
+async function impersonateUser(userId, email) {
+  if (!confirm(`View the app as ${email}? You can return to your own account anytime via the banner.`)) {
+    return;
+  }
+  try {
+    const res = await fetch(`api/admin/impersonate/${userId}/start`, { method: 'POST' });
+    if (!res.ok) throw new Error('status ' + res.status);
+    window.location.href = './';
+  } catch (e) {
+    document.getElementById('test-users-msg').className = 'adm-msg err';
+    document.getElementById('test-users-msg').textContent = `Could not impersonate ${email}.`;
+  }
+}
+
+async function deleteTestUser(userId, email) {
+  if (!confirm(`Delete test user ${email}? This can't be undone.`)) return;
+  const msg = document.getElementById('test-users-msg');
+  try {
+    const res = await fetch(`api/admin/test-users/${userId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('status ' + res.status);
+    msg.className = 'adm-msg ok';
+    msg.textContent = `Deleted ${email}.`;
+    loadTestUsers();
+  } catch (e) {
+    msg.className = 'adm-msg err';
+    msg.textContent = `Could not delete ${email}.`;
+  }
+}
+
 
 function copyField(inputId, btn) {
   const input = document.getElementById(inputId);
@@ -1439,7 +2124,7 @@ async function checkOnboarding() {
       document.body.style.paddingTop = banner.offsetHeight + 'px';
     }
     if (d.is_admin) {
-      document.getElementById('admin-btn').style.display = 'inline-block';
+      document.getElementById('settings-tab-admin').style.display = 'inline-block';
     }
     if (!d.onboarding_completed) openSetup();
   } catch (e) {

@@ -21,7 +21,12 @@ CREATE TABLE IF NOT EXISTS users (
     onboarding_completed_at TIMESTAMPTZ,
     -- Admin-created throwaway account for testing the new-user experience
     -- via impersonation (see migrations/007_...sql) — never a real person.
-    is_test     BOOLEAN NOT NULL DEFAULT FALSE
+    is_test     BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Slack notification preferences — see migrations/009_add_notification_prefs.sql.
+    -- Whether this user wants Slack notifications sent to them, and which
+    -- channel/DM id to send them to (NULL until they configure it).
+    slack_notify_enabled    BOOLEAN NOT NULL DEFAULT FALSE,
+    slack_notify_channel_id TEXT
 );
 
 -- One row per user per calendar date. This is the "day" the requirement
