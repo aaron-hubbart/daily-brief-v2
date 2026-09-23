@@ -230,6 +230,77 @@ Once the user confirms:
    `config.json` then — see `SKILL.md`'s "Run-Complete Slack
    Notification" section for how it's used at brief time.
 
+## Phase 5: Schedule Automated Runs
+
+After everything is configured, offer to set up a recurring schedule so
+the brief runs automatically without the user having to type "daily
+brief" each time.
+
+### Step 1 — Choose a schedule
+
+Ask the user when they want their brief generated. Common choices:
+
+- **Weekday mornings** (e.g. 6:00 AM local time, Mon–Fri):
+  cron expression `0 6 * * 1-5`
+- **Every morning including weekends**: `0 6 * * *`
+- **Twice daily** (morning + end of day): two separate scheduled tasks,
+  e.g. `0 6 * * 1-5` and `0 17 * * 1-5`
+
+If the user doesn't have a preference, recommend **weekday mornings at
+6:00 AM** as the default.
+
+### Step 2 — Create the scheduled task
+
+Use the `create_scheduled_task` tool with:
+
+- **taskName:** `daily-brief`
+- **cronExpression:** the cron expression from Step 1
+- **prompt:** a self-contained instruction that future scheduled runs can
+  execute without any session context. The prompt should read roughly:
+
+  > Run the daily-brief-v2 skill to generate today's morning brief.
+  > Read SKILL.md from the daily-brief-v2 project, load config from
+  > Google Drive using the CONFIG_FILE_ID in this project's instructions,
+  > pull data from all connected sources (Outlook, Slack, Zoom, Asana),
+  > and write the brief files to Google Drive. If any connector fails,
+  > include the error in the Slack notification. This is a scheduled run,
+  > not interactive — do not ask clarifying questions; use defaults and
+  > proceed.
+
+  Adapt the wording if the user has specific preferences (evening brief,
+  specific accounts only, etc.), but keep it self-contained.
+
+### Step 3 — Enable automatic approval
+
+Scheduled runs execute without the user present. By default, Claude asks
+for approval before each tool call, which blocks automated runs entirely.
+
+Walk the user through enabling automatic approval for scheduled tasks:
+
+1. Open **Claude desktop app → Settings → Scheduled Tasks**.
+2. Set **Tool approval** to **Automatically approve** for the
+   `daily-brief` task (or for all scheduled tasks, if the user prefers).
+
+Without this step, the scheduled brief will stall on the first tool call
+and never complete. This was reported as a friction point during testing,
+so make it explicit: tell the user the brief will not run unattended
+unless automatic approval is turned on.
+
+### Step 4 — Confirm
+
+Once the task is created and approval is configured, confirm with
+something like:
+
+> Your daily brief is now scheduled to run at 6:00 AM on weekdays.
+> It will pull from Outlook, Slack, Zoom, and Asana, write the brief
+> files to your Google Drive folder, and send you a Slack DM when it's
+> done (or if something goes wrong). You can say "daily brief" any time
+> to run one manually.
+
+If the user also wants an evening/EOD brief, create a second scheduled
+task with a separate name (e.g. `daily-brief-eod`) and the evening cron
+expression.
+
 ## Re-running Setup
 
 Before starting Phase 1, check whether `/config/config.json` and
