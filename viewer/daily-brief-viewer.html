@@ -42,7 +42,7 @@
   --good-bg:#eef7ee; --good-t:#2a7a34;
 }
 html,body{height:100%;}
-body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100vh;max-width:1400px;margin:0 auto;}
+body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100vh;}
 
 /* ── Topbar ── */
 .topbar{background:var(--surface);border-bottom:1px solid var(--border-strong);padding:.5rem 1.25rem;display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;min-height:52px;flex-shrink:0;position:sticky;top:0;z-index:10;}
@@ -175,7 +175,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 }
 
 /* ── Settings modal: tabs ── */
-.settings-modal{max-width:720px;}
+.settings-modal{width:90vw;max-width:none;}
 .settings-tabs{display:flex;gap:0;padding:0 18px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:49px;z-index:5;}
 .settings-tab{background:none;border:none;font-family:var(--font);font-size:12.5px;font-weight:500;color:var(--t2);padding:10px 4px;margin-right:18px;cursor:pointer;border-bottom:2px solid transparent;transition:color .1s,border-color .1s;}
 .settings-tab:hover{color:var(--t1);}
