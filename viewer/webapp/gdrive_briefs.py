@@ -601,4 +601,115 @@ def write_account_config(config_data: Dict, refresh_token: str,
 
     except Exception as e:
         logger.error('write_account_config: %s', e, exc_info=True)
-        return f'Drive API error: {e}' 
+        return f'Drive API error: {e}'
+
+
+def read_config(refresh_token: str, folder_id: Optional[str] = None) -> Optional[Dict]:
+    """Read the raw config.json from Drive's /config subfolder (the skill's
+    own settings file — brief_data_folder_id, slack_user_id, etc., plus
+    webapp-editable toggles like missing_transcript_asana_task_enabled).
+    A missing /config folder or config.json is not an error — it just means
+    setup hasn't run yet, so an empty dict is returned. Returns None only on
+    an actual Drive/auth failure."""
+    parent_folder = folder_id or BRIEFS_FOLDER_ID
+    if not parent_folder or not refresh_token:
+        return None
+
+    try:
+        drive = _get_drive_service(refresh_token)
+        if not drive:
+            return None
+
+        config_folder_id = _find_folder_cached(drive, parent_folder, 'config')
+        if not config_folder_id:
+            logger.info('read_config: no /config folder found — returning empty config')
+            return {}
+
+        query = (
+            f"parents='{config_folder_id}' "
+            f"and name='config.json' "
+            f"and trashed=false"
+        )
+        results = drive.files().list(
+            q=query, spaces='drive', pageSize=1, fields='files(id)',
+        ).execute()
+        files = results.get('files', [])
+        if not files:
+            logger.info('read_config: config.json not found — returning empty config')
+            return {}
+
+        return _download_json(drive, files[0]['id'])
+
+    except Exception as e:
+        logger.error('read_config: %s', e, exc_info=True)
+        return None
+
+
+def write_config(updates: Dict, refresh_token: str,
+                  folder_id: Optional[str] = None) -> Union[bool, str]:
+    """Merge `updates` into config.json and write it back to Drive, creating
+    the /config folder and/or the file if either doesn't exist yet. Merges
+    rather than replacing outright, since config.json also carries fields
+    the skill itself depends on (brief_data_folder_id, slack_user_id, ...)
+    that this webapp doesn't otherwise know about and must not clobber.
+    Returns True on success, or an error string on failure."""
+    parent_folder = folder_id or BRIEFS_FOLDER_ID
+    if not parent_folder:
+        return 'No Drive folder configured'
+    if not refresh_token:
+        return 'No Google refresh token — re-link Google Drive'
+
+    try:
+        from io import BytesIO
+        from googleapiclient.http import MediaIoBaseUpload
+
+        drive = _get_drive_service(refresh_token)
+        if not drive:
+            return 'Could not authenticate with Google Drive — re-link Google Drive'
+
+        config_folder_id = _find_folder_cached(drive, parent_folder, 'config')
+        if not config_folder_id:
+            logger.info('write_config: no /config folder found — creating it')
+            folder_metadata = {
+                'name': 'config',
+                'mimeType': 'application/vnd.google-apps.folder',
+                'parents': [parent_folder],
+            }
+            created_folder = drive.files().create(body=folder_metadata, fields='id').execute()
+            config_folder_id = created_folder['id']
+            with _cache_lock:
+                _folder_cache[f'{parent_folder}/config'] = (config_folder_id, time.monotonic() + _FOLDER_TTL)
+
+        query = (
+            f"parents='{config_folder_id}' "
+            f"and name='config.json' "
+            f"and trashed=false"
+        )
+        results = drive.files().list(
+            q=query, spaces='drive', pageSize=1, fields='files(id)',
+        ).execute()
+        files = results.get('files', [])
+
+        existing = {}
+        if files:
+            existing = _download_json(drive, files[0]['id']) or {}
+        merged = {**existing, **updates}
+
+        payload = json.dumps(merged, indent=2).encode('utf-8')
+        media = MediaIoBaseUpload(BytesIO(payload), mimetype='application/json', resumable=False)
+
+        if not files:
+            logger.info('write_config: config.json not found — creating it')
+            file_metadata = {'name': 'config.json', 'parents': [config_folder_id]}
+            created_file = drive.files().create(body=file_metadata, media_body=media, fields='id').execute()
+            file_id = created_file['id']
+        else:
+            file_id = files[0]['id']
+            drive.files().update(fileId=file_id, media_body=media).execute()
+
+        logger.info('write_config: saved config.json (file_id=%s)', file_id)
+        return True
+
+    except Exception as e:
+        logger.error('write_config: %s', e, exc_info=True)
+        return f'Drive API error: {e}'

@@ -304,7 +304,7 @@ For each meeting, report:
 1. Explicitly ask the user for a recording link or the full transcript text, so it can be run through the meeting-manager skill's post-meeting flow. Phrase this as a direct request in the chat response — e.g. "BFSI Industry Deep-Dive — no recording or transcript found. Reply with a link or paste the transcript to process this."
 2. Give the corresponding synced item the `bbad` badge and this same ask as its `subtitle` (see `references/item-sync.md` for the exact item shape).
 3. Include a `claude://claude.ai/new?q=` deep-link button on that item so the person can click straight into a Claude Desktop conversation pre-filled with `/meeting-manager Run post-meeting notes for: [meeting] ([date])` and paste the transcript there.
-4. Create the corresponding Asana task per the Action Items rule below — the "provide transcript" ask must itself be a real, linked Asana item, not just prose in this section.
+4. Create the corresponding Asana task per the Action Items rule below — the "provide transcript" ask must itself be a real, linked Asana item, not just prose in this section — **unless** `missing_transcript_asana_task_enabled` is explicitly `false` in `config.json`, in which case skip only this one step (steps 1–3 still apply regardless). Treat a missing key as enabled (`true`), matching the toggle's default in the viewer's Account settings tab.
 
 Once the user supplies the recording/transcript, run the meeting-manager skill's post-meeting agent on it in the same conversation rather than waiting for the next brief.
 
@@ -324,15 +324,25 @@ For each account or initiative subsection, include only what's relevant:
 
 Skip any account or initiative with nothing to report. Do not create a section just to say nothing happened.
 
+Format each subsection's content as bullet points, one per fact or item — not a run-on paragraph. Keep each bullet short and scannable.
+
 Example structure (only include sections with content):
 
-**Acme Financial** — Upgrade testing thread from Alex Rivera shows the 8.6→8.9 migration failed. Triage session ran this morning. Two overdue tasks.
+**Acme Financial**
+- Upgrade testing thread from Alex Rivera shows the 8.6→8.9 migration failed
+- Triage session ran this morning
+- Two overdue tasks
 
-**Zebra Financial** — Bi-Weekly Sync occurred, ended early at 10 minutes. No summary available.
+**Zebra Financial**
+- Bi-Weekly Sync occurred, ended early at 10 minutes
+- No summary available
 
-**AI-First CS Tiger Team** — Alana tagged you in #prj-cs-ai-first on actora PR #74.
+**AI-First CS Tiger Team**
+- Alana tagged you in #prj-cs-ai-first on actora PR #74
 
-**Internal / Admin** — Required training block at 2:30 PM. Submit Timesheet overdue.
+**Internal / Admin**
+- Required training block at 2:30 PM
+- Submit Timesheet overdue
 
 ---
 
