@@ -34,15 +34,25 @@ details.group summary{padding:10px 14px;background:var(--surface2);font-size:12p
 details.group summary::-webkit-details-marker{display:none;}
 .group-count{font-size:10.5px;font-weight:500;color:var(--t3);}
 .group-body{padding:4px 14px 8px;}
-.board-name{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:8px 0 4px;}
+details.board-group{border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);margin:6px 0;overflow:hidden;}
+details.board-group summary{padding:6px 10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;list-style:none;}
+details.board-group summary::-webkit-details-marker{display:none;}
+.board-name{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);}
+.board-count{font-size:10.5px;font-weight:500;color:var(--t3);}
+.board-body{padding:2px 10px 6px;background:var(--surface);}
 .task-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:.5px solid var(--border);}
 .task-row:last-child{border-bottom:none;}
 .task-row.removing{opacity:.4;}
 .task-check{margin-top:3px;cursor:pointer;}
 .task-body{flex:1;font-size:12.5px;}
 .task-title{color:var(--t1);}
-.task-due{font-size:10.5px;color:var(--t3);margin-top:2px;}
 .task-links{flex-shrink:0;}
+.duebox{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:6px;}
+.duebox input[type=date]{font-family:var(--font);font-size:11px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+.duebox input[type=date].overdue{color:var(--bad-t);border-color:var(--bad-t);}
+.duebtn{font-size:10.5px;padding:2px 7px;background:transparent;color:var(--t2);border:1px solid var(--border-strong);border-radius:var(--r);cursor:pointer;white-space:nowrap;font-family:var(--font);}
+.duebtn:hover{background:var(--accent-bg);color:var(--accent-t);border-color:var(--accent);}
+.due-sync-note{font-size:9.5px;color:var(--t3);margin-left:2px;}
 .lbtn{font-size:10.5px;color:var(--accent-t);text-decoration:none;white-space:nowrap;}
 .lbtn:hover{text-decoration:underline;}
 .badge{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:99px;background:var(--surface2);color:var(--t2);}
@@ -80,6 +90,7 @@ async function load() {
     const data = await r.json();
     body.innerHTML = data.html || '<div class="empty">Nothing open — you\'re all caught up.</div>';
     wireCheckboxes();
+    wireDueBoxes();
   } catch(e) {
     body.innerHTML = `<div class="empty" style="color:var(--bad-t)">Failed to load: ${e.message}</div>`;
   }
@@ -118,6 +129,54 @@ async function onCheck(e) {
     checkbox.checked = !checked;
     showToast("Couldn't sync to Asana — try again", 'err', 5000);
   }
+}
+
+const DUE_SHORTCUTS = {today: 0, tomorrow: 1, 'next-week': 7, 'next-month': 30};
+
+function dateOffset(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function wireDueBoxes() {
+  document.querySelectorAll('.duebox').forEach(wireDueBox);
+}
+
+function wireDueBox(duebox) {
+  const itemKey = duebox.dataset.itemKey;
+  const input = duebox.querySelector('.due-input');
+  const note = duebox.querySelector('[data-role="sync-status"]');
+
+  function commit(newValue) {
+    input.value = newValue || '';
+    input.classList.toggle('overdue', !!newValue && newValue < dateOffset(0));
+    if (note) note.textContent = 'Syncing…';
+    fetch(`${BASE}api/tasks/${encodeURIComponent(itemKey)}/due-date`, {
+      method: 'PATCH', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({due_on: newValue || null}),
+    }).then(async r => {
+      if (!r.ok) throw new Error(r.statusText);
+      const data = await r.json();
+      if (note) note.textContent = data.asana_synced === false ? 'Saved (Asana sync failed)' : 'Saved';
+    }).catch(() => {
+      if (note) note.textContent = 'Save failed — retry';
+    }).finally(() => {
+      setTimeout(() => { if (note) note.textContent = ''; }, 3000);
+    });
+  }
+
+  input.addEventListener('change', e => { e.stopPropagation(); commit(input.value); });
+  duebox.querySelectorAll('.duebtn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      commit(dateOffset(DUE_SHORTCUTS[btn.dataset.shortcut]));
+    });
+  });
 }
 
 function showToast(text, type, duration) {

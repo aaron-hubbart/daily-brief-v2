@@ -1,9 +1,11 @@
 {# Partial: renders grouped open Asana tasks for the standalone Tasks page.
    Returned by GET /api/tasks, injected into #tasks-body by tasks.html's
    client JS. Deliberately not action_items_fragment.html's action_item
-   macro — that one renders a full due-date editor this page doesn't want
-   (see the Tasks tab design spec's "Marking complete" section: due-date
-   editing is out of scope here, only grouping by it and checking off). #}
+   macro — that one renders the brief-day-scoped due-date box, which is
+   Postgres-backed; this page's due-date box (below) instead PATCHes
+   /api/tasks/<item_key>/due-date, which writes straight to Asana since
+   these items are never persisted (see the Tasks tab design spec's
+   "Marking complete" section — the same reasoning applies to due dates). #}
 {% if not asana_pat_configured %}
 <div class="hint">Add your Asana PAT in Settings to see your tasks here.</div>
 {% else %}
@@ -15,25 +17,38 @@
   </summary>
   <div class="group-body">
     {% for board in group.boards %}
-    <div class="board">
-      <div class="board-name">{{ board.name }}</div>
-      {% for item in board['items'] %}
-      <div class="task-row" data-item-key="{{ item.item_key }}">
-        <input type="checkbox" class="task-check">
-        <div class="task-body">
-          <div class="task-title">{{ item.title|autolink_jira }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
-          {% if item.get('content', {}).get('due_on') %}<div class="task-due">Due {{ item['content']['due_on'] }}</div>{% endif %}
+    <details class="board-group" open>
+      <summary>
+        <span class="board-name">{{ board.name }}</span>
+        <span class="board-count">{{ board['items']|length }} item{{ '' if board['items']|length == 1 else 's' }}</span>
+      </summary>
+      <div class="board-body">
+        {% for item in board['items'] %}
+        {% set due_on = item.get('content', {}).get('due_on') %}
+        <div class="task-row" data-item-key="{{ item.item_key }}">
+          <input type="checkbox" class="task-check">
+          <div class="task-body">
+            <div class="task-title">{{ item.title|autolink_jira }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
+            <div class="duebox" data-item-key="{{ item.item_key }}">
+              <input type="date" class="due-input{% if due_on and due_on < today_iso %} overdue{% endif %}" value="{{ due_on or '' }}">
+              <button type="button" class="duebtn" data-shortcut="today">Today</button>
+              <button type="button" class="duebtn" data-shortcut="tomorrow">Tomorrow</button>
+              <button type="button" class="duebtn" data-shortcut="next-week">Next week</button>
+              <button type="button" class="duebtn" data-shortcut="next-month">Next month</button>
+              <span class="due-sync-note" data-role="sync-status"></span>
+            </div>
+          </div>
+          {% if item.links %}
+          <div class="task-links">
+            {% for link in item.links %}
+            <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url|resolve_link_url }}" target="_blank">{{ link.label }}</a>
+            {% endfor %}
+          </div>
+          {% endif %}
         </div>
-        {% if item.links %}
-        <div class="task-links">
-          {% for link in item.links %}
-          <a class="{{ link.get('class', 'lbtn') }}" href="{{ link.url|resolve_link_url }}" target="_blank">{{ link.label }}</a>
-          {% endfor %}
-        </div>
-        {% endif %}
+        {% endfor %}
       </div>
-      {% endfor %}
-    </div>
+    </details>
     {% endfor %}
   </div>
 </details>

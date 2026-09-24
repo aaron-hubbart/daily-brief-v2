@@ -37,8 +37,12 @@ textarea{width:100%;min-height:52px;resize:vertical;}
 .btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
 .btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
 .btn:disabled{opacity:.4;cursor:default;}
-.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
 .customer-select{min-width:260px;}
+.region-select{min-width:140px;}
+.toggle-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+.toggle-btn:hover{filter:brightness(.95);}
+.toggle-btn.active{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
 .panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);margin-bottom:16px;overflow:hidden;}
 .panel-head{padding:10px 14px;background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
 .panel-body{padding:12px 14px;}
@@ -60,6 +64,18 @@ tr:last-child td{border-bottom:none;}
 .dated-list-row input{flex:1;}
 .dated-list-row input.date-input{flex:0 0 130px;}
 .dated-list-row input.ticket-input{flex:0 0 110px;}
+.team-card{border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
+.team-card-head{padding:8px 12px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.team-card-head input{flex:1;font-weight:600;font-size:12.5px;}
+.team-card-body{padding:10px 12px;}
+.member-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}
+.member-row input{flex:1;min-width:100px;}
+.add-team-panel{border-top:1px solid var(--border);margin-top:10px;padding-top:10px;}
+.env-pick-list{display:flex;flex-direction:column;gap:4px;margin:6px 0;}
+.env-pick-list label{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--t1);}
+.pending-env-list{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;}
+.pending-env-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;background:var(--accent-bg);color:var(--accent-t);border:1px solid var(--accent);border-radius:99px;padding:2px 8px 2px 10px;}
+.pending-env-chip button{border:none;background:none;color:inherit;cursor:pointer;font-size:13px;line-height:1;padding:0;}
 .msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
 .toast-container{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;}
 .toast{padding:10px 20px;border-radius:var(--r);font-size:13px;font-weight:500;pointer-events:auto;
@@ -88,6 +104,11 @@ tr:last-child td{border-bottom:none;}
   <select class="customer-select" id="customer-select" onchange="onCustomerChange()">
     <option value="">Loading…</option>
   </select>
+  <label for="region-filter" style="font-size:12px;font-weight:500;">Region:</label>
+  <select class="region-select" id="region-filter" onchange="onRegionFilterChange()">
+    <option value="">All regions</option>
+  </select>
+  <button type="button" class="toggle-btn" id="my-customers-toggle" onclick="toggleMyCustomers()">My Customers</button>
 </div>
 
 <div id="content"><div class="empty">Loading&hellip;</div></div>
@@ -100,6 +121,18 @@ let CURRENT = null;
 let dirty = false;
 
 const COMPONENT_OPTIONS = ['Zeebe', 'Operate', 'Tasklist', 'Optimize', 'Connectors'];
+const STANDARD_ENV_NAMES = ['Production', 'Staging', 'QA/Test', 'Development', 'Sandbox', 'DR/Failover'];
+
+let MY_CUSTOMER_NAMES = new Set();
+let filterRegion = localStorage.getItem('env-tab:region') || '';
+let filterMyCustomers = localStorage.getItem('env-tab:my-customers') === '1';
+let addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
+
+function normalizeTeam(team) {
+  team.notes = team.notes || '';
+  team.members = team.members || [];
+  return team;
+}
 
 function normalizeEnvironment(env) {
   env.id = env.id || ('env-' + Date.now());
@@ -127,9 +160,16 @@ function normalizeEnvironment(env) {
 
 async function load() {
   try {
-    const r = await fetch(`${BASE}api/environments/config`, {credentials:'include'});
-    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
-    STATE = await r.json();
+    const [envResp, custResp] = await Promise.all([
+      fetch(`${BASE}api/environments/config`, {credentials:'include'}),
+      fetch(`${BASE}api/customers/config`, {credentials:'include'}).catch(() => null),
+    ]);
+    if (!envResp.ok) throw new Error((await envResp.json()).error || envResp.statusText);
+    STATE = await envResp.json();
+    if (custResp && custResp.ok) {
+      const custConfig = await custResp.json();
+      MY_CUSTOMER_NAMES = new Set((custConfig.accounts || []).map(a => a.account_name));
+    }
     renderCustomerSelect();
   } catch(e) {
     document.getElementById('content').innerHTML =
@@ -137,9 +177,49 @@ async function load() {
   }
 }
 
+function allRegions() {
+  const regions = new Set();
+  Object.values(STATE.customers || {}).forEach(c => {
+    (c.environments || []).forEach(env => {
+      const region = (env.deployment || {}).region;
+      if (region) regions.add(region);
+    });
+  });
+  return Array.from(regions).sort();
+}
+
+function customerHasRegion(name, region) {
+  const c = STATE.customers[name];
+  if (!c) return false;
+  return (c.environments || []).some(env => (env.deployment || {}).region === region);
+}
+
+function visibleCustomerNames() {
+  let names = STATE.in_scope_names || [];
+  if (filterMyCustomers) names = names.filter(n => MY_CUSTOMER_NAMES.has(n));
+  if (filterRegion) names = names.filter(n => customerHasRegion(n, filterRegion));
+  return names;
+}
+
+function onRegionFilterChange() {
+  filterRegion = document.getElementById('region-filter').value;
+  localStorage.setItem('env-tab:region', filterRegion);
+  renderCustomerSelect();
+}
+
+function toggleMyCustomers() {
+  filterMyCustomers = !filterMyCustomers;
+  localStorage.setItem('env-tab:my-customers', filterMyCustomers ? '1' : '0');
+  renderCustomerSelect();
+}
+
 function renderCustomerSelect() {
   const select = document.getElementById('customer-select');
+  const regionSelect = document.getElementById('region-filter');
+  const myCustomersBtn = document.getElementById('my-customers-toggle');
   const content = document.getElementById('content');
+
+  myCustomersBtn.classList.toggle('active', filterMyCustomers);
 
   if (STATE.needs_pat) {
     select.innerHTML = '<option value="">—</option>';
@@ -157,10 +237,26 @@ function renderCustomerSelect() {
     return;
   }
 
-  select.innerHTML = STATE.in_scope_names.map(name =>
+  const regions = allRegions();
+  if (filterRegion && !regions.includes(filterRegion)) {
+    filterRegion = '';
+    localStorage.setItem('env-tab:region', '');
+  }
+  regionSelect.innerHTML = '<option value="">All regions</option>' +
+    regions.map(r => `<option value="${escAttr(r)}" ${r === filterRegion ? 'selected' : ''}>${esc(r)}</option>`).join('');
+
+  const names = visibleCustomerNames();
+  if (!names.length) {
+    select.innerHTML = '<option value="">—</option>';
+    content.innerHTML = '<div class="empty">No customers match the current filters.</div>';
+    CURRENT = null;
+    return;
+  }
+
+  select.innerHTML = names.map(name =>
     `<option value="${escAttr(name)}">${esc(name)}</option>`
   ).join('');
-  CURRENT = STATE.in_scope_names[0];
+  if (!CURRENT || !names.includes(CURRENT)) CURRENT = names[0];
   select.value = CURRENT;
   ensureCustomer(CURRENT);
   renderCustomer();
@@ -177,27 +273,18 @@ function ensureCustomer(name) {
     STATE.customers[name] = {teams: [], environments: []};
   }
   const c = STATE.customers[name];
-  c.teams = c.teams || [];
+  c.teams = (c.teams || []).map(normalizeTeam);
   c.environments = (c.environments || []).map(normalizeEnvironment);
 }
 
 function renderCustomer() {
+  addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
   const c = STATE.customers[CURRENT];
   const content = document.getElementById('content');
   content.innerHTML = `
     <div class="panel">
       <div class="panel-head"><span>Teams</span></div>
-      <div class="panel-body">
-        <table>
-          <thead><tr><th>Name</th><th>Notes</th><th></th></tr></thead>
-          <tbody id="teams-body">${teamsRowsHtml(c.teams)}</tbody>
-        </table>
-        <div class="add-row">
-          <input type="text" id="new-team-name" placeholder="Team name">
-          <input type="text" id="new-team-notes" placeholder="Notes (optional)">
-          <button class="btn primary" onclick="addTeam()">Add team</button>
-        </div>
-      </div>
+      <div class="panel-body" id="teams-body">${teamCardsHtml(c)}</div>
     </div>
     <div class="panel">
       <div class="panel-head">
@@ -208,6 +295,7 @@ function renderCustomer() {
     </div>
   `;
   wireTeamCheckboxes();
+  wireNewEnvSelect();
 }
 
 function wireTeamCheckboxes() {
@@ -223,15 +311,145 @@ function wireTeamCheckboxes() {
   });
 }
 
-function teamsRowsHtml(teams) {
-  if (!teams.length) return '<tr><td colspan="3" class="empty">No teams yet</td></tr>';
-  return teams.map((t, i) => `
-    <tr>
-      <td><input type="text" value="${escAttr(t.name)}" onchange="updateTeamField(${i}, 'name', this.value)"></td>
-      <td><input type="text" value="${escAttr(t.notes || '')}" onchange="updateTeamField(${i}, 'notes', this.value)" style="width:100%"></td>
-      <td><button class="btn danger" onclick="removeTeam(${i})">Remove</button></td>
-    </tr>
+function teamCardsHtml(c) {
+  const cards = c.teams.map((t, i) => teamCardHtml(t, i)).join('') ||
+    '<div class="empty" style="padding:8px 0;">No teams yet</div>';
+  return cards + addTeamPanelHtml(c);
+}
+
+function teamCardHtml(team, idx) {
+  return `
+    <div class="team-card">
+      <div class="team-card-head">
+        <input type="text" value="${escAttr(team.name)}" onchange="updateTeamField(${idx}, 'name', this.value)">
+        <button class="btn danger" onclick="removeTeam(${idx})">Remove</button>
+      </div>
+      <div class="team-card-body">
+        <div class="field"><label>Notes</label><textarea onchange="updateTeamField(${idx}, 'notes', this.value)">${esc(team.notes || '')}</textarea></div>
+        <div class="field">
+          <label>Members</label>
+          ${memberRowsHtml(idx, team.members)}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function memberRowsHtml(teamIdx, members) {
+  const rows = (members || []).map((m, i) => `
+    <div class="member-row">
+      <input type="text" placeholder="Name" value="${escAttr(m.name || '')}" onchange="updateMemberField(${teamIdx}, ${i}, 'name', this.value)">
+      <input type="text" placeholder="Title" value="${escAttr(m.title || '')}" onchange="updateMemberField(${teamIdx}, ${i}, 'title', this.value)">
+      <input type="text" placeholder="Email" value="${escAttr(m.email || '')}" onchange="updateMemberField(${teamIdx}, ${i}, 'email', this.value)">
+      <input type="text" placeholder="Notes" value="${escAttr(m.notes || '')}" onchange="updateMemberField(${teamIdx}, ${i}, 'notes', this.value)">
+      <button class="btn danger" onclick="removeMember(${teamIdx}, ${i})">Remove</button>
+    </div>
   `).join('');
+  return rows + `<button class="btn" onclick="addMember(${teamIdx})">Add member</button>`;
+}
+
+function addMember(teamIdx) {
+  const team = STATE.customers[CURRENT].teams[teamIdx];
+  team.members = team.members || [];
+  team.members.push({name: '', title: '', email: '', notes: ''});
+  markDirty();
+  renderCustomer();
+}
+
+function updateMemberField(teamIdx, memberIdx, field, value) {
+  STATE.customers[CURRENT].teams[teamIdx].members[memberIdx][field] = value;
+  markDirty();
+}
+
+function removeMember(teamIdx, memberIdx) {
+  STATE.customers[CURRENT].teams[teamIdx].members.splice(memberIdx, 1);
+  markDirty();
+  renderCustomer();
+}
+
+function addTeamPanelHtml(c) {
+  return `<div class="add-team-panel" id="add-team-panel">${addTeamPanelInnerHtml(c)}</div>`;
+}
+
+function addTeamPanelInnerHtml(c) {
+  const existingChecks = c.environments.length
+    ? `<div class="env-pick-list">${c.environments.map(env => `
+        <label><input type="checkbox" class="add-team-env-check" data-env-id="${escAttr(env.id)}" ${addTeamDraft.existingEnvIds.has(env.id) ? 'checked' : ''}> ${esc(env.label)}</label>
+      `).join('')}</div>`
+    : '<div class="hint" style="padding:0;">No existing environments for this customer yet</div>';
+
+  const pendingChips = addTeamDraft.newEnvs.length
+    ? `<div class="pending-env-list">${addTeamDraft.newEnvs.map((name, i) => `
+        <span class="pending-env-chip">${esc(name)}<button type="button" onclick="removePendingNewEnv(${i})">&times;</button></span>
+      `).join('')}</div>`
+    : '';
+
+  return `
+    <div class="add-row">
+      <input type="text" id="new-team-name" placeholder="Team name">
+      <input type="text" id="new-team-notes" placeholder="Notes (optional)">
+    </div>
+    <div class="field" style="margin-top:8px;">
+      <label>Link existing environments</label>
+      ${existingChecks}
+    </div>
+    <div class="field">
+      <label>Create new environments for this team</label>
+      <div class="add-row" style="border-top:none;margin-top:0;padding-top:0;">
+        <select id="new-env-standard-select">
+          ${STANDARD_ENV_NAMES.map(n => `<option value="${escAttr(n)}">${esc(n)}</option>`).join('')}
+          <option value="__custom__">Custom…</option>
+        </select>
+        <input type="text" id="new-env-custom-name" placeholder="Custom environment name" style="display:none;">
+        <button type="button" class="btn" onclick="queuePendingNewEnv()">+ Add</button>
+      </div>
+      ${pendingChips}
+    </div>
+    <div class="add-row">
+      <button class="btn primary" onclick="addTeam()">Add team</button>
+    </div>
+  `;
+}
+
+function renderAddTeamPanel() {
+  const c = STATE.customers[CURRENT];
+  document.getElementById('add-team-panel').innerHTML = addTeamPanelInnerHtml(c);
+  wireNewEnvSelect();
+}
+
+function wireNewEnvSelect() {
+  const sel = document.getElementById('new-env-standard-select');
+  const custom = document.getElementById('new-env-custom-name');
+  if (sel) {
+    sel.addEventListener('change', () => {
+      custom.style.display = sel.value === '__custom__' ? '' : 'none';
+    });
+  }
+  document.querySelectorAll('.add-team-env-check').forEach(cb => {
+    cb.addEventListener('change', function() {
+      toggleAddTeamExistingEnv(this.dataset.envId, this.checked);
+    });
+  });
+}
+
+function toggleAddTeamExistingEnv(envId, checked) {
+  if (checked) addTeamDraft.existingEnvIds.add(envId);
+  else addTeamDraft.existingEnvIds.delete(envId);
+}
+
+function queuePendingNewEnv() {
+  const sel = document.getElementById('new-env-standard-select');
+  const custom = document.getElementById('new-env-custom-name');
+  const name = sel.value === '__custom__' ? custom.value.trim() : sel.value;
+  if (!name) return;
+  addTeamDraft.newEnvs.push(name);
+  custom.value = '';
+  renderAddTeamPanel();
+}
+
+function removePendingNewEnv(idx) {
+  addTeamDraft.newEnvs.splice(idx, 1);
+  renderAddTeamPanel();
 }
 
 function addTeam() {
@@ -240,9 +458,32 @@ function addTeam() {
   const name = nameInput.value.trim();
   if (!name) return;
   const id = 'team-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
-  STATE.customers[CURRENT].teams.push({id, name, notes: notesInput.value.trim()});
-  nameInput.value = '';
-  notesInput.value = '';
+  const team = {id, name, notes: notesInput.value.trim(), members: []};
+  const c = STATE.customers[CURRENT];
+  c.teams.push(team);
+
+  c.environments.forEach(env => {
+    if (addTeamDraft.existingEnvIds.has(env.id)) {
+      env.team_ids = env.team_ids || [];
+      if (!env.team_ids.includes(id)) env.team_ids.push(id);
+    }
+  });
+
+  addTeamDraft.newEnvs.forEach((label, i) => {
+    c.environments.push({
+      id: 'env-' + Date.now() + '-' + i,
+      label,
+      team_ids: [id],
+      deployment: {model: 'SaaS', install_method: '', region: '', multi_tenancy: '', sizing: ''},
+      versions: {camunda_version: '', components: []},
+      links: {console_url: '', cluster_urls: [], support_plan: '', runbook_links: []},
+      notes: '',
+      diagnostic_reports: [],
+      helm_values: [],
+    });
+  });
+
+  addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
   markDirty();
   renderCustomer();
 }
