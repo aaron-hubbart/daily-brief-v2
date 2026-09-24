@@ -89,6 +89,12 @@ ASANA_API_BASE = 'https://app.asana.com/api/1.0'
 
 SLACK_API_BASE = 'https://slack.com/api'
 
+# Verify this against a real GET /portfolios/{gid}/items call before
+# relying on it — see the Environments tab design spec's "Customer list
+# scope" section. One project per customer in this portfolio; a customer
+# is in scope if their account_name matches a project name in it.
+ENVIRONMENTS_PORTFOLIO_GID = os.environ.get('ASANA_ENVIRONMENTS_PORTFOLIO_GID', '1209916881329688')
+
 
 def _sync_asana_completed(pat, item_key: str, checked: bool):
     """
@@ -1112,6 +1118,63 @@ def api_customers_discover_asana():
         return jsonify({'error': f'Asana lookup failed: {e}'}), 502
 
     return jsonify({'candidates': candidates})
+
+
+# ── Environments management ──────────────────────────────────────────
+
+@app.route('/environments')
+@login_required
+def environments_page():
+    return render_template('environments.html', user_email=request.brief_user['email'])
+
+
+@app.route('/api/environments/config')
+@login_required
+def api_environments_config():
+    """Returns saved environments-config.json data plus the current
+    in-scope customer name list (from the Asana portfolio)."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    config = gdrive_briefs.read_environments_config(google_token, folder_id)
+    if config is None:
+        return jsonify({'error': 'Could not read environments-config.json'}), 500
+
+    pat = db.get_asana_pat(request.brief_user['id'])
+    if not pat:
+        return jsonify({'customers': config, 'in_scope_names': None, 'needs_pat': True})
+
+    try:
+        in_scope_names = asana_discovery.get_portfolio_project_names(
+            _asana_api_get, pat, ENVIRONMENTS_PORTFOLIO_GID,
+        )
+    except (urllib.error.URLError, json.JSONDecodeError) as e:
+        return jsonify({
+            'customers': config, 'in_scope_names': None,
+            'error': f'Could not load customer list from Asana: {e}',
+        })
+
+    return jsonify({'customers': config, 'in_scope_names': in_scope_names})
+
+
+@app.route('/api/environments/config', methods=['PUT'])
+@login_required
+def api_environments_config_update():
+    """Writes the full customers dict (teams + environments per customer)
+    back to environments-config.json."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    data = request.get_json(silent=True)
+    if not data or 'customers' not in data or not isinstance(data['customers'], dict):
+        return jsonify({'error': 'Invalid payload — must include a customers object'}), 400
+    result = gdrive_briefs.write_environments_config(data['customers'], google_token, folder_id)
+    if result is not True:
+        msg = result if isinstance(result, str) else 'Failed to write environments-config.json'
+        return jsonify({'error': msg}), 500
+    return jsonify({'ok': True})
 
 
 @app.route('/admin')

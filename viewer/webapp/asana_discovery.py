@@ -57,3 +57,26 @@ def find_new_projects(
 
     candidates.sort(key=lambda p: p['name'].lower())
     return candidates
+
+
+def get_portfolio_project_names(
+    fetch_fn: FetchFn,
+    pat: str,
+    portfolio_gid: str,
+) -> List[str]:
+    """Returns the names of every project currently in the given Asana
+    portfolio, sorted alphabetically (case-insensitive) — used by the
+    Environments tab to determine which account-config.json customers are
+    in scope (a customer is in scope if their account_name matches one of
+    these names).
+
+    fetch_fn must match app.py's _asana_api_get(pat, path, params) -> dict
+    signature. Propagates whatever fetch_fn itself raises on failure
+    (matches _asana_api_get's own urllib.error.URLError /
+    json.JSONDecodeError contract) — callers are responsible for catching
+    those.
+    """
+    items = fetch_fn(pat, f'/portfolios/{portfolio_gid}/items', {'opt_fields': 'name'})
+    names = [item['name'] for item in items.get('data', []) if item.get('name')]
+    names.sort(key=str.lower)
+    return names
