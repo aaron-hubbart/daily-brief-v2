@@ -1337,6 +1337,40 @@ def api_live_action_items(date_str):
     return jsonify({'html': html, 'count': total_count})
 
 
+@app.route('/tasks')
+@login_required
+def tasks_page():
+    return render_template('tasks.html', user_email=request.brief_user['email'])
+
+
+@app.route('/api/tasks')
+@login_required
+def api_tasks():
+    """Standalone, cross-day view of every open Asana task relevant to the
+    signed-in user — everything api_live_action_items pulls for one brief
+    day, but with nothing excluded (there's no specific day's stored items
+    to de-duplicate against here)."""
+    asana_pat = db.get_asana_pat(request.brief_user['id'])
+    if not asana_pat:
+        html = render_template('tasks_fragment.html', action_subsections=[], asana_pat_configured=False)
+        return jsonify({'html': html, 'count': 0, 'needs_pat': True})
+
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    account_projects = (
+        gdrive_briefs.get_account_projects(google_token, folder_id)
+        if google_token
+        else []
+    )
+    live_items = _fetch_live_action_items(asana_pat, account_projects, set())
+    today_iso = date.today().isoformat()
+    action_subsections = group_action_items(live_items, today_iso)
+    total_count = sum(len(g['items']) for g in action_subsections)
+
+    html = render_template('tasks_fragment.html', action_subsections=action_subsections, asana_pat_configured=True)
+    return jsonify({'html': html, 'count': total_count})
+
+
 @app.route('/api/brief/<date_str>/section/<slug>')
 @login_required
 def api_section(date_str, slug):
