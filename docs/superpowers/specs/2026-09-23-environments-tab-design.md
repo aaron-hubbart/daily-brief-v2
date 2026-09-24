@@ -175,3 +175,11 @@ rest of the viewer.
   feature introduces — it's the existing, consistent level of coverage for
   this whole category of code. Verified manually instead, same as every
   sibling function and every route.
+`tests/test_environments_view.py`:
+- Route auth-gating (same pattern as every other authenticated route).
+- `environments-config.json` read/write round-trips correctly against a
+  stubbed Drive client (mirrors how `account-config.json`'s round-trip
+  would be tested).
+- The Salesforce Success-Tier query function is isolated behind a small
+  wrapper so it can be unit-tested against a stubbed SOQL response rather
+  than a live Salesforce call.
