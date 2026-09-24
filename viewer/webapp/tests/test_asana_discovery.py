@@ -1,6 +1,6 @@
-"""Tests for asana_discovery.find_new_projects — pure logic, no real
-Asana calls. fetch_fn is faked so these run with no network access and
-no mocking library."""
+"""Tests for asana_discovery's pure logic (find_new_projects,
+get_portfolio_project_names) — no real Asana calls. fetch_fn is faked
+so these run with no network access and no mocking library."""
 from asana_discovery import find_new_projects, get_portfolio_project_names
 
 

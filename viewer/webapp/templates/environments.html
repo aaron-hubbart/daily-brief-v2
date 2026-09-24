@@ -101,10 +101,32 @@ let dirty = false;
 
 const COMPONENT_OPTIONS = ['Zeebe', 'Operate', 'Tasklist', 'Optimize', 'Connectors'];
 
+function normalizeEnvironment(env) {
+  env.team_ids = env.team_ids || [];
+  env.deployment = env.deployment || {};
+  env.deployment.model = env.deployment.model || 'SaaS';
+  env.deployment.install_method = env.deployment.install_method || '';
+  env.deployment.region = env.deployment.region || '';
+  env.deployment.multi_tenancy = env.deployment.multi_tenancy || '';
+  env.deployment.sizing = env.deployment.sizing || '';
+  env.versions = env.versions || {};
+  env.versions.camunda_version = env.versions.camunda_version || '';
+  env.versions.components = env.versions.components || [];
+  env.links = env.links || {};
+  env.links.console_url = env.links.console_url || '';
+  env.links.cluster_urls = env.links.cluster_urls || [];
+  env.links.support_plan = env.links.support_plan || '';
+  env.links.runbook_links = env.links.runbook_links || [];
+  env.notes = env.notes || '';
+  env.diagnostic_reports = env.diagnostic_reports || [];
+  env.helm_values = env.helm_values || [];
+  return env;
+}
+
 async function load() {
   try {
     const r = await fetch(`${BASE}api/environments/config`, {credentials:'include'});
-    if (!r.ok) throw new Error(r.statusText);
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     STATE = await r.json();
     renderCustomerSelect();
   } catch(e) {
@@ -152,6 +174,9 @@ function ensureCustomer(name) {
   if (!STATE.customers[name]) {
     STATE.customers[name] = {teams: [], environments: []};
   }
+  const c = STATE.customers[name];
+  c.teams = c.teams || [];
+  c.environments = (c.environments || []).map(normalizeEnvironment);
 }
 
 function renderCustomer() {
@@ -230,7 +255,7 @@ function environmentsHtml(c) {
 function environmentCardHtml(env, idx, teams) {
   const teamChecks = teams.map(t => `
     <label><input type="checkbox" ${((env.team_ids||[]).includes(t.id)) ? 'checked' : ''}
-      onchange="toggleEnvTeam(${idx}, '${t.id}', this.checked)"> ${esc(t.name)}</label>
+      onchange="toggleEnvTeam(${idx}, '${escAttr(t.id)}', this.checked)"> ${esc(t.name)}</label>
   `).join('') || '<span class="hint" style="padding:0">No teams defined yet</span>';
 
   const componentChecks = COMPONENT_OPTIONS.map(comp => `
@@ -278,7 +303,7 @@ function datedListHtml(envIdx, key, rows, withTicket) {
   const rowsHtml = (rows || []).map((row, rowIdx) => `
     <div class="dated-list-row">
       <input type="text" placeholder="Link" value="${escAttr(row.link || '')}" onchange="updateDatedListField(${envIdx}, '${key}', ${rowIdx}, 'link', this.value)">
-      <input type="date" class="date-input" value="${escAttr(row.date || row.generated_date || '')}" onchange="updateDatedListField(${envIdx}, '${key}', ${rowIdx}, '${withTicket ? 'generated_date' : 'date'}', this.value)">
+      <input type="date" class="date-input" value="${escAttr((withTicket ? row.generated_date : row.date) || '')}" onchange="updateDatedListField(${envIdx}, '${key}', ${rowIdx}, '${withTicket ? 'generated_date' : 'date'}', this.value)">
       ${withTicket ? `<input type="text" class="ticket-input" placeholder="Ticket" value="${escAttr(row.ticket || '')}" onchange="updateDatedListField(${envIdx}, '${key}', ${rowIdx}, 'ticket', this.value)">` : ''}
       <button class="btn danger" onclick="removeDatedListRow(${envIdx}, '${key}', ${rowIdx})">Remove</button>
     </div>
@@ -409,7 +434,7 @@ function showToast(text, type, duration) {
 }
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
-function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
+function escAttr(s) { return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 
 window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 

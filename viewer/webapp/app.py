@@ -92,7 +92,7 @@ SLACK_API_BASE = 'https://slack.com/api'
 # relying on it — see the Environments tab design spec's "Customer list
 # scope" section. One project per customer in this portfolio; a customer
 # is in scope if their account_name matches a project name in it.
-ENVIRONMENTS_PORTFOLIO_GID = '1209916881329688'
+ENVIRONMENTS_PORTFOLIO_GID = os.environ.get('ASANA_ENVIRONMENTS_PORTFOLIO_GID', '1209916881329688')
 
 
 def _sync_asana_completed(pat, item_key: str, checked: bool):
