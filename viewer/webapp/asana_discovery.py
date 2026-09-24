@@ -9,7 +9,7 @@ lives in the skill's own setup flow (references/first-run-setup.md),
 since only the skill has Slack and Outlook MCP connectors — this webapp
 has neither, only a stored per-user Asana PAT and Google Drive OAuth.
 """
-from typing import Callable, Dict, List, Set
+from typing import Callable, Dict, List, Optional, Set
 
 FetchFn = Callable[[str, str, dict], dict]
 
@@ -59,16 +59,26 @@ def find_new_projects(
     return candidates
 
 
+def _extract_theater(item: Dict) -> Optional[str]:
+    """Returns the display value of whichever of this Asana portfolio
+    item's custom_fields is named "Theater" (case-insensitive), or None
+    if it has no such field."""
+    for field in item.get('custom_fields') or []:
+        if (field.get('name') or '').strip().lower() == 'theater':
+            return field.get('display_value')
+    return None
+
+
 def get_portfolio_project_names(
     fetch_fn: FetchFn,
     pat: str,
     portfolio_gid: str,
-) -> List[str]:
-    """Returns the names of every project currently in the given Asana
-    portfolio, sorted alphabetically (case-insensitive) — used by the
-    Environments tab to determine which account-config.json customers are
-    in scope (a customer is in scope if their account_name matches one of
-    these names).
+) -> List[Dict[str, Optional[str]]]:
+    """Returns {"gid", "name", "theater"} for every project currently in
+    the given Asana portfolio, sorted by name (case-insensitive) — used by
+    the Environments tab to determine which account-config.json customers
+    are in scope (see match_accounts_to_theaters) and to source the Region
+    filter's values from each project's Asana "Theater" custom field.
 
     fetch_fn must match app.py's _asana_api_get(pat, path, params) -> dict
     signature. Propagates whatever fetch_fn itself raises on failure
@@ -76,7 +86,13 @@ def get_portfolio_project_names(
     json.JSONDecodeError contract) — callers are responsible for catching
     those.
     """
-    items = fetch_fn(pat, f'/portfolios/{portfolio_gid}/items', {'opt_fields': 'name'})
-    names = [item['name'] for item in items.get('data', []) if item.get('name')]
-    names.sort(key=str.lower)
-    return names
+    items = fetch_fn(pat, f'/portfolios/{portfolio_gid}/items', {
+        'opt_fields': 'name,custom_fields.name,custom_fields.display_value',
+    })
+    projects = [
+        {'gid': item['gid'], 'name': item['name'], 'theater': _extract_theater(item)}
+        for item in items.get('data', [])
+        if item.get('gid') and item.get('name')
+    ]
+    projects.sort(key=lambda p: p['name'].lower())
+    return projects
