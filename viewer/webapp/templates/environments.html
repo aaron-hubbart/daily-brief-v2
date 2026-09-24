@@ -205,6 +205,20 @@ function renderCustomer() {
       <div class="panel-body" id="envs-body">${environmentsHtml(c)}</div>
     </div>
   `;
+  wireTeamCheckboxes();
+}
+
+function wireTeamCheckboxes() {
+  // Delegated via data-* attributes rather than an inline onchange with an
+  // interpolated team id: HTML-entity-escaping a value that lands inside a
+  // single-quoted JS string in an inline handler doesn't actually protect
+  // it, since the browser decodes entities before compiling the handler as
+  // JS. A plain data attribute only needs standard HTML-attribute escaping.
+  document.querySelectorAll('.team-check').forEach(cb => {
+    cb.addEventListener('change', function() {
+      toggleEnvTeam(parseInt(this.dataset.envIdx, 10), this.dataset.teamId, this.checked);
+    });
+  });
 }
 
 function teamsRowsHtml(teams) {
@@ -254,8 +268,7 @@ function environmentsHtml(c) {
 
 function environmentCardHtml(env, idx, teams) {
   const teamChecks = teams.map(t => `
-    <label><input type="checkbox" ${((env.team_ids||[]).includes(t.id)) ? 'checked' : ''}
-      onchange="toggleEnvTeam(${idx}, '${escAttr(t.id)}', this.checked)"> ${esc(t.name)}</label>
+    <label><input type="checkbox" class="team-check" data-env-idx="${idx}" data-team-id="${escAttr(t.id)}" ${((env.team_ids||[]).includes(t.id)) ? 'checked' : ''}> ${esc(t.name)}</label>
   `).join('') || '<span class="hint" style="padding:0">No teams defined yet</span>';
 
   const componentChecks = COMPONENT_OPTIONS.map(comp => `
