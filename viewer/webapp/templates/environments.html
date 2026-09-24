@@ -82,7 +82,7 @@ tr:last-child td{border-bottom:none;}
 .pending-env-list{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;}
 .pending-env-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;background:var(--accent-bg);color:var(--accent-t);border:1px solid var(--accent);border-radius:99px;padding:2px 8px 2px 10px;}
 .pending-env-chip button{border:none;background:none;color:inherit;cursor:pointer;font-size:13px;line-height:1;padding:0;}
-.msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
+.save-status{font-size:11.5px;color:var(--t3);}
 .toast-container{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;}
 .toast{padding:10px 20px;border-radius:var(--r);font-size:13px;font-weight:500;pointer-events:auto;
   opacity:0;transform:translateY(-12px);animation:toast-in .25s ease forwards;}
@@ -102,7 +102,10 @@ tr:last-child td{border-bottom:none;}
     <h1>Environments</h1>
     <div class="sub">Signed in as {{ user_email }}</div>
   </div>
-  <button class="btn save" id="save-btn" onclick="saveAll()" disabled>Save to Drive</button>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span class="save-status" id="save-status"></span>
+    <button class="btn save" id="save-btn" onclick="saveAll()" disabled>Save to Drive</button>
+  </div>
 </div>
 
 <div class="toolbar">
@@ -118,7 +121,6 @@ tr:last-child td{border-bottom:none;}
 </div>
 
 <div id="content"><div class="empty">Loading&hellip;</div></div>
-<div class="msg" id="msg"></div>
 
 <script>
 const BASE = document.querySelector('base')?.href || '';
@@ -738,14 +740,14 @@ function updateDatedListField(envIdx, key, rowIdx, field, value) {
 function markDirty() {
   dirty = true;
   document.getElementById('save-btn').disabled = false;
-  document.getElementById('msg').textContent = 'Unsaved changes';
+  document.getElementById('save-status').textContent = 'Unsaved changes';
 }
 
 async function saveAll() {
   const btn = document.getElementById('save-btn');
-  const msg = document.getElementById('msg');
+  const status = document.getElementById('save-status');
   btn.disabled = true;
-  msg.textContent = 'Saving…';
+  status.textContent = 'Saving…';
   try {
     const r = await fetch(`${BASE}api/environments/config`, {
       method: 'PUT', credentials: 'include',
@@ -754,10 +756,11 @@ async function saveAll() {
     });
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     dirty = false;
-    msg.textContent = '';
+    status.textContent = '';
     showToast('Saved to Drive', 'ok', 4000);
   } catch(e) {
     showToast('Save failed: ' + e.message, 'err', 5000);
+    status.textContent = 'Unsaved changes';
     btn.disabled = false;
   }
 }
