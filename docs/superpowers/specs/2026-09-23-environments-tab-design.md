@@ -126,11 +126,16 @@ in the portfolio.
   Salesforce draft — portfolio membership doesn't have a "stage" concept
   the way a Salesforce Opportunity does, so a customer is simply in scope
   or not. Revisit if you want finer-grained status later.
-- Matching is by project **name** against `account-config.json`'s
-  `account_name` values (same string match `asana_discovery.py` already
-  does for its own project-linking flow) — not by project GID, since
-  `account-config.json` doesn't currently store which project GID (if any)
-  corresponds to the portfolio entry.
+- **The portfolio is authoritative** — every project name it returns is a
+  customer, full stop. No cross-check against `account-config.json`'s
+  `account_name` values. (An earlier draft of this section described an
+  intersection with `account-config.json`; the implemented and reviewed
+  behavior is portfolio-only, and this is that call made explicit rather
+  than a stray non-customer project silently requiring a second config
+  file to stay in sync.) Environment records are still keyed by this same
+  project-name string, matching how `account-config.json`'s `account_name`
+  is used elsewhere in this app — so renaming the Asana project orphans
+  its saved environments, a known limitation for this first cut.
 - **No caching**: every other Asana call in this app (`_fetch_live_action_items`,
   `asana_discovery.find_new_projects`, PAT validation) is called fresh on
   each request rather than cached — only Drive *folder-GID* lookups are

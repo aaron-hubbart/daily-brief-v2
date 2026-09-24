@@ -1,7 +1,7 @@
-"""Tests for asana_discovery.find_new_projects — pure logic, no real
-Asana calls. fetch_fn is faked so these run with no network access and
-no mocking library."""
-from asana_discovery import find_new_projects
+"""Tests for asana_discovery's pure logic (find_new_projects,
+get_portfolio_project_names) — no real Asana calls. fetch_fn is faked
+so these run with no network access and no mocking library."""
+from asana_discovery import find_new_projects, get_portfolio_project_names
 
 
 def _fake_fetch(responses):
@@ -91,3 +91,31 @@ def test_dedupes_across_multiple_workspaces():
     result = find_new_projects(fetch_fn, pat='fake-pat', linked_gids=set())
 
     assert result == [{'gid': 'p1', 'name': 'Acme Corp'}]
+
+
+def test_get_portfolio_project_names_returns_sorted_names():
+    fetch_fn = _fake_fetch({
+        '/portfolios/999/items': {'data': [
+            {'gid': 'p1', 'name': 'Zebra Corp'},
+            {'gid': 'p2', 'name': 'Acme Corp'},
+        ]},
+    })
+    result = get_portfolio_project_names(fetch_fn, pat='fake-pat', portfolio_gid='999')
+    assert result == ['Acme Corp', 'Zebra Corp']
+
+
+def test_get_portfolio_project_names_skips_items_missing_name():
+    fetch_fn = _fake_fetch({
+        '/portfolios/999/items': {'data': [
+            {'gid': 'p1', 'name': 'Acme Corp'},
+            {'gid': 'p2'},
+        ]},
+    })
+    result = get_portfolio_project_names(fetch_fn, pat='fake-pat', portfolio_gid='999')
+    assert result == ['Acme Corp']
+
+
+def test_get_portfolio_project_names_returns_empty_list_when_portfolio_empty():
+    fetch_fn = _fake_fetch({'/portfolios/999/items': {'data': []}})
+    result = get_portfolio_project_names(fetch_fn, pat='fake-pat', portfolio_gid='999')
+    assert result == []
