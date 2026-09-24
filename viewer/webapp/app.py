@@ -53,7 +53,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import asana_discovery
 import db
 import gdrive_briefs
-from action_items import ACTION_SUBSECTIONS, group_action_items
+from action_items import group_action_items
 
 APP_DIR = Path(__file__).resolve().parent
 # In the VM deployment, app.py lives at viewer/webapp/app.py and the shared

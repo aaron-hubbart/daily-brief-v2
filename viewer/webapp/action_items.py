@@ -30,12 +30,13 @@ def group_action_items(items, today_iso: str):
          over the date-based groups below so a brand-new overdue-looking
          task still shows up under "New Items", not "Overdue".
       2. overdue — content.due_on is set and before today.
-      3. due-soon — content.due_on is set and within the next 7 days
-         (inclusive of today).
-      4. no-due-date — everything else: no due_on at all, or a non-Asana
+      3. due-today — content.due_on is set and equal to today.
+      4. due-soon — content.due_on is set and within the next 7 days
+         (after today, up to and including 7 days out).
+      5. no-due-date — everything else: no due_on at all, or a non-Asana
          action item with no natural date.
 
-    Items are sorted by due_on ascending within groups 2 and 3; group 4
+    Items are sorted by due_on ascending within groups 2-4; group 5
     keeps upstream display_order (already priority-ordered by the skill)
     since there's no date to sort on, and group 1 does the same.
     Returns a list of {slug, label, items} dicts, omitting empty groups —
