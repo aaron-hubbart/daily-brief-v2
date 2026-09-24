@@ -155,7 +155,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 /* ── Content area ── */
 .viewer-wrap{flex:1;overflow-y:auto;min-height:0;}
 /* Brighter FYI text when rendered inside viewer */
-#brief-content .fyi-lbl{color:var(--t1);}
 #brief-content .fyi-txt{color:var(--t2);}
 #brief-content .isub{color:var(--t2);}
 /* ── Checked-item strikethrough (viewer-owned, loads before fragment CSS) ── */
@@ -365,6 +364,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
         </div>
         <button class="icon-btn" id="account-asana-disconnect" onclick="disconnectAsana()" style="display:none;">Disconnect Asana</button>
         <div class="account-msg" id="account-asana-msg"></div>
+        <hr class="account-hr">
+        <div class="account-row">Missing meeting transcripts</div>
+        <div style="display:flex;align-items:center;gap:8px;margin:8px 0 10px;">
+          <input type="checkbox" id="missing-transcript-asana-enabled" style="cursor:pointer;" onchange="saveMissingTranscriptAsanaPref()">
+          <label for="missing-transcript-asana-enabled" style="font-size:12.5px;color:var(--t2);cursor:pointer;">Create an Asana task when a meeting's recording/transcript can't be found</label>
+        </div>
+        <div class="account-msg" id="missing-transcript-asana-msg"></div>
         <hr class="account-hr">
         <div class="account-row">Slack notifications</div>
         <div style="display:flex;align-items:center;gap:8px;margin:8px 0 10px;">
@@ -1643,6 +1649,42 @@ async function initAccountTab() {
   refreshGoogleStatus();
   refreshAsanaStatus();
   loadNotificationPrefs();
+  loadMissingTranscriptAsanaPref();
+}
+
+// ── Missing-transcript Asana task toggle ────────────────────────
+async function loadMissingTranscriptAsanaPref() {
+  try {
+    const res = await fetch('api/settings/missing-transcript-asana-task');
+    if (!res.ok) return;
+    const d = await res.json();
+    document.getElementById('missing-transcript-asana-enabled').checked = d.missing_transcript_asana_task_enabled !== false;
+  } catch (e) { /* best effort — endpoint may not be available yet */ }
+}
+
+async function saveMissingTranscriptAsanaPref() {
+  const cb = document.getElementById('missing-transcript-asana-enabled');
+  const msg = document.getElementById('missing-transcript-asana-msg');
+  const enabled = cb.checked;
+  cb.disabled = true;
+  msg.className = 'account-msg';
+  msg.textContent = 'Saving…';
+  try {
+    const res = await fetch('api/settings/missing-transcript-asana-task', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ missing_transcript_asana_task_enabled: enabled }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    msg.className = 'account-msg ok';
+    msg.textContent = 'Saved.';
+  } catch (e) {
+    cb.checked = !enabled;
+    msg.className = 'account-msg err';
+    msg.textContent = 'Could not save — try again.';
+  } finally {
+    cb.disabled = false;
+  }
 }
 
 // ── Notification preferences (Slack) ────────────────────────────

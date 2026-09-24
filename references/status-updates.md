@@ -45,7 +45,7 @@ Same cache gate as Sections 3/4 above, keyed by `team_standup` in `STATUS_UPDATE
 
 **Source data:** no new data pulls. Synthesize over the same "organize by customer account or internal initiative" buckets already computed for Section 2 (Today/Tomorrow Ahead — see `SKILL.md`), plus Action Items due today folded in per account/initiative. Include one bullet per account/initiative with something on today's docket (a meeting or a due-today action item); omit anything with nothing to report, same rule used everywhere else in this skill. A "Training" bullet appears under Internal only when a calendar block or task actually indicates a training session today.
 
-**Format** — plain text in `content.textarea`, two fixed top-level groups, each bullet a short name-plus-note line:
+**Format** — plain text in `content.textarea`, two fixed top-level groups, each bullet a short name-plus-note line. **Never include a time** (meeting start time, due time, etc.) in any bullet, Customer or Internal — this is a terse Geekbot-ready recap, and clock times are a detail the post doesn't need:
 
 ```
 Customer
@@ -62,10 +62,10 @@ Example (fictional names only):
 ```
 Customer
 - Acme, Inc. — renewal call prep, contract review due
-- Test Customer — quarterly business review at 2pm
+- Test Customer — quarterly business review
 
 Internal
-- Training — 10am required compliance session
+- Training — required compliance session
 - AI-First CS Tiger Team — PR review with a teammate
 ```
 

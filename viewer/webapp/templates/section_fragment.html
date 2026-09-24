@@ -47,13 +47,7 @@
 
 {% if section_slug == 'fyi' %}
   {% for item in section_items %}
-  <div class="fyi-item" data-id="{{ item.item_key }}">
-    <div class="fyi-dot"></div>
-    <div>
-      <div class="fyi-lbl">{{ item.title|autolink_jira }}</div>
-      <div class="fyi-txt">{{ item.subtitle|autolink_jira }}</div>
-    </div>
-  </div>
+  {{ checkable_item(item) }}
   {% endfor %}
 
 {% elif section_slug == 'customer-updates' %}

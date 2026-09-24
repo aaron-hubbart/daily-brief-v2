@@ -1083,6 +1083,48 @@ def api_notification_prefs_update():
     return jsonify({'status': 'ok'})
 
 
+@app.route('/api/settings/missing-transcript-asana-task')
+@login_required
+def api_missing_transcript_asana_task_status():
+    """Returns whether the skill should create an Asana task when it can't
+    find a recording/transcript for a meeting (SKILL.md's Yesterday's
+    Meetings checklist, item 4). Read from config.json on Drive — this is a
+    skill behavior toggle, not a webapp-only preference, so it lives
+    alongside the skill's other settings rather than in Postgres. Defaults
+    to enabled (True) when the field has never been set, matching the
+    skill's existing behavior before this toggle existed."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    config = gdrive_briefs.read_config(google_token, folder_id)
+    if config is None:
+        return jsonify({'error': 'Could not read config.json'}), 500
+    return jsonify({
+        'missing_transcript_asana_task_enabled': config.get('missing_transcript_asana_task_enabled', True),
+    })
+
+
+@app.route('/api/settings/missing-transcript-asana-task', methods=['PATCH'])
+@login_required
+def api_missing_transcript_asana_task_update():
+    """Saves the missing-transcript Asana task toggle back to config.json."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    body = request.get_json(silent=True) or {}
+    if 'missing_transcript_asana_task_enabled' not in body:
+        return jsonify({'error': 'missing_transcript_asana_task_enabled (bool) is required'}), 400
+    enabled = bool(body['missing_transcript_asana_task_enabled'])
+    result = gdrive_briefs.write_config(
+        {'missing_transcript_asana_task_enabled': enabled}, google_token, folder_id,
+    )
+    if result is not True:
+        msg = result if isinstance(result, str) else 'Failed to write config.json'
+        return jsonify({'error': msg}), 500
+    return jsonify({'ok': True, 'missing_transcript_asana_task_enabled': enabled})
+
 
 # ── Customer list management ─────────────────────────────────────────
 

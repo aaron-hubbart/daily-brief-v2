@@ -87,9 +87,12 @@ Everything else lives in `/config/config.json` inside your brief-data Drive fold
   "recurring_activities_project_gid": "...",
   "status_update_cache_file_id": "...",
   "slack_user_id": "UXXXXXXXXXX",
-  "key_contacts": ["First Last", "..."]
+  "key_contacts": ["First Last", "..."],
+  "missing_transcript_asana_task_enabled": true
 }
 ```
+
+`missing_transcript_asana_task_enabled` defaults to `true` (create an Asana task asking for the missing recording/transcript, per `SKILL.md`'s Yesterday's Meetings checklist) and can be toggled off from the hosted webapp's Settings → Account tab, without touching any other `config.json` field.
 
 `account-config.json` is a separate file in the same `/config` folder holding the per-account mapping (name, tier, run day, main + supporting Slack channels, Asana board, docs folder); the First-Run Setup flow builds and updates it for you (discover → confirm) — see `references/item-sync.md`. Accounts are tiered: primary accounts run every day; secondary accounts run one configured weekday per week (with catch-up if a run day is missed) and appear in their own brief subsection, hidden on other days.
 

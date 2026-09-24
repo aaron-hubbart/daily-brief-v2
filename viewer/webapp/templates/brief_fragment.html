@@ -65,10 +65,6 @@ details.sec>.sec-body{padding:4px 14px 10px;}
 .lbtn{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:500;padding:3px 8px;border-radius:var(--r);text-decoration:none;border:.5px solid var(--border-strong);color:var(--t2);background:var(--surface);cursor:pointer;white-space:nowrap;transition:filter .1s;}
 .lbtn:hover{filter:brightness(.95);}
 .lbtn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
-.fyi-item{display:flex;gap:10px;padding:8px 0;border-bottom:.5px solid var(--border);}
-.fyi-item:last-child{border-bottom:none;}
-.fyi-dot{width:4px;height:4px;border-radius:50%;background:var(--t3);flex-shrink:0;margin-top:7px;}
-.fyi-lbl{font-size:11px;font-weight:600;color:var(--t2);margin-bottom:2px;}
 .fyi-txt{font-size:12px;color:var(--t2);line-height:1.45;}
 .acct-card{border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden;}
 .board-group{margin:10px 0;}
@@ -168,17 +164,6 @@ details.sec>.sec-body{padding:4px 14px 10px;}
       {% else %}
       {# Non-progressive fallback (not currently used but kept for safety) #}
       {% set section_items = items_by_section.get(section.slug, []) %}
-      {% if section.slug == 'fyi' %}
-        {% for item in section_items %}
-        <div class="fyi-item" data-id="{{ item.item_key }}">
-          <div class="fyi-dot"></div>
-          <div>
-            <div class="fyi-lbl">{{ item.title|autolink_jira }}</div>
-            <div class="fyi-txt">{{ item.subtitle|autolink_jira }}</div>
-          </div>
-        </div>
-        {% endfor %}
-      {% else %}
         {% for item in section_items %}
         <div class="item{% if item.checked %} done{% endif %}" data-id="{{ item.item_key }}">
           <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
@@ -188,7 +173,6 @@ details.sec>.sec-body{padding:4px 14px 10px;}
           </div>
         </div>
         {% endfor %}
-      {% endif %}
       {% endif %}
     </div>
   </details>
