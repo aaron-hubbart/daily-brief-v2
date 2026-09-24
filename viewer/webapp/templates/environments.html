@@ -131,9 +131,63 @@ let dirty = false;
 const COMPONENT_OPTIONS = ['Zeebe', 'Operate', 'Tasklist', 'Optimize', 'Connectors'];
 const STANDARD_ENV_NAMES = ['Production', 'Staging', 'QA/Test', 'Development', 'Sandbox', 'DR/Failover'];
 
-let MY_CUSTOMER_NAMES = new Set();
+let MY_CUSTOMER_NORMALIZED = new Set();
 let filterRegion = localStorage.getItem('env-tab:region') || '';
 let filterMyCustomers = localStorage.getItem('env-tab:my-customers') === '1';
+const MY_CUSTOMERS_FUZZY_THRESHOLD = 0.72;
+
+// Normalizes a customer name for comparison: lowercase, trim, collapse
+// whitespace, and drop common legal-entity suffixes/punctuation, so
+// "Acme Corp." and "acme corp" are treated as the same customer.
+function normalizeCustomerName(name) {
+  return (name || '')
+    .toLowerCase()
+    .replace(/[.,]/g, '')
+    .replace(/\b(inc|llc|ltd|corp|corporation|co)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Dice's coefficient over character bigrams — a cheap, dependency-free
+// string-similarity score in [0, 1], used only as a fallback when two
+// normalized names aren't exactly equal (e.g. abbreviations or reordered
+// words) so the "My Customers" toggle doesn't undercount its own list.
+function bigramSimilarity(a, b) {
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+  const bigrams = s => {
+    const set = new Map();
+    for (let i = 0; i < s.length - 1; i++) {
+      const bg = s.slice(i, i + 2);
+      set.set(bg, (set.get(bg) || 0) + 1);
+    }
+    return set;
+  };
+  const bgA = bigrams(a);
+  const bgB = bigrams(b);
+  let overlap = 0;
+  bgA.forEach((count, bg) => {
+    if (bgB.has(bg)) overlap += Math.min(count, bgB.get(bg));
+  });
+  const totalA = Array.from(bgA.values()).reduce((s, c) => s + c, 0);
+  const totalB = Array.from(bgB.values()).reduce((s, c) => s + c, 0);
+  return (2 * overlap) / (totalA + totalB);
+}
+
+// Whether `name` (an Environments-portfolio project name) is one of the
+// signed-in user's own accounts. Tries an exact normalized match first,
+// then falls back to fuzzy similarity — the portfolio and
+// account-config.json are independently maintained name lists, so exact
+// byte-for-byte matches understate the real overlap.
+function isMyCustomer(name) {
+  const normalized = normalizeCustomerName(name);
+  if (MY_CUSTOMER_NORMALIZED.has(normalized)) return true;
+  let best = 0;
+  MY_CUSTOMER_NORMALIZED.forEach(candidate => {
+    best = Math.max(best, bigramSimilarity(normalized, candidate));
+  });
+  return best >= MY_CUSTOMERS_FUZZY_THRESHOLD;
+}
 let addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
 
 let expandedIds = new Set();
@@ -222,7 +276,9 @@ async function load() {
     STATE = await envResp.json();
     if (custResp && custResp.ok) {
       const custConfig = await custResp.json();
-      MY_CUSTOMER_NAMES = new Set((custConfig.accounts || []).map(a => a.account_name));
+      MY_CUSTOMER_NORMALIZED = new Set(
+        (custConfig.accounts || []).map(a => normalizeCustomerName(a.account_name))
+      );
     }
     renderCustomerSelect();
   } catch(e) {
@@ -246,7 +302,7 @@ function customerTheater(name) {
 
 function visibleCustomerNames() {
   let names = (STATE.in_scope_customers || []).map(c => c.name);
-  if (filterMyCustomers) names = names.filter(n => MY_CUSTOMER_NAMES.has(n));
+  if (filterMyCustomers) names = names.filter(isMyCustomer);
   if (filterRegion) names = names.filter(n => customerTheater(n) === filterRegion);
   return names;
 }
