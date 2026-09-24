@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # and is shared with the local single-user server.py — copy it in rather than
 # duplicating it.
 COPY daily-brief-viewer.html ./
-COPY webapp/app.py webapp/db.py webapp/gdrive_briefs.py webapp/asana_discovery.py webapp/archive_briefs.py webapp/gunicorn.conf.py ./
+COPY webapp/app.py webapp/db.py webapp/gdrive_briefs.py webapp/asana_discovery.py webapp/archive_briefs.py webapp/action_items.py webapp/gunicorn.conf.py ./
 COPY webapp/templates/ ./templates/
 
 RUN chown -R appuser:appuser /app
