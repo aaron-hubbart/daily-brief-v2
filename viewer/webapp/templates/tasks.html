@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Brief · Tasks</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#f5f4f1; --surface:#fff; --surface2:#f0efe9; --border:#e2e0d8; --border-strong:#c8c6bc;
+  --t1:#1a1916; --t2:#5a5850; --t3:#9a9890;
+  --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
+  --good-bg:#eef7ee; --good-t:#2a7a34; --bad-bg:#fef1f0; --bad-t:#b02520;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",monospace; --r:5px;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#18181b; --surface:#1e1e22; --surface2:#26262c; --border:#2c2c32; --border-strong:#3c3c44;
+  --t1:#e6e4de; --t2:#9a9890; --t3:#5a5850;
+  --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
+  --good-bg:#122415; --good-t:#5cc26a; --bad-bg:#280e0e; --bad-t:#e06868;
+}}
+html{font-size:14px;}
+body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5;padding:24px 16px 60px;max-width:760px;margin:0 auto;}
+.head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1.5px solid var(--border-strong);}
+.head h1{font-size:19px;font-weight:600;letter-spacing:-.025em;}
+.head .sub{font-size:12px;color:var(--t3);}
+a.back{font-size:12px;color:var(--accent-t);text-decoration:none;}
+a.back:hover{text-decoration:underline;}
+.hint{font-size:12.5px;color:var(--t3);padding:12px 0;}
+.empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
+details.group{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);margin-bottom:12px;overflow:hidden;}
+details.group summary{padding:10px 14px;background:var(--surface2);font-size:12px;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center;list-style:none;}
+details.group summary::-webkit-details-marker{display:none;}
+.group-count{font-size:10.5px;font-weight:500;color:var(--t3);}
+.group-body{padding:4px 14px 8px;}
+.board-name{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:8px 0 4px;}
+.task-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:.5px solid var(--border);}
+.task-row:last-child{border-bottom:none;}
+.task-row.removing{opacity:.4;}
+.task-check{margin-top:3px;cursor:pointer;}
+.task-body{flex:1;font-size:12.5px;}
+.task-title{color:var(--t1);}
+.task-due{font-size:10.5px;color:var(--t3);margin-top:2px;}
+.task-links{flex-shrink:0;}
+.lbtn{font-size:10.5px;color:var(--accent-t);text-decoration:none;white-space:nowrap;}
+.lbtn:hover{text-decoration:underline;}
+.badge{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:99px;background:var(--surface2);color:var(--t2);}
+.badge.bwarn{background:var(--bad-bg);color:var(--bad-t);}
+.toast-container{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;}
+.toast{padding:10px 20px;border-radius:var(--r);font-size:13px;font-weight:500;pointer-events:auto;
+  opacity:0;transform:translateY(-12px);animation:toast-in .25s ease forwards;}
+.toast.err{background:var(--bad-bg);color:var(--bad-t);border:1px solid var(--bad-t);}
+.toast.out{animation:toast-out .25s ease forwards;}
+@keyframes toast-in{to{opacity:1;transform:translateY(0);}}
+@keyframes toast-out{from{opacity:1;transform:translateY(0);}to{opacity:0;transform:translateY(-12px);}}
+</style>
+</head>
+<body>
+<div class="toast-container" id="toast-container"></div>
+
+<div class="head">
+  <div>
+    <a class="back" href="{{ url_for('index') }}">&larr; Back to briefs</a>
+    <h1>Tasks</h1>
+    <div class="sub">Signed in as {{ user_email }}</div>
+  </div>
+</div>
+
+<div id="tasks-body"><div class="empty">Loading&hellip;</div></div>
+
+<script>
+const BASE = document.querySelector('base')?.href || '';
+
+async function load() {
+  const body = document.getElementById('tasks-body');
+  try {
+    const r = await fetch(`${BASE}api/tasks`, {credentials:'include'});
+    if (!r.ok) throw new Error(r.statusText);
+    const data = await r.json();
+    body.innerHTML = data.html || '<div class="empty">Nothing open — you\'re all caught up.</div>';
+    wireCheckboxes();
+  } catch(e) {
+    body.innerHTML = `<div class="empty" style="color:var(--bad-t)">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function wireCheckboxes() {
+  document.querySelectorAll('.task-check').forEach(cb => {
+    cb.addEventListener('change', onCheck);
+  });
+}
+
+async function onCheck(e) {
+  const checkbox = e.target;
+  const row = checkbox.closest('.task-row');
+  const itemKey = row.dataset.itemKey;
+  const checked = checkbox.checked;
+
+  // Optimistic: remove immediately rather than waiting for a full refetch,
+  // per the Tasks tab design spec's "Marking complete" section.
+  row.classList.add('removing');
+  checkbox.disabled = true;
+
+  try {
+    const r = await fetch(`${BASE}api/tasks/${encodeURIComponent(itemKey)}/checked`, {
+      method: 'PATCH', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({checked}),
+    });
+    if (!r.ok) throw new Error(r.statusText);
+    const data = await r.json();
+    if (!data.asana_synced) throw new Error('Asana sync failed');
+    setTimeout(() => row.remove(), 200);
+  } catch(err) {
+    row.classList.remove('removing');
+    checkbox.disabled = false;
+    checkbox.checked = !checked;
+    showToast("Couldn't sync to Asana — try again", 'err', 5000);
+  }
+}
+
+function showToast(text, type, duration) {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = text;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('out');
+    el.addEventListener('animationend', () => el.remove());
+  }, duration);
+}
+
+load();
+</script>
+</body>
+</html>
