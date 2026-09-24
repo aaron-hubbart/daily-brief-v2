@@ -104,36 +104,46 @@ show up rather than speculatively now.
 
 ## Customer list scope
 
-Shows only customers judged in-scope by **Salesforce `Success Tier`**:
+**Superseded from an earlier draft of this spec**, which proposed a
+Salesforce `Success Tier` lookup. That required a new service credential
+and an unconfirmed custom-field name, and has been replaced with a much
+simpler mechanism using data already flowing through this app:
 
-- Research into "Enterprise Success" turned up no queryable field or
-  status by that name — it exists only as free-text Opportunity naming
-  (e.g. "... - Enterprise Success Plan"). `Success Tier` (values seen:
-  Deal-Level / Enterprise / Essential) is a related-but-distinct existing
-  field on Opportunity records, and is what this filter uses instead, per
-  your call.
-- Proposed mapping, carrying over the active/pending distinction from the
-  original ask: a customer is **in scope** if they have any Opportunity with
-  `Success Tier = Enterprise`; **active** if that Opportunity is Closed Won,
-  **pending** if it's open (any non-closed-lost stage). Flag if this isn't
-  the right read of "active/pending" once you see it in practice — easy to
-  adjust, since it's one query.
-- **New integration**: nothing in this app talks to Salesforce today. Adds
-  a shared, app-level service credential (same pattern as the existing
-  `SLACK_BOT_TOKEN` — one org-wide secret, not per-user OAuth), via
-  `simple-salesforce` (already vendored locally for reference, and on
-  PyPI). The exact custom-field API name for `Success Tier` (e.g. something
-  like `Success_Tier__c`) needs confirming against the real schema — Support
-  or RevOps can confirm it — before this part is implemented; the query
-  itself is written as configurable (an env var), not hardcoded, so
-  correcting it later is a one-line change.
-- Results cached the same 5 minutes as the Drive config lookups, to avoid
-  hitting Salesforce on every page load.
+Shows only customers with a project in a specific **Asana portfolio**
+(`https://app.asana.com/0/portfolio/1209916881329688/1209923685916686` —
+`1209916881329688` is the portfolio GID; the second ID is the portfolio
+view, not needed for the API call). One project per customer in that
+portfolio, per your description — a customer is in scope if their
+`account-config.json` account name matches the name of a project currently
+in the portfolio.
+
+- **No new integration**: this app already talks to Asana (per-user stored
+  PAT, same one Tasks/Customers already use). Uses Asana's
+  `GET /portfolios/{portfolio_gid}/items` endpoint (returns the portfolio's
+  member projects) via the existing `_asana_api_get` helper — same call
+  shape `asana_discovery.py` already uses for a different Asana lookup.
+- **No active/pending distinction** carried over from the earlier
+  Salesforce draft — portfolio membership doesn't have a "stage" concept
+  the way a Salesforce Opportunity does, so a customer is simply in scope
+  or not. Revisit if you want finer-grained status later.
+- Matching is by project **name** against `account-config.json`'s
+  `account_name` values (same string match `asana_discovery.py` already
+  does for its own project-linking flow) — not by project GID, since
+  `account-config.json` doesn't currently store which project GID (if any)
+  corresponds to the portfolio entry.
+- Results cached 5 minutes (same TTL used elsewhere in this app for
+  Asana/Drive lookups), keyed by the signed-in user's PAT, to avoid a
+  portfolio fetch on every page load.
+- The portfolio GID above should be double-checked against a real
+  `GET /portfolios/{gid}/items` call before relying on it — Asana portfolio
+  URLs aren't fully standardized across UI versions, so confirm it returns
+  projects (not an error) before treating it as final; it's a one-line
+  config value to correct if wrong.
 
 ## UI
 
 New "Environments" nav entry alongside Brief / Tasks / Customers / Admin.
-Lists in-scope customers (from the Salesforce-backed lookup above), each
+Lists in-scope customers (from the Asana-portfolio-backed lookup above), each
 expandable to show a small **Teams** management list (add/rename/remove)
 and their environment(s) as cards below it; each environment's edit form
 includes a multi-select of that customer's teams for `team_ids`. Modeled
@@ -147,6 +157,8 @@ rest of the viewer.
 - `environments-config.json` read/write round-trips correctly against a
   stubbed Drive client (mirrors how `account-config.json`'s round-trip
   would be tested).
-- The Salesforce Success-Tier query function is isolated behind a small
-  wrapper so it can be unit-tested against a stubbed SOQL response rather
-  than a live Salesforce call.
+- The portfolio-membership lookup takes an injectable `fetch_fn` (same
+  signature `asana_discovery.find_new_projects` already uses:
+  `fetch_fn(pat, path, params) -> dict`), so it's unit-tested with a
+  hand-rolled fake — no network, no mocking library — exactly like
+  `test_asana_discovery.py` already does for that sibling function.
