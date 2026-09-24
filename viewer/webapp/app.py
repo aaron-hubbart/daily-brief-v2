@@ -1217,19 +1217,13 @@ def environments_page():
 @app.route('/api/environments/config')
 @login_required
 def api_environments_config():
-    """Returns saved environments-config.json data plus the current
-    in-scope customer name list (from the Asana portfolio)."""
-    google_token = db.get_google_refresh_token(request.brief_user['id'])
-    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
-    if not google_token:
-        return jsonify({'error': 'Google Drive not connected'}), 400
-    config = gdrive_briefs.read_environments_config(google_token, folder_id)
-    if config is None:
-        return jsonify({'error': 'Could not read environments-config.json'}), 500
-
+    """Returns the current in-scope customer name list (from the Asana
+    portfolio). Each customer's own teams/environments data is fetched
+    lazily via GET /api/environments/config/<account_name> once selected —
+    it lives in a separate Drive file per account, not here."""
     pat = db.get_asana_pat(request.brief_user['id'])
     if not pat:
-        return jsonify({'customers': config, 'in_scope_names': None, 'needs_pat': True})
+        return jsonify({'in_scope_names': None, 'needs_pat': True})
 
     try:
         in_scope_names = asana_discovery.get_portfolio_project_names(
@@ -1237,29 +1231,48 @@ def api_environments_config():
         )
     except (urllib.error.URLError, json.JSONDecodeError) as e:
         return jsonify({
-            'customers': config, 'in_scope_names': None,
+            'in_scope_names': None,
             'error': f'Could not load customer list from Asana: {e}',
         })
 
-    return jsonify({'customers': config, 'in_scope_names': in_scope_names})
+    return jsonify({'in_scope_names': in_scope_names})
 
 
-@app.route('/api/environments/config', methods=['PUT'])
+@app.route('/api/environments/config/<account_name>')
 @login_required
-def api_environments_config_update():
-    """Writes the full customers dict (teams + environments per customer)
-    back to environments-config.json."""
+def api_environments_account(account_name):
+    """Returns one account's {teams, environments} data, read from
+    <Account Name>-environments.json in that account's folder under the
+    Consulting > Customers Shared Drive."""
     google_token = db.get_google_refresh_token(request.brief_user['id'])
-    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    result = gdrive_briefs.read_account_environments(google_token, account_name)
+    if result is None:
+        return jsonify({'error': 'Could not read environments data from Drive'}), 500
+    if isinstance(result, str):
+        return jsonify({'error': result}), 404
+    return jsonify(result)
+
+
+@app.route('/api/environments/config/<account_name>', methods=['PUT'])
+@login_required
+def api_environments_account_update(account_name):
+    """Writes one account's {teams, environments} data back to
+    <Account Name>-environments.json in that account's folder under the
+    Consulting > Customers Shared Drive."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
     if not google_token:
         return jsonify({'error': 'Google Drive not connected'}), 400
     data = request.get_json(silent=True)
-    if not data or 'customers' not in data or not isinstance(data['customers'], dict):
-        return jsonify({'error': 'Invalid payload — must include a customers object'}), 400
-    result = gdrive_briefs.write_environments_config(data['customers'], google_token, folder_id)
+    if not data or not isinstance(data.get('teams'), list) or not isinstance(data.get('environments'), list):
+        return jsonify({'error': 'Invalid payload — must include teams and environments arrays'}), 400
+    result = gdrive_briefs.write_account_environments(
+        account_name, {'teams': data['teams'], 'environments': data['environments']}, google_token,
+    )
     if result is not True:
-        msg = result if isinstance(result, str) else 'Failed to write environments-config.json'
-        return jsonify({'error': msg}), 500
+        status = 404 if 'create the account folder' in result else 500
+        return jsonify({'error': result}), status
     return jsonify({'ok': True})
 
 

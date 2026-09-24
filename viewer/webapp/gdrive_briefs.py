@@ -15,6 +15,12 @@ Folder structure expected:
     accounts/              — per-account JSON files
     updates/               — per-account update JSON files
 
+  Environments data lives elsewhere: one JSON file per account under the
+  Consulting > Customers Shared Drive, at
+  <CONSULTING_CUSTOMERS_FOLDER_ID>/<Letter>/<Account Name>/<Account Name>-environments.json.
+  See read_account_environments/write_account_environments and
+  docs/superpowers/specs/2026-09-23-environments-tab-design.md.
+
 Performance notes:
   - Drive credentials are cached per refresh_token with a 45-minute TTL
     so token refresh (the single most expensive call) only happens once
@@ -604,19 +610,143 @@ def write_account_config(config_data: Dict, refresh_token: str,
         return f'Drive API error: {e}'
 
 
-_EMPTY_ENVIRONMENTS_CONFIG: Dict = {}
+_EMPTY_ACCOUNT_ENVIRONMENTS: Dict = {'teams': [], 'environments': []}
+
+# Consulting > Customers Shared Drive folder — one JSON file per account
+# lives at <this>/<Letter>/<Account Name>/<Account Name>-environments.json.
+# See docs/superpowers/specs/2026-09-23-environments-tab-design.md.
+CONSULTING_CUSTOMERS_FOLDER_ID = os.environ.get(
+    'CONSULTING_CUSTOMERS_FOLDER_ID', '10iTQ0DGu1_rrNzG6MQ5J6PFRnJKFVJhY')
+
+# {account_name.strip().lower(): ((folder_id, matched_drive_name), expiry)}
+_account_folder_cache: Dict[str, Tuple] = {}
 
 
-def read_environments_config(refresh_token: str, folder_id: Optional[str] = None) -> Optional[Dict]:
-    """Read the raw environments-config.json from Drive's /config
-    subfolder. Returns the parsed JSON dict, keyed by customer name (see
+def _letter_bucket(account_name: str) -> Optional[str]:
+    """First-letter bucket used by the Consulting > Customers folder
+    structure: a single uppercase letter (A-Z), or '1-9' for names
+    starting with a digit. None if the name fits neither (e.g. starts
+    with punctuation) — callers treat that as a lookup failure."""
+    name = account_name.strip()
+    if not name:
+        return None
+    first = name[0]
+    if first.isalpha():
+        return first.upper()
+    if first.isdigit():
+        return '1-9'
+    return None
+
+
+def _find_folder_in_shared_drive(drive, parent_id: str, name: str) -> Optional[str]:
+    """Like _find_folder_cached, but for a folder living in a Shared
+    Drive — Drive API calls against Shared Drive content need
+    supportsAllDrives/includeItemsFromAllDrives or they silently see
+    nothing."""
+    now = time.monotonic()
+    cache_key = f'shared/{parent_id}/{name}'
+
+    with _cache_lock:
+        cached = _folder_cache.get(cache_key)
+        if cached and cached[1] > now:
+            return cached[0]
+
+    query = f"parents='{parent_id}' and name='{name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    results = drive.files().list(
+        q=query, spaces='drive', pageSize=1, fields='files(id)',
+        supportsAllDrives=True, includeItemsFromAllDrives=True,
+    ).execute()
+    files = results.get('files', [])
+    if not files:
+        return None
+    folder_id = files[0]['id']
+
+    with _cache_lock:
+        _folder_cache[cache_key] = (folder_id, now + _FOLDER_TTL)
+    return folder_id
+
+
+def _list_all_files_in_shared_drive(drive, query: str, fields: str = 'files(id,name)') -> List[Dict]:
+    """Paginate through every file/folder matching a query in a Shared
+    Drive. A single 1000-item page isn't safe to assume here — real letter
+    folders under Consulting > Customers (e.g. 'B') already exceed the
+    default page size, so silently reading only page one risks a false
+    'account folder not found'."""
+    files: List[Dict] = []
+    page_token = None
+    while True:
+        results = drive.files().list(
+            q=query, spaces='drive', pageSize=1000,
+            fields=f'nextPageToken,{fields}',
+            supportsAllDrives=True, includeItemsFromAllDrives=True,
+            pageToken=page_token,
+        ).execute()
+        files.extend(results.get('files', []))
+        page_token = results.get('nextPageToken')
+        if not page_token:
+            return files
+
+
+def _find_account_folder(drive, account_name: str) -> Optional[Tuple[str, str]]:
+    """Resolve an account name to its (folder_id, exact_drive_name) under
+    Consulting/Customers/<Letter>/<Account Name>. Matching is done in
+    Python (not baked into the Drive query string) so names with quotes
+    or other special characters can't break the query, and so we can
+    fall back to a case-insensitive match. Returns None if the letter
+    folder or the account folder itself doesn't exist — this Shared
+    Drive is human-curated, so a missing account folder is a lookup
+    failure, not something this app creates on your behalf."""
+    now = time.monotonic()
+    cache_key = account_name.strip().lower()
+    with _cache_lock:
+        cached = _account_folder_cache.get(cache_key)
+        if cached and cached[1] > now:
+            return cached[0]
+
+    letter = _letter_bucket(account_name)
+    if not letter:
+        return None
+    letter_folder_id = _find_folder_in_shared_drive(drive, CONSULTING_CUSTOMERS_FOLDER_ID, letter)
+    if not letter_folder_id:
+        return None
+
+    name = account_name.strip()
+    query = (
+        f"parents='{letter_folder_id}' and mimeType='application/vnd.google-apps.folder' "
+        f"and trashed=false"
+    )
+    candidates = _list_all_files_in_shared_drive(drive, query)
+
+    match = next((f for f in candidates if f['name'].strip() == name), None)
+    if not match:
+        lowered = name.lower()
+        match = next((f for f in candidates if f['name'].strip().lower() == lowered), None)
+    if not match:
+        return None
+
+    resolved = (match['id'], match['name'].strip())
+    with _cache_lock:
+        _account_folder_cache[cache_key] = (resolved, now + _FOLDER_TTL)
+    return resolved
+
+
+def _account_not_found_error(account_name: str) -> str:
+    letter = _letter_bucket(account_name) or '?'
+    return (f"No Drive folder found for '{account_name}' under "
+            f"Consulting > Customers > {letter} — create the account "
+            f"folder in Drive first.")
+
+
+def read_account_environments(refresh_token: str, account_name: str) -> Optional[Dict]:
+    """Read <Account Name>-environments.json from that account's folder
+    under the Consulting > Customers Shared Drive (see
     docs/superpowers/specs/2026-09-23-environments-tab-design.md for the
-    shape). A missing /config folder or environments-config.json is not an
-    error — it just means no customer has saved one yet, so an empty dict
-    is returned so the management UI can bootstrap it. Returns None only
-    on an actual Drive/auth failure."""
-    parent_folder = folder_id or BRIEFS_FOLDER_ID
-    if not parent_folder or not refresh_token:
+    folder layout and JSON shape). Returns {"teams": [...], "environments":
+    [...]} — empty defaults if the account folder exists but no one has
+    saved a file yet. Returns a string (not a dict) if the account folder
+    itself can't be found, so the route can surface it directly as an
+    error message. Returns None only on an actual Drive/auth failure."""
+    if not refresh_token:
         return None
 
     try:
@@ -624,39 +754,33 @@ def read_environments_config(refresh_token: str, folder_id: Optional[str] = None
         if not drive:
             return None
 
-        config_folder_id = _find_folder_cached(drive, parent_folder, 'config')
-        if not config_folder_id:
-            logger.info('read_environments_config: no /config folder found — returning empty config')
-            return dict(_EMPTY_ENVIRONMENTS_CONFIG)
+        match = _find_account_folder(drive, account_name)
+        if not match:
+            return _account_not_found_error(account_name)
+        account_folder_id, matched_name = match
 
-        query = (
-            f"parents='{config_folder_id}' "
-            f"and name='environments-config.json' "
-            f"and trashed=false"
-        )
-        results = drive.files().list(
-            q=query, spaces='drive', pageSize=1, fields='files(id)',
-        ).execute()
-        files = results.get('files', [])
-        if not files:
-            logger.info('read_environments_config: environments-config.json not found — returning empty config')
-            return dict(_EMPTY_ENVIRONMENTS_CONFIG)
+        file_name = f'{matched_name}-environments.json'
+        query = f"parents='{account_folder_id}' and trashed=false"
+        existing_files = _list_all_files_in_shared_drive(drive, query)
+        file_match = next((f for f in existing_files if f['name'] == file_name), None)
+        if not file_match:
+            logger.info('read_account_environments: %s not found — returning empty defaults', file_name)
+            return dict(_EMPTY_ACCOUNT_ENVIRONMENTS)
 
-        return _download_json(drive, files[0]['id'])
+        content = drive.files().get_media(fileId=file_match['id'], supportsAllDrives=True).execute()
+        return json.loads(content)
 
     except Exception as e:
-        logger.error('read_environments_config: %s', e, exc_info=True)
+        logger.error('read_account_environments: %s', e, exc_info=True)
         return None
 
 
-def write_environments_config(config_data: Dict, refresh_token: str,
-                               folder_id: Optional[str] = None) -> Union[bool, str]:
-    """Write environments-config.json back to Drive. Creates the /config
-    folder and/or the environments-config.json file if either doesn't
-    exist yet. Returns True on success, or an error string on failure."""
-    parent_folder = folder_id or BRIEFS_FOLDER_ID
-    if not parent_folder:
-        return 'No Drive folder configured'
+def write_account_environments(account_name: str, data: Dict, refresh_token: str) -> Union[bool, str]:
+    """Write <Account Name>-environments.json into that account's folder
+    under Consulting > Customers. Creates the file on first write, but
+    (like read_account_environments) requires the account folder to
+    already exist. Returns True on success, or an error string
+    otherwise."""
     if not refresh_token:
         return 'No Google refresh token — re-link Google Drive'
 
@@ -668,46 +792,35 @@ def write_environments_config(config_data: Dict, refresh_token: str,
         if not drive:
             return 'Could not authenticate with Google Drive — re-link Google Drive'
 
-        config_folder_id = _find_folder_cached(drive, parent_folder, 'config')
-        if not config_folder_id:
-            logger.info('write_environments_config: no /config folder found — creating it')
-            folder_metadata = {
-                'name': 'config',
-                'mimeType': 'application/vnd.google-apps.folder',
-                'parents': [parent_folder],
-            }
-            created_folder = drive.files().create(body=folder_metadata, fields='id').execute()
-            config_folder_id = created_folder['id']
-            with _cache_lock:
-                _folder_cache[f'{parent_folder}/config'] = (config_folder_id, time.monotonic() + _FOLDER_TTL)
+        match = _find_account_folder(drive, account_name)
+        if not match:
+            return _account_not_found_error(account_name)
+        account_folder_id, matched_name = match
 
-        query = (
-            f"parents='{config_folder_id}' "
-            f"and name='environments-config.json' "
-            f"and trashed=false"
-        )
-        results = drive.files().list(
-            q=query, spaces='drive', pageSize=1, fields='files(id)',
-        ).execute()
-        files = results.get('files', [])
+        file_name = f'{matched_name}-environments.json'
+        query = f"parents='{account_folder_id}' and trashed=false"
+        existing_files = _list_all_files_in_shared_drive(drive, query)
+        existing = next((f for f in existing_files if f['name'] == file_name), None)
 
-        payload = json.dumps(config_data, indent=2).encode('utf-8')
+        payload = json.dumps(data, indent=2).encode('utf-8')
         media = MediaIoBaseUpload(BytesIO(payload), mimetype='application/json', resumable=False)
 
-        if not files:
-            logger.info('write_environments_config: environments-config.json not found — creating it')
-            file_metadata = {'name': 'environments-config.json', 'parents': [config_folder_id]}
-            created_file = drive.files().create(body=file_metadata, media_body=media, fields='id').execute()
-            file_id = created_file['id']
+        if not existing:
+            logger.info('write_account_environments: %s not found — creating it', file_name)
+            file_metadata = {'name': file_name, 'parents': [account_folder_id]}
+            drive.files().create(
+                body=file_metadata, media_body=media, fields='id', supportsAllDrives=True,
+            ).execute()
         else:
-            file_id = files[0]['id']
-            drive.files().update(fileId=file_id, media_body=media).execute()
+            drive.files().update(
+                fileId=existing['id'], media_body=media, supportsAllDrives=True,
+            ).execute()
 
-        logger.info('write_environments_config: saved environments-config.json (file_id=%s)', file_id)
+        logger.info('write_account_environments: saved %s', file_name)
         return True
 
     except Exception as e:
-        logger.error('write_environments_config: %s', e, exc_info=True)
+        logger.error('write_account_environments: %s', e, exc_info=True)
         return f'Drive API error: {e}'
 
 
