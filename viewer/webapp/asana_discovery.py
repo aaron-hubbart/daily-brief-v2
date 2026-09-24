@@ -123,10 +123,13 @@ def match_accounts_to_theaters(
     here. Any account left unmatched (no project_gid, or one not present in
     this portfolio) is fuzzy-matched by name against whichever portfolio
     items no other account has already claimed, using a normalized
-    difflib.SequenceMatcher ratio; the best-scoring available item above
-    fuzzy_threshold is claimed. An account with no candidate above the
-    threshold is left out of scope entirely (same behavior as today's
-    exact-match-only logic, just with better recall).
+    difflib.SequenceMatcher ratio; the best-scoring available item at or
+    above fuzzy_threshold is claimed, with globally higher-scoring
+    (account, item) pairs assigned before lower-scoring ones so a
+    lower-scoring account can't claim an item a better-scoring account
+    also wants. An account with no candidate above the threshold is left
+    out of scope entirely (same behavior as today's exact-match-only
+    logic, just with better recall).
 
     Returns [{"name": account_name, "theater": theater_or_none}, ...]
     sorted by name (case-insensitive).
@@ -147,21 +150,35 @@ def match_accounts_to_theaters(
         else:
             unmatched_accounts.append(account)
 
+    # Build every (score, account_name, item) candidate at or above
+    # fuzzy_threshold, skipping items already claimed by the exact-match
+    # pass above. Accounts are iterated in alphabetical order so that the
+    # subsequent stable sort-by-score-descending preserves that order as
+    # the tie-break between equal scores.
+    candidates: List[tuple] = []
     for account in sorted(unmatched_accounts, key=lambda a: a['account_name'].lower()):
         name = account['account_name']
         normalized_name = _normalize_name(name)
-        best_item = None
-        best_score = 0.0
         for item in portfolio_items:
             if item['gid'] in claimed_gids:
                 continue
             score = SequenceMatcher(None, normalized_name, _normalize_name(item['name'])).ratio()
-            if score > best_score:
-                best_score = score
-                best_item = item
-        if best_item and best_score >= fuzzy_threshold:
-            results.append({'name': name, 'theater': best_item.get('theater')})
-            claimed_gids.add(best_item['gid'])
+            if score >= fuzzy_threshold:
+                candidates.append((score, name, item))
+
+    # Assign the globally best-scoring pair first, not each account's own
+    # best pick — otherwise an account processed earlier (alphabetically)
+    # could claim an item that a later account would have scored higher
+    # against.
+    candidates.sort(key=lambda c: c[0], reverse=True)
+
+    matched_names: Set[str] = set()
+    for score, name, item in candidates:
+        if name in matched_names or item['gid'] in claimed_gids:
+            continue
+        results.append({'name': name, 'theater': item.get('theater')})
+        claimed_gids.add(item['gid'])
+        matched_names.add(name)
 
     results.sort(key=lambda r: r['name'].lower())
     return results

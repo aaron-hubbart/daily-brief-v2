@@ -210,6 +210,22 @@ def test_match_accounts_to_theaters_two_accounts_competing_for_one_name_only_bes
     assert result == [{'name': 'Acme Corp', 'theater': 'AMER'}]
 
 
+def test_match_accounts_to_theaters_tie_break_uses_global_best_score_not_alphabetical_order():
+    # "Alpine Corporation" (0.7778) and "Ardent Corporation" (0.8333) both
+    # score above the 0.72 threshold against the single "Widget
+    # Corporation" item. Alphabetically, Alpine sorts first, but Ardent
+    # is the better match and must win the item — Alpine must be left
+    # unmatched rather than greedily grabbed by whichever account is
+    # processed first.
+    accounts = [
+        {'account_name': 'Alpine Corporation', 'project_gid': None},
+        {'account_name': 'Ardent Corporation', 'project_gid': None},
+    ]
+    items = [{'gid': 'p1', 'name': 'Widget Corporation', 'theater': 'AMER'}]
+    result = match_accounts_to_theaters(accounts, items)
+    assert result == [{'name': 'Ardent Corporation', 'theater': 'AMER'}]
+
+
 def test_match_accounts_to_theaters_sorted_by_name():
     accounts = [
         {'account_name': 'Zebra Corp', 'project_gid': 'p2'},
