@@ -1371,6 +1371,26 @@ def api_tasks():
     return jsonify({'html': html, 'count': total_count})
 
 
+@app.route('/api/tasks/<item_key>/checked', methods=['PATCH'])
+@login_required
+def set_task_checked(item_key):
+    """Marks an open task complete/incomplete directly in Asana. Unlike
+    /api/items/<section>/<item_key>/checked, there's no Postgres row
+    backing this up — these items are never persisted (see
+    api_tasks/_fetch_live_action_items) — so a failed Asana write has
+    nothing else to fall back on; the client surfaces asana_synced=false
+    as an error rather than treating the checkbox as settled."""
+    body = request.get_json(silent=True) or {}
+    if 'checked' not in body:
+        abort(400, 'checked (bool) is required')
+    checked = bool(body['checked'])
+    pat = db.get_asana_pat(request.brief_user['id'])
+    attempted, ok = _sync_asana_completed(pat, item_key, checked)
+    if not attempted:
+        abort(404)
+    return jsonify({'status': 'ok', 'asana_synced': ok})
+
+
 @app.route('/api/brief/<date_str>/section/<slug>')
 @login_required
 def api_section(date_str, slug):
