@@ -1430,7 +1430,10 @@ def api_tasks():
     action_subsections = group_action_items(live_items, today_iso)
     total_count = sum(len(g['items']) for g in action_subsections)
 
-    html = render_template('tasks_fragment.html', action_subsections=action_subsections, asana_pat_configured=True)
+    html = render_template(
+        'tasks_fragment.html', action_subsections=action_subsections,
+        asana_pat_configured=True, today_iso=today_iso,
+    )
     return jsonify({'html': html, 'count': total_count})
 
 
@@ -1449,6 +1452,29 @@ def set_task_checked(item_key):
     checked = bool(body['checked'])
     pat = db.get_asana_pat(request.brief_user['id'])
     attempted, ok = _sync_asana_completed(pat, item_key, checked)
+    if not attempted:
+        abort(404)
+    return jsonify({'status': 'ok', 'asana_synced': ok})
+
+
+@app.route('/api/tasks/<item_key>/due-date', methods=['PATCH'])
+@login_required
+def set_task_due_date(item_key):
+    """Sets the due date on an open task directly in Asana. Same
+    no-Postgres-row situation as set_task_checked above — these items are
+    the live, unpersisted Asana pull (see api_tasks) — so this always
+    writes straight to Asana rather than going through the brief's
+    Postgres-backed /api/items/<section>/<item_key>/due-date route. Mirrors
+    the Action Items due-date box: the four shortcut buttons and the raw
+    date input both funnel through here."""
+    body = request.get_json(silent=True) or {}
+    if 'due_on' not in body:
+        abort(400, 'due_on (YYYY-MM-DD or null) is required')
+    due_on = body['due_on']
+    if due_on is not None and not DATE_RE.match(due_on):
+        abort(400, 'due_on must be YYYY-MM-DD or null')
+    pat = db.get_asana_pat(request.brief_user['id'])
+    attempted, ok = _sync_asana_due_date(pat, item_key, due_on)
     if not attempted:
         abort(404)
     return jsonify({'status': 'ok', 'asana_synced': ok})
