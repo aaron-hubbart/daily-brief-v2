@@ -636,8 +636,8 @@ function environmentCardHtml(env, idx, teams) {
           <div><label>Console URL</label><input type="text" value="${escAttr(env.links.console_url)}" onchange="updateEnvNested(${idx}, 'links', 'console_url', this.value)"></div>
           <div><label>Support plan</label><input type="text" value="${escAttr(env.links.support_plan)}" onchange="updateEnvNested(${idx}, 'links', 'support_plan', this.value)"></div>
         </div>
-        <div class="field"><label>Cluster URLs (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'links', 'cluster_urls', this.value)">${esc((env.links.cluster_urls||[]).join('\\n'))}</textarea></div>
-        <div class="field"><label>Runbook links (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'links', 'runbook_links', this.value)">${esc((env.links.runbook_links||[]).join('\\n'))}</textarea></div>
+        <div class="field"><label>Cluster URLs (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'links', 'cluster_urls', this.value)">${esc((env.links.cluster_urls||[]).join('\n'))}</textarea></div>
+        <div class="field"><label>Runbook links (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'links', 'runbook_links', this.value)">${esc((env.links.runbook_links||[]).join('\n'))}</textarea></div>
         <div class="field"><label>Notes</label><textarea onchange="updateEnvField(${idx}, 'notes', this.value)">${esc(env.notes || '')}</textarea></div>
         <div class="field"><label>Diagnostic reports</label>${datedListHtml(idx, 'diagnostic_reports', env.diagnostic_reports, true)}</div>
         <div class="field"><label>Helm values.yaml history</label>${datedListHtml(idx, 'helm_values', env.helm_values, false)}</div>
@@ -696,7 +696,7 @@ function updateEnvNested(idx, group, field, value) {
 
 function updateEnvListField(idx, group, field, textareaValue) {
   STATE.customers[CURRENT].environments[idx][group][field] =
-    textareaValue.split('\\n').map(s => s.trim()).filter(Boolean);
+    textareaValue.split('\n').map(s => s.trim()).filter(Boolean);
   markDirty();
 }
 
