@@ -177,6 +177,7 @@ function wireCarets() {
 }
 
 function normalizeTeam(team) {
+  team.id = team.id || ('team-' + Date.now());
   team.notes = team.notes || '';
   team.members = team.members || [];
   return team;
