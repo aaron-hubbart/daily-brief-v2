@@ -154,13 +154,19 @@ rest of the viewer.
 
 ## Testing
 
-`tests/test_environments_view.py`:
-- Route auth-gating (same pattern as every other authenticated route).
-- `environments-config.json` read/write round-trips correctly against a
-  stubbed Drive client (mirrors how `account-config.json`'s round-trip
-  would be tested).
 - The portfolio-membership lookup takes an injectable `fetch_fn` (same
   signature `asana_discovery.find_new_projects` already uses:
   `fetch_fn(pat, path, params) -> dict`), so it's unit-tested with a
   hand-rolled fake — no network, no mocking library — exactly like
   `test_asana_discovery.py` already does for that sibling function.
+- **No automated test for the new `read_environments_config`/
+  `write_environments_config` functions or the new Flask routes.**
+  `read_account_config`/`write_account_config`/`read_config`/`write_config`
+  — the three existing sibling "config JSON in Drive" pairs this new one
+  matches exactly — have no tests today either (there's no stubbed-Drive-
+  client pattern anywhere in this codebase to extend), and no route in
+  this app has an automated test (same reason as the Tasks tab: `app.py`
+  needs live env vars and Postgres to import). This isn't a new gap this
+  feature introduces — it's the existing, consistent level of coverage for
+  this whole category of code. Verified manually instead, same as every
+  sibling function and every route.
