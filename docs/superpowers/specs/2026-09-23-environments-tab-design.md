@@ -131,9 +131,11 @@ in the portfolio.
   does for its own project-linking flow) — not by project GID, since
   `account-config.json` doesn't currently store which project GID (if any)
   corresponds to the portfolio entry.
-- Results cached 5 minutes (same TTL used elsewhere in this app for
-  Asana/Drive lookups), keyed by the signed-in user's PAT, to avoid a
-  portfolio fetch on every page load.
+- **No caching**: every other Asana call in this app (`_fetch_live_action_items`,
+  `asana_discovery.find_new_projects`, PAT validation) is called fresh on
+  each request rather than cached — only Drive *folder-GID* lookups are
+  cached in this codebase, not Asana API results. This lookup follows that
+  same precedent rather than introducing a new caching layer.
 - The portfolio GID above should be double-checked against a real
   `GET /portfolios/{gid}/items` call before relying on it — Asana portfolio
   URLs aren't fully standardized across UI versions, so confirm it returns
