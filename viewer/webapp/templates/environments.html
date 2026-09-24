@@ -515,6 +515,8 @@ function addTeam() {
   const team = {id, name, notes: notesInput.value.trim(), members: []};
   const c = STATE.customers[CURRENT];
   c.teams.push(team);
+  expandedIds.add(id);
+  expandedIds.add('group-' + id);
 
   c.environments.forEach(env => {
     if (addTeamDraft.existingEnvIds.has(env.id)) {
@@ -524,8 +526,9 @@ function addTeam() {
   });
 
   addTeamDraft.newEnvs.forEach((label, i) => {
+    const envId = 'env-' + Date.now() + '-' + i;
     c.environments.push({
-      id: 'env-' + Date.now() + '-' + i,
+      id: envId,
       label,
       team_ids: [id],
       deployment: {model: 'SaaS', install_method: '', region: '', multi_tenancy: '', sizing: ''},
@@ -535,9 +538,11 @@ function addTeam() {
       diagnostic_reports: [],
       helm_values: [],
     });
+    expandedIds.add(envId);
   });
 
   addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
+  saveExpandedIds();
   markDirty();
   renderCustomer();
 }
@@ -657,8 +662,9 @@ function datedListHtml(envIdx, key, rows, withTicket) {
 function addEnvironment() {
   const label = prompt('Environment label (e.g. Production, Staging):');
   if (!label || !label.trim()) return;
+  const id = 'env-' + Date.now();
   STATE.customers[CURRENT].environments.push({
-    id: 'env-' + Date.now(),
+    id,
     label: label.trim(),
     team_ids: [],
     deployment: {model: 'SaaS', install_method: '', region: '', multi_tenancy: '', sizing: ''},
@@ -668,6 +674,9 @@ function addEnvironment() {
     diagnostic_reports: [],
     helm_values: [],
   });
+  expandedIds.add(id);
+  expandedIds.add('group-unassigned');
+  saveExpandedIds();
   markDirty();
   renderCustomer();
 }
