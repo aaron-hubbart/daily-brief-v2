@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Brief · Environments</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#f5f4f1; --surface:#fff; --surface2:#f0efe9; --border:#e2e0d8; --border-strong:#c8c6bc;
+  --t1:#1a1916; --t2:#5a5850; --t3:#9a9890;
+  --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
+  --good-bg:#eef7ee; --good-t:#2a7a34; --bad-bg:#fef1f0; --bad-t:#b02520;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",monospace; --r:5px;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#18181b; --surface:#1e1e22; --surface2:#26262c; --border:#2c2c32; --border-strong:#3c3c44;
+  --t1:#e6e4de; --t2:#9a9890; --t3:#5a5850;
+  --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
+  --good-bg:#122415; --good-t:#5cc26a; --bad-bg:#280e0e; --bad-t:#e06868;
+}}
+html{font-size:14px;}
+body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5;padding:24px 16px 60px;max-width:900px;margin:0 auto;}
+.head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1.5px solid var(--border-strong);}
+.head h1{font-size:19px;font-weight:600;letter-spacing:-.025em;}
+.head .sub{font-size:12px;color:var(--t3);}
+a.back{font-size:12px;color:var(--accent-t);text-decoration:none;}
+a.back:hover{text-decoration:underline;}
+.hint{font-size:12.5px;color:var(--t3);padding:12px 0;}
+.empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
+select,input[type="text"],input[type="date"],textarea{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+textarea{width:100%;min-height:52px;resize:vertical;}
+.btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+.btn:hover{filter:brightness(.95);}
+.btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
+.btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
+.btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
+.btn:disabled{opacity:.4;cursor:default;}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;}
+.customer-select{min-width:260px;}
+.panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);margin-bottom:16px;overflow:hidden;}
+.panel-head{padding:10px 14px;background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
+.panel-body{padding:12px 14px;}
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
+td{padding:7px 8px;border-bottom:.5px solid var(--border);vertical-align:top;}
+tr:last-child td{border-bottom:none;}
+.add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+.add-row input{flex:1;min-width:120px;}
+.env-card{border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
+.env-card-head{padding:8px 12px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:600;}
+.env-card-body{padding:10px 12px;}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.field-grid label,.field label{display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);margin-bottom:3px;}
+.field-grid input,.field-grid select{width:100%;}
+.field{margin-bottom:10px;}
+.team-checks label{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--t1);margin-right:12px;margin-bottom:4px;}
+.dated-list-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;}
+.dated-list-row input{flex:1;}
+.dated-list-row input.date-input{flex:0 0 130px;}
+.dated-list-row input.ticket-input{flex:0 0 110px;}
+.msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
+.toast-container{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;}
+.toast{padding:10px 20px;border-radius:var(--r);font-size:13px;font-weight:500;pointer-events:auto;
+  opacity:0;transform:translateY(-12px);animation:toast-in .25s ease forwards;}
+.toast.ok{background:var(--good-bg);color:var(--good-t);border:1px solid var(--good-t);}
+.toast.err{background:var(--bad-bg);color:var(--bad-t);border:1px solid var(--bad-t);}
+.toast.out{animation:toast-out .25s ease forwards;}
+@keyframes toast-in{to{opacity:1;transform:translateY(0);}}
+@keyframes toast-out{from{opacity:1;transform:translateY(0);}to{opacity:0;transform:translateY(-12px);}}
+</style>
+</head>
+<body>
+<div class="toast-container" id="toast-container"></div>
+
+<div class="head">
+  <div>
+    <a class="back" href="{{ url_for('index') }}">&larr; Back to briefs</a>
+    <h1>Environments</h1>
+    <div class="sub">Signed in as {{ user_email }}</div>
+  </div>
+  <button class="btn save" id="save-btn" onclick="saveAll()" disabled>Save to Drive</button>
+</div>
+
+<div class="toolbar">
+  <label for="customer-select" style="font-size:12px;font-weight:500;">Customer:</label>
+  <select class="customer-select" id="customer-select" onchange="onCustomerChange()">
+    <option value="">Loading…</option>
+  </select>
+</div>
+
+<div id="content"><div class="empty">Loading&hellip;</div></div>
+<div class="msg" id="msg"></div>
+
+<script>
+const BASE = document.querySelector('base')?.href || '';
+let STATE = null;
+let CURRENT = null;
+let dirty = false;
+
+const COMPONENT_OPTIONS = ['Zeebe', 'Operate', 'Tasklist', 'Optimize', 'Connectors'];
+
+async function load() {
+  try {
+    const r = await fetch(`${BASE}api/environments/config`, {credentials:'include'});
+    if (!r.ok) throw new Error(r.statusText);
+    STATE = await r.json();
+    renderCustomerSelect();
+  } catch(e) {
+    document.getElementById('content').innerHTML =
+      `<div class="empty" style="color:var(--bad-t)">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function renderCustomerSelect() {
+  const select = document.getElementById('customer-select');
+  const content = document.getElementById('content');
+
+  if (STATE.needs_pat) {
+    select.innerHTML = '<option value="">—</option>';
+    content.innerHTML = '<div class="hint">Add your Asana PAT in Settings to load the customer list.</div>';
+    return;
+  }
+  if (STATE.in_scope_names === null) {
+    select.innerHTML = '<option value="">—</option>';
+    content.innerHTML = `<div class="hint" style="color:var(--bad-t)">${esc(STATE.error || 'Could not determine the customer list.')}</div>`;
+    return;
+  }
+  if (!STATE.in_scope_names.length) {
+    select.innerHTML = '<option value="">—</option>';
+    content.innerHTML = '<div class="empty">No customers found in the Environments portfolio.</div>';
+    return;
+  }
+
+  select.innerHTML = STATE.in_scope_names.map(name =>
+    `<option value="${escAttr(name)}">${esc(name)}</option>`
+  ).join('');
+  CURRENT = STATE.in_scope_names[0];
+  select.value = CURRENT;
+  ensureCustomer(CURRENT);
+  renderCustomer();
+}
+
+function onCustomerChange() {
+  CURRENT = document.getElementById('customer-select').value;
+  ensureCustomer(CURRENT);
+  renderCustomer();
+}
+
+function ensureCustomer(name) {
+  if (!STATE.customers[name]) {
+    STATE.customers[name] = {teams: [], environments: []};
+  }
+}
+
+function renderCustomer() {
+  const c = STATE.customers[CURRENT];
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <div class="panel">
+      <div class="panel-head"><span>Teams</span></div>
+      <div class="panel-body">
+        <table>
+          <thead><tr><th>Name</th><th>Notes</th><th></th></tr></thead>
+          <tbody id="teams-body">${teamsRowsHtml(c.teams)}</tbody>
+        </table>
+        <div class="add-row">
+          <input type="text" id="new-team-name" placeholder="Team name">
+          <input type="text" id="new-team-notes" placeholder="Notes (optional)">
+          <button class="btn primary" onclick="addTeam()">Add team</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <span>Environments</span>
+        <button class="btn primary" onclick="addEnvironment()">Add environment</button>
+      </div>
+      <div class="panel-body" id="envs-body">${environmentsHtml(c)}</div>
+    </div>
+  `;
+}
+
+function teamsRowsHtml(teams) {
+  if (!teams.length) return '<tr><td colspan="3" class="empty">No teams yet</td></tr>';
+  return teams.map((t, i) => `
+    <tr>
+      <td><input type="text" value="${escAttr(t.name)}" onchange="updateTeamField(${i}, 'name', this.value)"></td>
+      <td><input type="text" value="${escAttr(t.notes || '')}" onchange="updateTeamField(${i}, 'notes', this.value)" style="width:100%"></td>
+      <td><button class="btn danger" onclick="removeTeam(${i})">Remove</button></td>
+    </tr>
+  `).join('');
+}
+
+function addTeam() {
+  const nameInput = document.getElementById('new-team-name');
+  const notesInput = document.getElementById('new-team-notes');
+  const name = nameInput.value.trim();
+  if (!name) return;
+  const id = 'team-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
+  STATE.customers[CURRENT].teams.push({id, name, notes: notesInput.value.trim()});
+  nameInput.value = '';
+  notesInput.value = '';
+  markDirty();
+  renderCustomer();
+}
+
+function updateTeamField(idx, field, value) {
+  STATE.customers[CURRENT].teams[idx][field] = value;
+  markDirty();
+}
+
+function removeTeam(idx) {
+  const team = STATE.customers[CURRENT].teams[idx];
+  if (!confirm(`Remove team "${team.name}"? It will also be unlinked from any environment.`)) return;
+  STATE.customers[CURRENT].teams.splice(idx, 1);
+  STATE.customers[CURRENT].environments.forEach(env => {
+    env.team_ids = (env.team_ids || []).filter(id => id !== team.id);
+  });
+  markDirty();
+  renderCustomer();
+}
+
+function environmentsHtml(c) {
+  if (!c.environments.length) return '<div class="empty">No environments yet</div>';
+  return c.environments.map((env, i) => environmentCardHtml(env, i, c.teams)).join('');
+}
+
+function environmentCardHtml(env, idx, teams) {
+  const teamChecks = teams.map(t => `
+    <label><input type="checkbox" ${((env.team_ids||[]).includes(t.id)) ? 'checked' : ''}
+      onchange="toggleEnvTeam(${idx}, '${t.id}', this.checked)"> ${esc(t.name)}</label>
+  `).join('') || '<span class="hint" style="padding:0">No teams defined yet</span>';
+
+  const componentChecks = COMPONENT_OPTIONS.map(comp => `
+    <label><input type="checkbox" ${((env.versions.components||[]).includes(comp)) ? 'checked' : ''}
+      onchange="toggleEnvComponent(${idx}, '${comp}', this.checked)"> ${comp}</label>
+  `).join('');
+
+  return `
+    <div class="env-card">
+      <div class="env-card-head">
+        <input type="text" value="${escAttr(env.label)}" onchange="updateEnvField(${idx}, 'label', this.value)" style="font-weight:600;font-size:12.5px;">
+        <button class="btn danger" onclick="removeEnvironment(${idx})">Remove</button>
+      </div>
+      <div class="env-card-body">
+        <div class="field"><label>Teams</label><div class="team-checks">${teamChecks}</div></div>
+        <div class="field-grid">
+          <div><label>Deployment model</label>
+            <select onchange="updateEnvNested(${idx}, 'deployment', 'model', this.value)">
+              <option value="SaaS" ${env.deployment.model==='SaaS'?'selected':''}>SaaS</option>
+              <option value="Self-Managed" ${env.deployment.model==='Self-Managed'?'selected':''}>Self-Managed</option>
+            </select>
+          </div>
+          <div><label>Install method</label><input type="text" value="${escAttr(env.deployment.install_method)}" onchange="updateEnvNested(${idx}, 'deployment', 'install_method', this.value)"></div>
+          <div><label>Region</label><input type="text" value="${escAttr(env.deployment.region)}" onchange="updateEnvNested(${idx}, 'deployment', 'region', this.value)"></div>
+          <div><label>Multi-tenancy</label><input type="text" value="${escAttr(env.deployment.multi_tenancy)}" onchange="updateEnvNested(${idx}, 'deployment', 'multi_tenancy', this.value)"></div>
+          <div><label>Sizing</label><input type="text" value="${escAttr(env.deployment.sizing)}" onchange="updateEnvNested(${idx}, 'deployment', 'sizing', this.value)"></div>
+          <div><label>Camunda version</label><input type="text" value="${escAttr(env.versions.camunda_version)}" onchange="updateEnvNested(${idx}, 'versions', 'camunda_version', this.value)"></div>
+        </div>
+        <div class="field"><label>Components</label><div class="team-checks">${componentChecks}</div></div>
+        <div class="field-grid">
+          <div><label>Console URL</label><input type="text" value="${escAttr(env.links.console_url)}" onchange="updateEnvNested(${idx}, 'links', 'console_url', this.value)"></div>
+          <div><label>Support plan</label><input type="text" value="${escAttr(env.links.support_plan)}" onchange="updateEnvNested(${idx}, 'links', 'support_plan', this.value)"></div>
+        </div>
+        <div class="field"><label>Cluster URLs (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'links', 'cluster_urls', this.value)">${esc((env.links.cluster_urls||[]).join('\n'))}</textarea></div>
+        <div class="field"><label>Runbook links (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'links', 'runbook_links', this.value)">${esc((env.links.runbook_links||[]).join('\n'))}</textarea></div>
+        <div class="field"><label>Notes</label><textarea onchange="updateEnvField(${idx}, 'notes', this.value)">${esc(env.notes || '')}</textarea></div>
+        <div class="field"><label>Diagnostic reports</label>${datedListHtml(idx, 'diagnostic_reports', env.diagnostic_reports, true)}</div>
+        <div class="field"><label>Helm values.yaml history</label>${datedListHtml(idx, 'helm_values', env.helm_values, false)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function datedListHtml(envIdx, key, rows, withTicket) {
+  const rowsHtml = (rows || []).map((row, rowIdx) => `
+    <div class="dated-list-row">
+      <input type="text" placeholder="Link" value="${escAttr(row.link || '')}" onchange="updateDatedListField(${envIdx}, '${key}', ${rowIdx}, 'link', this.value)">
+      <input type="date" class="date-input" value="${escAttr(row.date || row.generated_date || '')}" onchange="updateDatedListField(${envIdx}, '${key}', ${rowIdx}, '${withTicket ? 'generated_date' : 'date'}', this.value)">
+      ${withTicket ? `<input type="text" class="ticket-input" placeholder="Ticket" value="${escAttr(row.ticket || '')}" onchange="updateDatedListField(${envIdx}, '${key}', ${rowIdx}, 'ticket', this.value)">` : ''}
+      <button class="btn danger" onclick="removeDatedListRow(${envIdx}, '${key}', ${rowIdx})">Remove</button>
+    </div>
+  `).join('');
+  return rowsHtml + `<button class="btn" onclick="addDatedListRow(${envIdx}, '${key}', ${withTicket})">Add</button>`;
+}
+
+function addEnvironment() {
+  const label = prompt('Environment label (e.g. Production, Staging):');
+  if (!label || !label.trim()) return;
+  STATE.customers[CURRENT].environments.push({
+    id: 'env-' + Date.now(),
+    label: label.trim(),
+    team_ids: [],
+    deployment: {model: 'SaaS', install_method: '', region: '', multi_tenancy: '', sizing: ''},
+    versions: {camunda_version: '', components: []},
+    links: {console_url: '', cluster_urls: [], support_plan: '', runbook_links: []},
+    notes: '',
+    diagnostic_reports: [],
+    helm_values: [],
+  });
+  markDirty();
+  renderCustomer();
+}
+
+function removeEnvironment(idx) {
+  const env = STATE.customers[CURRENT].environments[idx];
+  if (!confirm(`Remove environment "${env.label}"?`)) return;
+  STATE.customers[CURRENT].environments.splice(idx, 1);
+  markDirty();
+  renderCustomer();
+}
+
+function updateEnvField(idx, field, value) {
+  STATE.customers[CURRENT].environments[idx][field] = value;
+  markDirty();
+}
+
+function updateEnvNested(idx, group, field, value) {
+  STATE.customers[CURRENT].environments[idx][group][field] = value;
+  markDirty();
+}
+
+function updateEnvListField(idx, group, field, textareaValue) {
+  STATE.customers[CURRENT].environments[idx][group][field] =
+    textareaValue.split('\n').map(s => s.trim()).filter(Boolean);
+  markDirty();
+}
+
+function toggleEnvTeam(idx, teamId, checked) {
+  const env = STATE.customers[CURRENT].environments[idx];
+  env.team_ids = env.team_ids || [];
+  if (checked) {
+    if (!env.team_ids.includes(teamId)) env.team_ids.push(teamId);
+  } else {
+    env.team_ids = env.team_ids.filter(id => id !== teamId);
+  }
+  markDirty();
+}
+
+function toggleEnvComponent(idx, comp, checked) {
+  const env = STATE.customers[CURRENT].environments[idx];
+  env.versions.components = env.versions.components || [];
+  if (checked) {
+    if (!env.versions.components.includes(comp)) env.versions.components.push(comp);
+  } else {
+    env.versions.components = env.versions.components.filter(c => c !== comp);
+  }
+  markDirty();
+}
+
+function addDatedListRow(envIdx, key, withTicket) {
+  const env = STATE.customers[CURRENT].environments[envIdx];
+  env[key] = env[key] || [];
+  env[key].push(withTicket ? {link: '', generated_date: '', ticket: ''} : {link: '', date: ''});
+  markDirty();
+  renderCustomer();
+}
+
+function removeDatedListRow(envIdx, key, rowIdx) {
+  STATE.customers[CURRENT].environments[envIdx][key].splice(rowIdx, 1);
+  markDirty();
+  renderCustomer();
+}
+
+function updateDatedListField(envIdx, key, rowIdx, field, value) {
+  STATE.customers[CURRENT].environments[envIdx][key][rowIdx][field] = value;
+  markDirty();
+}
+
+function markDirty() {
+  dirty = true;
+  document.getElementById('save-btn').disabled = false;
+  document.getElementById('msg').textContent = 'Unsaved changes';
+}
+
+async function saveAll() {
+  const btn = document.getElementById('save-btn');
+  const msg = document.getElementById('msg');
+  btn.disabled = true;
+  msg.textContent = 'Saving…';
+  try {
+    const r = await fetch(`${BASE}api/environments/config`, {
+      method: 'PUT', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({customers: STATE.customers}),
+    });
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    dirty = false;
+    msg.textContent = '';
+    showToast('Saved to Drive', 'ok', 4000);
+  } catch(e) {
+    showToast('Save failed: ' + e.message, 'err', 5000);
+    btn.disabled = false;
+  }
+}
+
+function showToast(text, type, duration) {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = text;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('out');
+    el.addEventListener('animationend', () => el.remove());
+  }, duration);
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
+
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+load();
+</script>
+</body>
+</html>
