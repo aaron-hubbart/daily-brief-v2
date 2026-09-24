@@ -13,6 +13,7 @@ from datetime import date, timedelta
 ACTION_SUBSECTIONS = [
     {'slug': 'new', 'label': 'New Items'},
     {'slug': 'overdue', 'label': 'Overdue'},
+    {'slug': 'due-today', 'label': 'Due Today'},
     {'slug': 'due-soon', 'label': 'Due Next 7 Days'},
     {'slug': 'no-due-date', 'label': 'No Due Date'},
 ]
@@ -59,12 +60,14 @@ def group_action_items(items, today_iso: str):
             due_date = None
         if due_date is not None and due_date < today:
             buckets['overdue'].append(item)
+        elif due_date is not None and due_date == today:
+            buckets['due-today'].append(item)
         elif due_date is not None and due_date <= week_out:
             buckets['due-soon'].append(item)
         else:
             buckets['no-due-date'].append(item)
 
-    for slug in ('overdue', 'due-soon'):
+    for slug in ('overdue', 'due-today', 'due-soon'):
         buckets[slug].sort(key=lambda it: (it.get('content') or {}).get('due_on') or '')
 
     groups = [

@@ -68,7 +68,19 @@ def test_items_grouped_into_boards_by_project_name_with_my_tasks_last():
     assert board_names == ['Acme', 'Zeta', 'My Tasks']
 
 
-def test_action_subsections_defines_four_fixed_slugs():
+def test_item_due_exactly_today_is_due_today_not_due_soon():
+    items = [_item('a', due_on='2026-01-15')]
+    groups = group_action_items(items, today_iso='2026-01-15')
+    assert [g['slug'] for g in groups] == ['due-today']
+
+
+def test_item_due_tomorrow_is_still_due_soon():
+    items = [_item('a', due_on='2026-01-16')]
+    groups = group_action_items(items, today_iso='2026-01-15')
+    assert [g['slug'] for g in groups] == ['due-soon']
+
+
+def test_action_subsections_defines_five_fixed_slugs():
     assert [s['slug'] for s in ACTION_SUBSECTIONS] == [
-        'new', 'overdue', 'due-soon', 'no-due-date',
+        'new', 'overdue', 'due-today', 'due-soon', 'no-due-date',
     ]
