@@ -9,9 +9,9 @@ board — independent of any single brief day. Today this data only surfaces
 inside a specific day's "live action items" section in the brief; there's no
 persistent "what's on my plate right now" view.
 
-Read-only for this phase: tasks link out to Asana to be actioned or
-completed there. No write-back to Asana, no new data sources beyond Asana,
-no changes to the existing brief or Customers views.
+Checking a task off in this view marks it complete in Asana directly (see
+§4) — no need to leave the tab to close out a task, and the due-date
+grouping below (§3) carries over unchanged from the original design.
 
 ## 1. Data layer — extract the existing pull logic
 
@@ -74,13 +74,45 @@ live-items pull isn't paginated either (Asana's own 100-per-query limit is
 the practical ceiling), and account-scoped task volume at this scale
 doesn't need it yet.
 
-## 4. Nav
+## 4. Marking complete
+
+Reuses the app's existing bidirectional-sync machinery rather than adding a
+second way to talk to Asana. `_sync_asana_completed(pat, item_key, checked)`
+(app.py:92) already does exactly this — PUTs `{"completed": checked}` to
+`/tasks/{gid}` — and is already exercised today via
+`/api/items/<section>/<item_key>/checked`'s "no Postgres row" fallback path,
+which is precisely the Tasks tab's situation (these items are never
+persisted; see §1).
+
+Rather than reusing that route directly (it requires a `date` query param
+that's meaningless here, since it exists for the brief's day-scoped
+Postgres lookup), add a small dedicated route:
+
+- **`PATCH /api/tasks/<item_key>/checked`** — body `{"checked": bool}`.
+  Loads the signed-in user's PAT, calls `_sync_asana_completed` directly (no
+  Postgres involved at all — there's nothing to look up), and returns
+  `{"status": "ok", "asana_synced": bool}`. A `False` `asana_synced` (Asana
+  call failed) is surfaced in the UI as a "couldn't sync — try again" toast
+  rather than silently discarded, since unlike the brief's checkboxes
+  there's no Postgres row backing this one up if the Asana write fails.
+
+Client-side: checking a task's box immediately (optimistically) removes it
+from its bucket — a completed task shouldn't reappear until the next full
+`/api/tasks` refresh confirms it's gone from Asana's open-tasks results. On
+`asana_synced: false`, the row is restored and the toast shown.
+
+Editing due dates from this view is explicitly out of scope here —
+`_sync_asana_due_date` already exists and this same pattern would apply, but
+nothing in this ask calls for editing dates from the Tasks tab, only
+grouping by them and marking complete.
+
+## 5. Nav
 
 Add a "Tasks" link to the shared nav alongside the existing Brief /
 Customers / Admin links (wherever that shell lives — same include/partial
 every authenticated page already uses).
 
-## 5. Testing
+## 6. Testing
 
 `tests/test_tasks_view.py`, following the existing per-feature test file
 pattern (e.g. `test_fyi_section_checkable.py`):
@@ -89,6 +121,9 @@ pattern (e.g. `test_fyi_section_checkable.py`):
   signed in.
 - `GET /api/tasks` returns `{"items": [], "needs_pat": true}` when no PAT is
   stored, without calling Asana.
+- `PATCH /api/tasks/<item_key>/checked` calls `_sync_asana_completed` with
+  the right gid/checked value (stubbed Asana call) and returns
+  `asana_synced` reflecting its outcome.
 - The due-date bucketing logic is factored into a small pure function
   (e.g. `_bucket_tasks_by_due_date(items, today)`) so it's unit-tested
   directly against fixed `today` values, rather than only through the route.
