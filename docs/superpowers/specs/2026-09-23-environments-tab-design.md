@@ -35,10 +35,15 @@ frequency and single-digit-user scale as `account-config.json`, so the same
 ```json
 {
   "Acme, Inc.": {
+    "teams": [
+      {"id": "team-platform", "name": "Platform Team", "notes": ""},
+      {"id": "team-claims-app", "name": "Claims App Team", "notes": ""}
+    ],
     "environments": [
       {
         "id": "prod",
         "label": "Production",
+        "team_ids": ["team-platform", "team-claims-app"],
         "deployment": {
           "model": "SaaS",
           "install_method": "",
@@ -77,6 +82,26 @@ per environment (a customer's Production environment accumulates a history
 of reports and Helm values snapshots over time, rather than only ever
 holding the latest one).
 
+**Teams**: each customer has its own small list of named teams (e.g. "Platform
+Team", "Claims App Team") — scoped to that customer, not shared globally.
+The relationship to environments is many-to-many, represented as
+`team_ids` on each environment: a team can appear on more than one
+environment (e.g. Platform Team owns both Staging and Production), and an
+environment can list more than one team (e.g. Production is jointly owned
+by Platform and an app team). No separate join structure is needed since
+both sides live under the same customer key — deleting a team just means
+removing its id from any environment's `team_ids` and from the `teams`
+list.
+
+**On scope**: the fields above are deliberately minimal for a first cut.
+The real expectation is that this schema grows substantially as it gets
+used against real customer environments — more deployment detail, more
+link types, whatever Phase 2's diagnostic-bundle parsing turns out to
+surface. Adding fields later is just adding optional keys to this JSON
+shape (no migration), so this spec intentionally doesn't try to
+anticipate that detail now — extend it iteratively as concrete needs
+show up rather than speculatively now.
+
 ## Customer list scope
 
 Shows only customers judged in-scope by **Salesforce `Success Tier`**:
@@ -109,9 +134,11 @@ Shows only customers judged in-scope by **Salesforce `Success Tier`**:
 
 New "Environments" nav entry alongside Brief / Tasks / Customers / Admin.
 Lists in-scope customers (from the Salesforce-backed lookup above), each
-expandable to show their environment(s) as cards; an "Add environment" /
-edit form covering the fields above. Modeled on `customers.html`'s
-edit-in-place table pattern for consistency with the rest of the viewer.
+expandable to show a small **Teams** management list (add/rename/remove)
+and their environment(s) as cards below it; each environment's edit form
+includes a multi-select of that customer's teams for `team_ids`. Modeled
+on `customers.html`'s edit-in-place table pattern for consistency with the
+rest of the viewer.
 
 ## Testing
 
