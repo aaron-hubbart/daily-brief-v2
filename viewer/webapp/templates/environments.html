@@ -102,6 +102,8 @@ let dirty = false;
 const COMPONENT_OPTIONS = ['Zeebe', 'Operate', 'Tasklist', 'Optimize', 'Connectors'];
 
 function normalizeEnvironment(env) {
+  env.id = env.id || ('env-' + Date.now());
+  env.label = env.label || '(unlabeled environment)';
   env.team_ids = env.team_ids || [];
   env.deployment = env.deployment || {};
   env.deployment.model = env.deployment.model || 'SaaS';
