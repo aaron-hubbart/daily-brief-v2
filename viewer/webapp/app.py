@@ -1132,9 +1132,11 @@ def environments_page():
 @login_required
 def api_environments_config():
     """Returns saved environments-config.json data plus the current
-    in-scope customer list (name + Asana Theater), matched against
-    account-config.json via project_gid (exact) or a fuzzy name match —
-    see asana_discovery.match_accounts_to_theaters."""
+    in-scope customer list (name + Asana Theater). The Environments
+    portfolio is authoritative for scope — every project in it is a
+    customer, full stop, with no cross-check against account-config.json
+    (a customer list scoped to the signed-in user's own accounts, not the
+    shared portfolio this tab tracks)."""
     google_token = db.get_google_refresh_token(request.brief_user['id'])
     folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
     if not google_token:
@@ -1157,9 +1159,9 @@ def api_environments_config():
             'error': f'Could not load customer list from Asana: {e}',
         })
 
-    account_config = gdrive_briefs.read_account_config(google_token, folder_id)
-    accounts = (account_config or {}).get('accounts', [])
-    in_scope_customers = asana_discovery.match_accounts_to_theaters(accounts, portfolio_items)
+    in_scope_customers = [
+        {'name': p['name'], 'theater': p['theater']} for p in portfolio_items
+    ]
 
     return jsonify({'customers': config, 'in_scope_customers': in_scope_customers})
 
