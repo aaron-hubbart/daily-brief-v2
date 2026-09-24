@@ -68,6 +68,9 @@ tr:last-child td{border-bottom:none;}
 .team-card-head{padding:8px 12px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;gap:8px;}
 .team-card-head input{flex:1;font-weight:600;font-size:12.5px;}
 .team-card-body{padding:10px 12px;}
+.caret-btn{border:none;background:none;cursor:pointer;font-size:11px;color:var(--t3);padding:2px 4px;line-height:1;}
+.caret-btn:hover{color:var(--t1);}
+.collapsible-body.collapsed{display:none;}
 .member-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}
 .member-row input{flex:1;min-width:100px;}
 .add-team-panel{border-top:1px solid var(--border);margin-top:10px;padding-top:10px;}
@@ -127,6 +130,51 @@ let MY_CUSTOMER_NAMES = new Set();
 let filterRegion = localStorage.getItem('env-tab:region') || '';
 let filterMyCustomers = localStorage.getItem('env-tab:my-customers') === '1';
 let addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
+
+let expandedIds = new Set();
+
+function expandedStorageKey(name) {
+  return `env-tab:expanded:${name}`;
+}
+
+function loadExpandedIds(name) {
+  try {
+    const raw = localStorage.getItem(expandedStorageKey(name));
+    expandedIds = new Set(raw ? JSON.parse(raw) : []);
+  } catch(e) {
+    expandedIds = new Set();
+  }
+}
+
+function saveExpandedIds() {
+  try {
+    localStorage.setItem(expandedStorageKey(CURRENT), JSON.stringify(Array.from(expandedIds)));
+  } catch(e) { /* localStorage unavailable — collapse state just won't persist */ }
+}
+
+function isExpanded(id) {
+  return expandedIds.has(id);
+}
+
+function toggleExpanded(id) {
+  if (expandedIds.has(id)) expandedIds.delete(id);
+  else expandedIds.add(id);
+  saveExpandedIds();
+  renderCustomer();
+}
+
+function caretHtml(id) {
+  return `<button type="button" class="caret-btn" data-toggle-id="${escAttr(id)}" aria-label="Toggle">${isExpanded(id) ? '▾' : '▸'}</button>`;
+}
+
+function wireCarets() {
+  document.querySelectorAll('.caret-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleExpanded(this.dataset.toggleId);
+    });
+  });
+}
 
 function normalizeTeam(team) {
   team.notes = team.notes || '';
@@ -274,6 +322,7 @@ function ensureCustomer(name) {
 }
 
 function renderCustomer() {
+  loadExpandedIds(CURRENT);
   addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
   const c = STATE.customers[CURRENT];
   const content = document.getElementById('content');
@@ -292,6 +341,7 @@ function renderCustomer() {
   `;
   wireTeamCheckboxes();
   wireNewEnvSelect();
+  wireCarets();
 }
 
 function wireTeamCheckboxes() {
@@ -314,13 +364,15 @@ function teamCardsHtml(c) {
 }
 
 function teamCardHtml(team, idx) {
+  const collapsed = isExpanded(team.id) ? '' : 'collapsed';
   return `
     <div class="team-card">
       <div class="team-card-head">
+        ${caretHtml(team.id)}
         <input type="text" value="${escAttr(team.name)}" onchange="updateTeamField(${idx}, 'name', this.value)">
         <button class="btn danger" onclick="removeTeam(${idx})">Remove</button>
       </div>
-      <div class="team-card-body">
+      <div class="team-card-body collapsible-body ${collapsed}">
         <div class="field"><label>Notes</label><textarea onchange="updateTeamField(${idx}, 'notes', this.value)">${esc(team.notes || '')}</textarea></div>
         <div class="field">
           <label>Members</label>
