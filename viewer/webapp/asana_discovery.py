@@ -9,6 +9,8 @@ lives in the skill's own setup flow (references/first-run-setup.md),
 since only the skill has Slack and Outlook MCP connectors — this webapp
 has neither, only a stored per-user Asana PAT and Google Drive OAuth.
 """
+import re
+from difflib import SequenceMatcher
 from typing import Callable, Dict, List, Optional, Set
 
 FetchFn = Callable[[str, str, dict], dict]
@@ -96,3 +98,70 @@ def get_portfolio_project_names(
     ]
     projects.sort(key=lambda p: p['name'].lower())
     return projects
+
+
+def _normalize_name(name: str) -> str:
+    """Lowercases, strips punctuation, and collapses whitespace so names
+    like "Acme, Inc." and "Acme Inc" compare as equal or near-equal."""
+    return re.sub(r'\s+', ' ', re.sub(r'[^\w\s]', '', name.lower())).strip()
+
+
+def match_accounts_to_theaters(
+    accounts: List[Dict],
+    portfolio_items: List[Dict[str, Optional[str]]],
+    fuzzy_threshold: float = 0.72,
+) -> List[Dict[str, Optional[str]]]:
+    """Matches account-config.json's accounts against the Environments
+    Asana portfolio's items (as returned by get_portfolio_project_names),
+    to determine which customers are in scope for the Environments tab and
+    what Asana "Theater" value each one has.
+
+    Matching is exact-first: an account whose 'project_gid' equals one of
+    the portfolio item gids is matched to that item regardless of name —
+    project_gid is already used elsewhere in this app to identify a
+    customer's Asana project, so it doubles as an explicit manual mapping
+    here. Any account left unmatched (no project_gid, or one not present in
+    this portfolio) is fuzzy-matched by name against whichever portfolio
+    items no other account has already claimed, using a normalized
+    difflib.SequenceMatcher ratio; the best-scoring available item above
+    fuzzy_threshold is claimed. An account with no candidate above the
+    threshold is left out of scope entirely (same behavior as today's
+    exact-match-only logic, just with better recall).
+
+    Returns [{"name": account_name, "theater": theater_or_none}, ...]
+    sorted by name (case-insensitive).
+    """
+    items_by_gid = {item['gid']: item for item in portfolio_items}
+    claimed_gids: Set[str] = set()
+    results: List[Dict[str, Optional[str]]] = []
+    unmatched_accounts: List[Dict] = []
+
+    for account in accounts:
+        name = account.get('account_name')
+        if not name:
+            continue
+        gid = account.get('project_gid')
+        if gid and gid in items_by_gid:
+            results.append({'name': name, 'theater': items_by_gid[gid].get('theater')})
+            claimed_gids.add(gid)
+        else:
+            unmatched_accounts.append(account)
+
+    for account in sorted(unmatched_accounts, key=lambda a: a['account_name'].lower()):
+        name = account['account_name']
+        normalized_name = _normalize_name(name)
+        best_item = None
+        best_score = 0.0
+        for item in portfolio_items:
+            if item['gid'] in claimed_gids:
+                continue
+            score = SequenceMatcher(None, normalized_name, _normalize_name(item['name'])).ratio()
+            if score > best_score:
+                best_score = score
+                best_item = item
+        if best_item and best_score >= fuzzy_threshold:
+            results.append({'name': name, 'theater': best_item.get('theater')})
+            claimed_gids.add(best_item['gid'])
+
+    results.sort(key=lambda r: r['name'].lower())
+    return results

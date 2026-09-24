@@ -1,7 +1,7 @@
 """Tests for asana_discovery's pure logic (find_new_projects,
 get_portfolio_project_names) — no real Asana calls. fetch_fn is faked
 so these run with no network access and no mocking library."""
-from asana_discovery import find_new_projects, get_portfolio_project_names
+from asana_discovery import find_new_projects, get_portfolio_project_names, match_accounts_to_theaters
 
 
 def _fake_fetch(responses):
@@ -170,3 +170,69 @@ def test_get_portfolio_project_names_theater_is_none_without_that_field():
     })
     result = get_portfolio_project_names(fetch_fn, pat='fake-pat', portfolio_gid='999')
     assert result == [{'gid': 'p1', 'name': 'Acme Corp', 'theater': None}]
+
+
+def test_match_accounts_to_theaters_exact_gid_match_wins_regardless_of_name():
+    accounts = [{'account_name': 'Acme Corp', 'project_gid': 'p1'}]
+    items = [{'gid': 'p1', 'name': 'Totally Different Name', 'theater': 'AMER'}]
+    result = match_accounts_to_theaters(accounts, items)
+    assert result == [{'name': 'Acme Corp', 'theater': 'AMER'}]
+
+
+def test_match_accounts_to_theaters_fuzzy_fallback_without_project_gid():
+    accounts = [{'account_name': 'Acme Corp', 'project_gid': None}]
+    items = [{'gid': 'p1', 'name': 'Acme Corp.', 'theater': 'EMEA'}]
+    result = match_accounts_to_theaters(accounts, items)
+    assert result == [{'name': 'Acme Corp', 'theater': 'EMEA'}]
+
+
+def test_match_accounts_to_theaters_project_gid_not_in_portfolio_falls_back_to_fuzzy():
+    accounts = [{'account_name': 'Acme Corp', 'project_gid': 'not-in-portfolio'}]
+    items = [{'gid': 'p1', 'name': 'Acme Corp', 'theater': 'APAC'}]
+    result = match_accounts_to_theaters(accounts, items)
+    assert result == [{'name': 'Acme Corp', 'theater': 'APAC'}]
+
+
+def test_match_accounts_to_theaters_below_threshold_is_left_out_of_scope():
+    accounts = [{'account_name': 'Acme Corp', 'project_gid': None}]
+    items = [{'gid': 'p1', 'name': 'Wildly Unrelated Project', 'theater': 'AMER'}]
+    result = match_accounts_to_theaters(accounts, items)
+    assert result == []
+
+
+def test_match_accounts_to_theaters_two_accounts_competing_for_one_name_only_best_wins():
+    accounts = [
+        {'account_name': 'Acme Corp', 'project_gid': None},
+        {'account_name': 'Acme Corpor', 'project_gid': None},
+    ]
+    items = [{'gid': 'p1', 'name': 'Acme Corp', 'theater': 'AMER'}]
+    result = match_accounts_to_theaters(accounts, items)
+    assert result == [{'name': 'Acme Corp', 'theater': 'AMER'}]
+
+
+def test_match_accounts_to_theaters_sorted_by_name():
+    accounts = [
+        {'account_name': 'Zebra Corp', 'project_gid': 'p2'},
+        {'account_name': 'Acme Corp', 'project_gid': 'p1'},
+    ]
+    items = [
+        {'gid': 'p1', 'name': 'Acme Corp', 'theater': 'AMER'},
+        {'gid': 'p2', 'name': 'Zebra Corp', 'theater': 'EMEA'},
+    ]
+    result = match_accounts_to_theaters(accounts, items)
+    assert [r['name'] for r in result] == ['Acme Corp', 'Zebra Corp']
+
+
+def test_match_accounts_to_theaters_skips_accounts_without_account_name():
+    accounts = [{'account_name': '', 'project_gid': 'p1'}, {'project_gid': 'p2'}]
+    items = [
+        {'gid': 'p1', 'name': 'Acme Corp', 'theater': 'AMER'},
+        {'gid': 'p2', 'name': 'Zebra Corp', 'theater': 'EMEA'},
+    ]
+    result = match_accounts_to_theaters(accounts, items)
+    assert result == []
+
+
+def test_match_accounts_to_theaters_returns_empty_list_for_no_accounts():
+    result = match_accounts_to_theaters([], [{'gid': 'p1', 'name': 'Acme Corp', 'theater': 'AMER'}])
+    assert result == []
