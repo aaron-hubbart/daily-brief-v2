@@ -1132,7 +1132,11 @@ def environments_page():
 @login_required
 def api_environments_config():
     """Returns saved environments-config.json data plus the current
-    in-scope customer name list (from the Asana portfolio)."""
+    in-scope customer list (name + Asana Theater). The Environments
+    portfolio is authoritative for scope — every project in it is a
+    customer, full stop, with no cross-check against account-config.json
+    (a customer list scoped to the signed-in user's own accounts, not the
+    shared portfolio this tab tracks)."""
     google_token = db.get_google_refresh_token(request.brief_user['id'])
     folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
     if not google_token:
@@ -1143,19 +1147,23 @@ def api_environments_config():
 
     pat = db.get_asana_pat(request.brief_user['id'])
     if not pat:
-        return jsonify({'customers': config, 'in_scope_names': None, 'needs_pat': True})
+        return jsonify({'customers': config, 'in_scope_customers': None, 'needs_pat': True})
 
     try:
-        in_scope_names = asana_discovery.get_portfolio_project_names(
+        portfolio_items = asana_discovery.get_portfolio_project_names(
             _asana_api_get, pat, ENVIRONMENTS_PORTFOLIO_GID,
         )
     except (urllib.error.URLError, json.JSONDecodeError) as e:
         return jsonify({
-            'customers': config, 'in_scope_names': None,
+            'customers': config, 'in_scope_customers': None,
             'error': f'Could not load customer list from Asana: {e}',
         })
 
-    return jsonify({'customers': config, 'in_scope_names': in_scope_names})
+    in_scope_customers = [
+        {'name': p['name'], 'theater': p['theater']} for p in portfolio_items
+    ]
+
+    return jsonify({'customers': config, 'in_scope_customers': in_scope_customers})
 
 
 @app.route('/api/environments/config', methods=['PUT'])

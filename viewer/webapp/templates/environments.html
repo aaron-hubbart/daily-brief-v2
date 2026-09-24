@@ -55,6 +55,9 @@ tr:last-child td{border-bottom:none;}
 .env-card{border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
 .env-card-head{padding:8px 12px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:600;}
 .env-card-body{padding:10px 12px;}
+.env-group{border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
+.group-head{padding:8px 12px;background:var(--surface2);display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);}
+.group-body{padding:10px 12px;}
 .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
 .field-grid label,.field label{display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);margin-bottom:3px;}
 .field-grid input,.field-grid select{width:100%;}
@@ -68,6 +71,9 @@ tr:last-child td{border-bottom:none;}
 .team-card-head{padding:8px 12px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;gap:8px;}
 .team-card-head input{flex:1;font-weight:600;font-size:12.5px;}
 .team-card-body{padding:10px 12px;}
+.caret-btn{border:none;background:none;cursor:pointer;font-size:11px;color:var(--t3);padding:2px 4px;line-height:1;}
+.caret-btn:hover{color:var(--t1);}
+.collapsible-body.collapsed{display:none;}
 .member-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}
 .member-row input{flex:1;min-width:100px;}
 .add-team-panel{border-top:1px solid var(--border);margin-top:10px;padding-top:10px;}
@@ -76,7 +82,7 @@ tr:last-child td{border-bottom:none;}
 .pending-env-list{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;}
 .pending-env-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;background:var(--accent-bg);color:var(--accent-t);border:1px solid var(--accent);border-radius:99px;padding:2px 8px 2px 10px;}
 .pending-env-chip button{border:none;background:none;color:inherit;cursor:pointer;font-size:13px;line-height:1;padding:0;}
-.msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
+.save-status{font-size:11.5px;color:var(--t3);}
 .toast-container{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;}
 .toast{padding:10px 20px;border-radius:var(--r);font-size:13px;font-weight:500;pointer-events:auto;
   opacity:0;transform:translateY(-12px);animation:toast-in .25s ease forwards;}
@@ -96,7 +102,10 @@ tr:last-child td{border-bottom:none;}
     <h1>Environments</h1>
     <div class="sub">Signed in as {{ user_email }}</div>
   </div>
-  <button class="btn save" id="save-btn" onclick="saveAll()" disabled>Save to Drive</button>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span class="save-status" id="save-status"></span>
+    <button class="btn save" id="save-btn" onclick="saveAll()" disabled>Save to Drive</button>
+  </div>
 </div>
 
 <div class="toolbar">
@@ -112,7 +121,6 @@ tr:last-child td{border-bottom:none;}
 </div>
 
 <div id="content"><div class="empty">Loading&hellip;</div></div>
-<div class="msg" id="msg"></div>
 
 <script>
 const BASE = document.querySelector('base')?.href || '';
@@ -128,7 +136,53 @@ let filterRegion = localStorage.getItem('env-tab:region') || '';
 let filterMyCustomers = localStorage.getItem('env-tab:my-customers') === '1';
 let addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
 
+let expandedIds = new Set();
+
+function expandedStorageKey(name) {
+  return `env-tab:expanded:${name}`;
+}
+
+function loadExpandedIds(name) {
+  try {
+    const raw = localStorage.getItem(expandedStorageKey(name));
+    expandedIds = new Set(raw ? JSON.parse(raw) : []);
+  } catch(e) {
+    expandedIds = new Set();
+  }
+}
+
+function saveExpandedIds() {
+  try {
+    localStorage.setItem(expandedStorageKey(CURRENT), JSON.stringify(Array.from(expandedIds)));
+  } catch(e) { /* localStorage unavailable — collapse state just won't persist */ }
+}
+
+function isExpanded(id) {
+  return expandedIds.has(id);
+}
+
+function toggleExpanded(id) {
+  if (expandedIds.has(id)) expandedIds.delete(id);
+  else expandedIds.add(id);
+  saveExpandedIds();
+  renderCustomer();
+}
+
+function caretHtml(id) {
+  return `<button type="button" class="caret-btn" data-toggle-id="${escAttr(id)}" aria-label="Toggle">${isExpanded(id) ? '▾' : '▸'}</button>`;
+}
+
+function wireCarets() {
+  document.querySelectorAll('.caret-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleExpanded(this.dataset.toggleId);
+    });
+  });
+}
+
 function normalizeTeam(team) {
+  team.id = team.id || ('team-' + Date.now());
   team.notes = team.notes || '';
   team.members = team.members || [];
   return team;
@@ -179,25 +233,21 @@ async function load() {
 
 function allRegions() {
   const regions = new Set();
-  Object.values(STATE.customers || {}).forEach(c => {
-    (c.environments || []).forEach(env => {
-      const region = (env.deployment || {}).region;
-      if (region) regions.add(region);
-    });
+  (STATE.in_scope_customers || []).forEach(c => {
+    if (c.theater) regions.add(c.theater);
   });
   return Array.from(regions).sort();
 }
 
-function customerHasRegion(name, region) {
-  const c = STATE.customers[name];
-  if (!c) return false;
-  return (c.environments || []).some(env => (env.deployment || {}).region === region);
+function customerTheater(name) {
+  const match = (STATE.in_scope_customers || []).find(c => c.name === name);
+  return match ? match.theater : null;
 }
 
 function visibleCustomerNames() {
-  let names = STATE.in_scope_names || [];
+  let names = (STATE.in_scope_customers || []).map(c => c.name);
   if (filterMyCustomers) names = names.filter(n => MY_CUSTOMER_NAMES.has(n));
-  if (filterRegion) names = names.filter(n => customerHasRegion(n, filterRegion));
+  if (filterRegion) names = names.filter(n => customerTheater(n) === filterRegion);
   return names;
 }
 
@@ -226,12 +276,12 @@ function renderCustomerSelect() {
     content.innerHTML = '<div class="hint">Add your Asana PAT in Settings to load the customer list.</div>';
     return;
   }
-  if (STATE.in_scope_names === null) {
+  if (STATE.in_scope_customers === null) {
     select.innerHTML = '<option value="">—</option>';
     content.innerHTML = `<div class="hint" style="color:var(--bad-t)">${esc(STATE.error || 'Could not determine the customer list.')}</div>`;
     return;
   }
-  if (!STATE.in_scope_names.length) {
+  if (!STATE.in_scope_customers.length) {
     select.innerHTML = '<option value="">—</option>';
     content.innerHTML = '<div class="empty">No customers found in the Environments portfolio.</div>';
     return;
@@ -278,6 +328,7 @@ function ensureCustomer(name) {
 }
 
 function renderCustomer() {
+  loadExpandedIds(CURRENT);
   addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
   const c = STATE.customers[CURRENT];
   const content = document.getElementById('content');
@@ -296,6 +347,7 @@ function renderCustomer() {
   `;
   wireTeamCheckboxes();
   wireNewEnvSelect();
+  wireCarets();
 }
 
 function wireTeamCheckboxes() {
@@ -318,13 +370,15 @@ function teamCardsHtml(c) {
 }
 
 function teamCardHtml(team, idx) {
+  const collapsed = isExpanded(team.id) ? '' : 'collapsed';
   return `
     <div class="team-card">
       <div class="team-card-head">
+        ${caretHtml(team.id)}
         <input type="text" value="${escAttr(team.name)}" onchange="updateTeamField(${idx}, 'name', this.value)">
         <button class="btn danger" onclick="removeTeam(${idx})">Remove</button>
       </div>
-      <div class="team-card-body">
+      <div class="team-card-body collapsible-body ${collapsed}">
         <div class="field"><label>Notes</label><textarea onchange="updateTeamField(${idx}, 'notes', this.value)">${esc(team.notes || '')}</textarea></div>
         <div class="field">
           <label>Members</label>
@@ -461,6 +515,8 @@ function addTeam() {
   const team = {id, name, notes: notesInput.value.trim(), members: []};
   const c = STATE.customers[CURRENT];
   c.teams.push(team);
+  expandedIds.add(id);
+  expandedIds.add('group-' + id);
 
   c.environments.forEach(env => {
     if (addTeamDraft.existingEnvIds.has(env.id)) {
@@ -470,8 +526,9 @@ function addTeam() {
   });
 
   addTeamDraft.newEnvs.forEach((label, i) => {
+    const envId = 'env-' + Date.now() + '-' + i;
     c.environments.push({
-      id: 'env-' + Date.now() + '-' + i,
+      id: envId,
       label,
       team_ids: [id],
       deployment: {model: 'SaaS', install_method: '', region: '', multi_tenancy: '', sizing: ''},
@@ -481,9 +538,11 @@ function addTeam() {
       diagnostic_reports: [],
       helm_values: [],
     });
+    expandedIds.add(envId);
   });
 
   addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
+  saveExpandedIds();
   markDirty();
   renderCustomer();
 }
@@ -506,7 +565,38 @@ function removeTeam(idx) {
 
 function environmentsHtml(c) {
   if (!c.environments.length) return '<div class="empty">No environments yet</div>';
-  return c.environments.map((env, i) => environmentCardHtml(env, i, c.teams)).join('');
+
+  const indexed = c.environments.map((env, idx) => ({env, idx}));
+  const groups = c.teams.map(team => ({
+    id: 'group-' + team.id,
+    label: team.name,
+    entries: indexed.filter(({env}) => (env.team_ids || []).includes(team.id)),
+  }));
+
+  const validTeamIds = new Set(c.teams.map(t => t.id));
+  const unassigned = indexed.filter(
+    ({env}) => !(env.team_ids || []).some(id => validTeamIds.has(id))
+  );
+  groups.push({id: 'group-unassigned', label: 'Unassigned', entries: unassigned});
+
+  return groups
+    .filter(g => g.entries.length)
+    .map(g => environmentGroupHtml(g, c.teams))
+    .join('');
+}
+
+function environmentGroupHtml(group, teams) {
+  const collapsed = isExpanded(group.id) ? '' : 'collapsed';
+  const cards = group.entries.map(({env, idx}) => environmentCardHtml(env, idx, teams)).join('');
+  return `
+    <div class="env-group">
+      <div class="group-head">
+        ${caretHtml(group.id)}
+        <span>${esc(group.label)} (${group.entries.length})</span>
+      </div>
+      <div class="group-body collapsible-body ${collapsed}">${cards}</div>
+    </div>
+  `;
 }
 
 function environmentCardHtml(env, idx, teams) {
@@ -519,13 +609,15 @@ function environmentCardHtml(env, idx, teams) {
       onchange="toggleEnvComponent(${idx}, '${comp}', this.checked)"> ${comp}</label>
   `).join('');
 
+  const collapsed = isExpanded(env.id) ? '' : 'collapsed';
   return `
     <div class="env-card">
       <div class="env-card-head">
+        ${caretHtml(env.id)}
         <input type="text" value="${escAttr(env.label)}" onchange="updateEnvField(${idx}, 'label', this.value)" style="font-weight:600;font-size:12.5px;">
         <button class="btn danger" onclick="removeEnvironment(${idx})">Remove</button>
       </div>
-      <div class="env-card-body">
+      <div class="env-card-body collapsible-body ${collapsed}">
         <div class="field"><label>Teams</label><div class="team-checks">${teamChecks}</div></div>
         <div class="field-grid">
           <div><label>Deployment model</label>
@@ -570,8 +662,9 @@ function datedListHtml(envIdx, key, rows, withTicket) {
 function addEnvironment() {
   const label = prompt('Environment label (e.g. Production, Staging):');
   if (!label || !label.trim()) return;
+  const id = 'env-' + Date.now();
   STATE.customers[CURRENT].environments.push({
-    id: 'env-' + Date.now(),
+    id,
     label: label.trim(),
     team_ids: [],
     deployment: {model: 'SaaS', install_method: '', region: '', multi_tenancy: '', sizing: ''},
@@ -581,6 +674,9 @@ function addEnvironment() {
     diagnostic_reports: [],
     helm_values: [],
   });
+  expandedIds.add(id);
+  expandedIds.add('group-unassigned');
+  saveExpandedIds();
   markDirty();
   renderCustomer();
 }
@@ -653,14 +749,14 @@ function updateDatedListField(envIdx, key, rowIdx, field, value) {
 function markDirty() {
   dirty = true;
   document.getElementById('save-btn').disabled = false;
-  document.getElementById('msg').textContent = 'Unsaved changes';
+  document.getElementById('save-status').textContent = 'Unsaved changes';
 }
 
 async function saveAll() {
   const btn = document.getElementById('save-btn');
-  const msg = document.getElementById('msg');
+  const status = document.getElementById('save-status');
   btn.disabled = true;
-  msg.textContent = 'Saving…';
+  status.textContent = 'Saving…';
   try {
     const r = await fetch(`${BASE}api/environments/config`, {
       method: 'PUT', credentials: 'include',
@@ -669,10 +765,11 @@ async function saveAll() {
     });
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     dirty = false;
-    msg.textContent = '';
+    status.textContent = '';
     showToast('Saved to Drive', 'ok', 4000);
   } catch(e) {
     showToast('Save failed: ' + e.message, 'err', 5000);
+    status.textContent = 'Unsaved changes';
     btn.disabled = false;
   }
 }
