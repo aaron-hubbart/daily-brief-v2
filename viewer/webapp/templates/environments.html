@@ -179,25 +179,21 @@ async function load() {
 
 function allRegions() {
   const regions = new Set();
-  Object.values(STATE.customers || {}).forEach(c => {
-    (c.environments || []).forEach(env => {
-      const region = (env.deployment || {}).region;
-      if (region) regions.add(region);
-    });
+  (STATE.in_scope_customers || []).forEach(c => {
+    if (c.theater) regions.add(c.theater);
   });
   return Array.from(regions).sort();
 }
 
-function customerHasRegion(name, region) {
-  const c = STATE.customers[name];
-  if (!c) return false;
-  return (c.environments || []).some(env => (env.deployment || {}).region === region);
+function customerTheater(name) {
+  const match = (STATE.in_scope_customers || []).find(c => c.name === name);
+  return match ? match.theater : null;
 }
 
 function visibleCustomerNames() {
-  let names = STATE.in_scope_names || [];
+  let names = (STATE.in_scope_customers || []).map(c => c.name);
   if (filterMyCustomers) names = names.filter(n => MY_CUSTOMER_NAMES.has(n));
-  if (filterRegion) names = names.filter(n => customerHasRegion(n, filterRegion));
+  if (filterRegion) names = names.filter(n => customerTheater(n) === filterRegion);
   return names;
 }
 
@@ -226,12 +222,12 @@ function renderCustomerSelect() {
     content.innerHTML = '<div class="hint">Add your Asana PAT in Settings to load the customer list.</div>';
     return;
   }
-  if (STATE.in_scope_names === null) {
+  if (STATE.in_scope_customers === null) {
     select.innerHTML = '<option value="">—</option>';
     content.innerHTML = `<div class="hint" style="color:var(--bad-t)">${esc(STATE.error || 'Could not determine the customer list.')}</div>`;
     return;
   }
-  if (!STATE.in_scope_names.length) {
+  if (!STATE.in_scope_customers.length) {
     select.innerHTML = '<option value="">—</option>';
     content.innerHTML = '<div class="empty">No customers found in the Environments portfolio.</div>';
     return;
