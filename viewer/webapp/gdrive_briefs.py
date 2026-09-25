@@ -865,6 +865,43 @@ def read_config(refresh_token: str, folder_id: Optional[str] = None) -> Optional
         return None
 
 
+# ── Asana PAT from config.json ───────────────────────────────────────────
+
+_asana_pat_cache: Dict[str, Tuple] = {}
+_ASANA_PAT_TTL = 5 * 60  # 5 minutes
+
+def get_asana_pat_from_config(refresh_token: str, folder_id: Optional[str] = None) -> Optional[str]:
+    """Read the asana_pat field from config.json on Drive, with a short cache
+    to avoid hitting Drive on every Asana API call. Returns the PAT string,
+    or None if not configured or Drive is unreachable."""
+    if not refresh_token:
+        return None
+
+    now = time.monotonic()
+    cache_key = (refresh_token[-16:], folder_id or '')
+
+    with _cache_lock:
+        cached = _asana_pat_cache.get(cache_key)
+        if cached and cached[1] > now:
+            return cached[0]
+
+    config = read_config(refresh_token, folder_id)
+    pat = config.get('asana_pat') if config else None
+
+    with _cache_lock:
+        _asana_pat_cache[cache_key] = (pat, time.monotonic() + _ASANA_PAT_TTL)
+
+    return pat
+
+
+def invalidate_asana_pat_cache(refresh_token: str, folder_id: Optional[str] = None):
+    """Clear the cached Asana PAT so the next read goes to Drive. Call after
+    saving or clearing the PAT in config.json."""
+    cache_key = (refresh_token[-16:], folder_id or '')
+    with _cache_lock:
+        _asana_pat_cache.pop(cache_key, None)
+
+
 def write_config(updates: Dict, refresh_token: str,
                   folder_id: Optional[str] = None) -> Union[bool, str]:
     """Merge `updates` into config.json and write it back to Drive, creating

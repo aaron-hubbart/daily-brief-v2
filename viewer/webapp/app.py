@@ -935,47 +935,58 @@ def api_client_config():
 @app.route('/api/asana-pat')
 @login_required
 def api_asana_pat_status():
-    """Presence check only — the PAT itself is never sent back to the
-    browser once saved. It's a third-party credential with write access to
-    the person's own Asana account, not something this app minted, so
-    there's less reason to ever need to re-display it and more reason not
-    to."""
-    pat = db.get_asana_pat(request.brief_user['id'])
+    """Presence check — reports whether an Asana PAT is configured in the
+    skill's config.json on Google Drive. The PAT itself is never sent back
+    to the browser."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        # Fall back to Postgres for users who haven't linked Google Drive yet
+        pat = db.get_asana_pat(request.brief_user['id'])
+        return jsonify({'configured': bool(pat)})
+    pat = gdrive_briefs.get_asana_pat_from_config(google_token, folder_id)
     return jsonify({'configured': bool(pat)})
+
 
 
 @app.route('/api/asana-pat', methods=['POST'])
 @login_required
 def api_asana_pat_save():
-    """
-    Saves (or replaces) the signed-in user's Asana PAT — called from both
-    the setup walkthrough and the Account panel. Validates against Asana's
-    own /users/me before saving, so a typo'd or already-revoked token is
-    caught immediately with a clear error rather than failing silently on
-    the next brief's live pull. Enabling this is what turns on the Overdue
-    / Due Next 7 Days / No Due Date Action Items subsections; skipping it
-    (or never calling this) leaves only New Items showing.
-    """
+    """Saves (or replaces) the Asana PAT in the skill's config.json on
+    Google Drive. Validates against Asana first."""
     body = request.get_json(silent=True) or {}
     pat = (body.get('pat') or '').strip()
     if not pat:
         abort(400, 'pat is required')
     asana_user = _validate_asana_pat(pat)
     if asana_user is None:
-        abort(400, 'Could not validate this token against Asana — check that it was copied correctly and hasn\'t been revoked.')
-    db.set_asana_pat(request.brief_user['id'], pat)
+        abort(400, 'Could not validate this token against Asana \u2014 check that it was copied correctly and hasn\'t been revoked.')
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if google_token:
+        result = gdrive_briefs.write_config({'asana_pat': pat}, google_token, folder_id)
+        if result is not True:
+            logger.warning('Failed to save asana_pat to config.json: %s', result)
+            abort(500, f'Could not save to Google Drive config: {result}')
+        gdrive_briefs.invalidate_asana_pat_cache(google_token, folder_id)
+    else:
+        # Fall back to Postgres for users who haven't linked Google Drive
+        db.set_asana_pat(request.brief_user['id'], pat)
     return jsonify({'status': 'ok', 'asana_user': asana_user})
-
 
 @app.route('/api/asana-pat', methods=['DELETE'])
 @login_required
 def api_asana_pat_clear():
-    """Disconnects Asana — same effect as skipping it during setup. Turns
-    off the live pull and the two-way checkbox/due-date sync immediately;
-    New Items keeps working as before since that path doesn't need a PAT
-    to read (though creating/completing tasks in Asana itself still needs
-    the skill's own Asana connector, unrelated to this webapp-side PAT)."""
-    db.clear_asana_pat(request.brief_user['id'])
+    """Disconnects Asana by removing the PAT from config.json on Drive."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if google_token:
+        result = gdrive_briefs.write_config({'asana_pat': None}, google_token, folder_id)
+        if result is not True:
+            logger.warning('Failed to clear asana_pat from config.json: %s', result)
+        gdrive_briefs.invalidate_asana_pat_cache(google_token, folder_id)
+    else:
+        db.clear_asana_pat(request.brief_user['id'])
     return jsonify({'status': 'ok'})
 
 
@@ -1094,12 +1105,12 @@ def api_customers_discover_asana():
     has no Slack or Outlook access, so full multi-source discovery still
     only happens in the skill's own setup flow
     (references/first-run-setup.md)."""
-    pat = db.get_asana_pat(request.brief_user['id'])
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    pat = gdrive_briefs.get_asana_pat_from_config(google_token, folder_id) if google_token else db.get_asana_pat(request.brief_user['id'])
     if not pat:
         return jsonify({'error': 'No Asana PAT configured — add one from the Account panel first.'}), 400
 
-    google_token = db.get_google_refresh_token(request.brief_user['id'])
-    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
     if not google_token:
         return jsonify({'error': 'Google Drive not connected'}), 400
     config = gdrive_briefs.read_account_config(google_token, folder_id)
@@ -1139,7 +1150,9 @@ def api_environments_config():
     in it is a customer, full stop, with no cross-check against
     account-config.json (a customer list scoped to the signed-in user's
     own accounts, not the shared portfolio this tab tracks)."""
-    pat = db.get_asana_pat(request.brief_user['id'])
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    pat = gdrive_briefs.get_asana_pat_from_config(google_token, folder_id) if google_token else db.get_asana_pat(request.brief_user['id'])
     if not pat:
         return jsonify({'in_scope_customers': None, 'needs_pat': True})
 
@@ -1335,7 +1348,7 @@ def serve_brief(date_str):
     if not meta:
         abort(404)
 
-    asana_pat = db.get_asana_pat(request.brief_user['id'])
+    asana_pat = gdrive_briefs.get_asana_pat_from_config(google_token, folder_id) if google_token else db.get_asana_pat(request.brief_user['id'])
     available = set(meta.get('available_sections', []))
 
     sections = []
@@ -1371,7 +1384,9 @@ def api_live_action_items(date_str):
         abort(400)
 
     t0 = time.monotonic()
-    asana_pat = db.get_asana_pat(request.brief_user['id'])
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    asana_pat = gdrive_briefs.get_asana_pat_from_config(google_token, folder_id) if google_token else db.get_asana_pat(request.brief_user['id'])
     if not asana_pat:
         return jsonify({'html': '', 'count': 0})
 
@@ -1379,8 +1394,6 @@ def api_live_action_items(date_str):
 
     # Read just the action-items section (not the entire brief) to build
     # the exclude list so New Items aren't duplicated in the live pull.
-    google_token = db.get_google_refresh_token(request.brief_user['id'])
-    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
     brief_action_items = []
     if google_token:
         brief_action_items = gdrive_briefs.read_section(
@@ -1434,13 +1447,13 @@ def api_tasks():
     signed-in user — everything api_live_action_items pulls for one brief
     day, but with nothing excluded (there's no specific day's stored items
     to de-duplicate against here)."""
-    asana_pat = db.get_asana_pat(request.brief_user['id'])
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    asana_pat = gdrive_briefs.get_asana_pat_from_config(google_token, folder_id) if google_token else db.get_asana_pat(request.brief_user['id'])
     if not asana_pat:
         html = render_template('tasks_fragment.html', action_subsections=[], asana_pat_configured=False)
         return jsonify({'html': html, 'count': 0, 'needs_pat': True})
 
-    google_token = db.get_google_refresh_token(request.brief_user['id'])
-    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
     account_projects = (
         gdrive_briefs.get_account_projects(google_token, folder_id)
         if google_token
@@ -1471,7 +1484,9 @@ def set_task_checked(item_key):
     if 'checked' not in body:
         abort(400, 'checked (bool) is required')
     checked = bool(body['checked'])
-    pat = db.get_asana_pat(request.brief_user['id'])
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    pat = gdrive_briefs.get_asana_pat_from_config(google_token, folder_id) if google_token else db.get_asana_pat(request.brief_user['id'])
     attempted, ok = _sync_asana_completed(pat, item_key, checked)
     if not attempted:
         abort(404)
@@ -1494,7 +1509,9 @@ def set_task_due_date(item_key):
     due_on = body['due_on']
     if due_on is not None and not DATE_RE.match(due_on):
         abort(400, 'due_on must be YYYY-MM-DD or null')
-    pat = db.get_asana_pat(request.brief_user['id'])
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    pat = gdrive_briefs.get_asana_pat_from_config(google_token, folder_id) if google_token else db.get_asana_pat(request.brief_user['id'])
     attempted, ok = _sync_asana_due_date(pat, item_key, due_on)
     if not attempted:
         abort(404)
@@ -1530,7 +1547,7 @@ def api_section(date_str, slug):
     # Action Items gets special handling — the brief-file items render
     # immediately; the live Asana pull is a separate async call.
     if slug == 'action-items':
-        asana_pat = db.get_asana_pat(request.brief_user['id'])
+        asana_pat = gdrive_briefs.get_asana_pat_from_config(google_token, folder_id) if google_token else db.get_asana_pat(request.brief_user['id'])
         new_only = [it for it in items if (it.get('content') or {}).get('is_new')]
         action_subsections = group_action_items(new_only, today_iso)
         html = render_template(
@@ -1582,7 +1599,9 @@ def set_item_checked(section, item_key):
     if 'checked' not in body:
         abort(400, 'checked (bool) is required')
     checked = bool(body['checked'])
-    pat = db.get_asana_pat(request.brief_user['id'])
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    pat = gdrive_briefs.get_asana_pat_from_config(google_token, folder_id) if google_token else db.get_asana_pat(request.brief_user['id'])
 
     brief_day = db.get_brief_day(request.brief_user['id'], date_str)
     found = db.set_item_checked(brief_day['id'], section, item_key, checked) if brief_day else False
@@ -1627,7 +1646,9 @@ def set_item_due_date(section, item_key):
     due_on = body['due_on']
     if due_on is not None and not DATE_RE.match(due_on):
         abort(400, 'due_on must be YYYY-MM-DD or null')
-    pat = db.get_asana_pat(request.brief_user['id'])
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    pat = gdrive_briefs.get_asana_pat_from_config(google_token, folder_id) if google_token else db.get_asana_pat(request.brief_user['id'])
 
     brief_day = db.get_brief_day(request.brief_user['id'], date_str)
     found = db.set_item_due_date(brief_day['id'], section, item_key, due_on) if brief_day else False

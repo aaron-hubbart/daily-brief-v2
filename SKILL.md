@@ -38,36 +38,25 @@ Everything else (the brief-data folder ID, the meeting run-log sheet ID, the rec
 
 1. **Resolve `CONFIG_FILE_ID`.** If your project instructions (project-folder instructions / Claude Project custom instructions) define a `CONFIG_FILE_ID`, use that value — it takes precedence. The `CONFIG_FILE_ID` line in the Admin Config block above is only a fallback for a single-user local copy.
 2. If the resolved `CONFIG_FILE_ID` is empty or still the placeholder text, do not attempt a brief. Offer to run First-Run Setup instead (see that section).
-3. Otherwise, read `config.json` from Drive by that file ID (`Google Drive` connector — the same read path already used for `account-config.json` and the status-update cache). It provides, as top-level keys: `brief_data_folder_id`, `meeting_run_log_sheet_id`, `recurring_activities_project_gid`, `status_update_cache_file_id`, `slack_user_id`, `key_contacts`, `geekbot_channel_id`, `manager_channel_id`, an optional `slack_notify` object (`enabled` boolean, `channel_id` string — see "Run-Complete Slack Notification" below), and optionally a `google_drive_pat_file_id`. `geekbot_channel_id` is the Slack channel/DM the Today section's Team Standup card posts to (see Section 2 below); `manager_channel_id` is the Manager Update's Slack DM target — both replace what used to be a hardcoded ID. Everywhere below that refers to one of the old Admin Config IDs (e.g. `BRIEF_DATA_FOLDER_ID`), use the corresponding value from `config.json`.
+3. Otherwise, read `config.json` from Drive by that file ID (`Google Drive` connector — the same read path already used for `account-config.json` and the status-update cache). It provides, as top-level keys: `brief_data_folder_id`, `meeting_run_log_sheet_id`, `recurring_activities_project_gid`, `slack_user_id`, `key_contacts`, `geekbot_channel_id`, `manager_channel_id`, an optional `slack_notify` object (`enabled` boolean, `channel_id` string — see "Run-Complete Slack Notification" below), and an `asana_pat` (the Asana Personal Access Token used by the hosted viewer for live action-item pulls and two-way sync). `geekbot_channel_id` is the Slack channel/DM the Today section's Team Standup card posts to (see Section 2 below); `manager_channel_id` is the Manager Update's Slack DM target — both replace what used to be a hardcoded ID. Everywhere below that refers to one of the old Admin Config IDs (e.g. `BRIEF_DATA_FOLDER_ID`), use the corresponding value from `config.json`.
 
 ### Google Drive write mechanics
 
-This skill uses two distinct write paths depending on whether the target file needs to be **created** or **updated in place**:
+This skill uses two distinct write paths:
 
-1. **New files** (brief section JSON, new folders): use the `Google Drive: create_file` connector as before. This is correct for section files in `/briefs/{date}/` since those are always new per-date.
+1. **New files** (brief section JSON, new folders): use the `Google Drive: create_file` connector. This is correct for section files in `/briefs/{date}/` since those are always new per-date.
 
-2. **Existing files that must be updated in place** (`config.json` and the status-update cache file referenced by `status_update_cache_file_id`): use the **Google Drive REST API v3** via `bash_tool` with a Google Cloud OAuth2 access token. The `Google Drive: create_file` connector cannot update an existing file — it always creates a new file, which changes the file ID and breaks any pointer to the old one. For these two files, the file ID is the stable reference that other parts of the system depend on, so in-place update is required.
+2. **Updating existing files** (`config.json`, the status-update cache): use a **title-based lookup + create-new/trash-old** pattern via the Google Drive connector. The connector's `create_file` always generates a new file ID and its `update_file` only changes metadata (title, parent), not content. To update a file's content without losing its place in the folder hierarchy:
 
-**How to update an existing Drive file via the API:**
+   a. **Find the existing file** by searching its parent folder for the known filename (e.g. `name='status-cache.json' and parents='{config_folder_id}' and trashed=false`).
+   b. **Create a new file** with the updated content, same title, same parent folder, using `Google Drive: create_file`.
+   c. **Trash the old file** using `Google Drive: trash_file` with the old file's ID from step (a).
 
-```bash
-# 1. Read the PAT from Drive (stored base64-encoded with BOM)
-#    google_drive_pat_file_id is in config.json, or passed via project instructions
-PAT=$(Google Drive: download_file_content → base64 -d | sed 's/^\xef\xbb\xbf//')
+   This replaces the file atomically from the viewer's perspective — any consumer that looks up the file by title in the same folder will find the new version.
 
-# 2. PATCH the file content
-curl -s -X PATCH \
-  "https://www.googleapis.com/upload/drive/v3/files/{FILE_ID}?uploadType=media" \
-  -H "Authorization: Bearer $PAT" \
-  -H "Content-Type: application/json" \
-  --data-binary @updated_file.json
-```
+**When this matters:** Step 5 of the Mandatory Sync Flow (Update Status Cache) and any run that writes back to `config.json` (rare — only during setup or config changes). Both files are located by title within their parent folder (`/config/`), not by a stable file ID.
 
-In practice, since `bash_tool` has network egress restrictions, the PAT-based update must go through a helper that has access to `googleapis.com`. If the bash egress allowlist does not include `googleapis.com`, fall back to writing a new file via the connector and note that the file ID has changed — the caller's project instructions or config will need the new ID.
-
-**When this matters:** Step 5 of the Mandatory Sync Flow (Update Status Cache) and any run that writes back to `config.json`. Both files are referenced by stable file IDs that must not change between runs.
-
-See references/item-sync.md for the file layout and folder hierarchy.
+**Status cache location:** The status-update cache is a file named `status-cache.json` in the `/config/` subfolder of `BRIEF_DATA_FOLDER_ID`. It is found by searching for that filename in the `/config/` folder — there is no separate `status_update_cache_file_id` in `config.json`. If the file does not exist (first run, or it was deleted), create it fresh.
 
 ---
 
@@ -150,7 +139,7 @@ Explicit list of the eight files that must be written on every scheduled run:
 
 See `references/item-sync.md` for the exact item shape, field requirements, and all write mechanics.
 
-**Step 5: Update Status Cache In Place** — Update `STATUS_UPDATE_CACHE_FILE_ID` with new `generated_at` timestamps for each account and the manager entry generated this run. **This must be an in-place update of the existing file, not a new file creation**, because the file ID is a stable reference stored in `config.json`. Use the Google Drive REST API v3 PATCH method described in "Google Drive write mechanics" above. If the API update fails (e.g. network egress restriction), fall back to writing via the connector's `create_file` and note in the brief output that the status cache file ID has changed and `config.json` needs updating.
+**Step 5: Update Status Cache** — Update the status-update cache (`status-cache.json` in the `/config/` folder) with new `generated_at` timestamps for each account and the manager entry generated this run. Find the existing `status-cache.json` by title in the `/config/` folder, then use the create-new/trash-old pattern described in "Google Drive write mechanics" above. If the file doesn't exist yet (first run), simply create it via `Google Drive: create_file` in the `/config/` folder.
 
 **All five steps are mandatory on every run.** A brief run that completes steps 1–3 but skips 4–5 has produced an in-chat response but NO persistent brief — the webapp has no files to read. Always finish all five steps before ending the run. If a Drive write fails, note it in the brief output and do not move on as though sync succeeded.
 
@@ -203,7 +192,7 @@ State the timing assumption briefly at the top of the brief (e.g., "Morning brie
 Before pulling data, read `/config/account-config.json` and compute which accounts this run processes. Today's weekday and the start of the current week are in the user's local timezone (from Timezone Resolution above); the week starts Monday 00:00 local.
 
 - Every `primary` account is in scope.
-- A `secondary` account is in scope if its `run_day` equals today's weekday, OR (catch-up) its `run_day` falls on-or-before today within the current week AND it has not run this week. "Has not run this week" means its `customer_updates[account_name].generated_at` in the status-update cache (`STATUS_UPDATE_CACHE_FILE_ID`) is missing or earlier than this week's Monday 00:00 local.
+- A `secondary` account is in scope if its `run_day` equals today's weekday, OR (catch-up) its `run_day` falls on-or-before today within the current week AND it has not run this week. "Has not run this week" means its `customer_updates[account_name].generated_at` in the status cache (`status-cache.json` in `/config/`) is missing or earlier than this week's Monday 00:00 local.
 - A `secondary` account that is not in scope is omitted entirely from this run — no recap entry, no Customer Update card, no Slack pull.
 
 Carry two groups forward: **primary in-scope** and **secondary in-scope**. Every later step that iterates accounts (the account/initiative recap, the Slack pull, Sections 3/4) uses these groups, not the raw file. If reading `account-config.json` fails, note it under Unavailable Sources and treat the account list as empty rather than blocking the brief.

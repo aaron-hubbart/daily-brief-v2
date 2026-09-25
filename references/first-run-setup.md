@@ -37,7 +37,7 @@ connectors.
 
 ## Phase 1: Minimal Configuration
 
-Ask for exactly five values, one at a time:
+Ask for exactly six values, one at a time:
 
 1. **Drive folder ID** — "Where should I save your briefs? Paste the ID
    from your Drive folder's URL (the part after `folders/`)." If the user
@@ -62,8 +62,19 @@ Ask for exactly five values, one at a time:
    channel ID, capture it for `slack_notify.channel_id` and set
    `slack_notify.enabled: true`. If the user responds "skip", leave
    `slack_notify` unset.
+6. **Asana Personal Access Token** — "If you want the hosted viewer to
+   pull live action items from Asana and sync checkbox/due-date changes
+   back, paste your Asana PAT. You can generate one at
+   https://app.asana.com/0/my-apps — create a Personal Access Token.
+   Respond 'skip' to set this up later from the viewer's Account panel."
+   If the user gives a token, validate it immediately by calling
+   `GET https://app.asana.com/api/1.0/users/me` with the token as a
+   Bearer header. If validation succeeds, capture it for `asana_pat`.
+   If it fails, tell the user the token couldn't be validated and ask
+   them to re-check it. If the user responds "skip", leave `asana_pat`
+   unset.
 
-Hold all five values in the conversation. Do not write anything to Drive yet.
+Hold all six values in the conversation. Do not write anything to Drive yet.
 
 ## Phase 2: Automated Discovery
 
@@ -175,11 +186,12 @@ Once the user confirms:
    entered or blank if the user skipped them), `slack_notify` (from
    Phase 1 question 5 — `{"enabled": true, "channel_id": "..."}` if the
    user opted in, otherwise omit it or write `{"enabled": false}`), and
-   empty-string placeholders for `meeting_run_log_sheet_id`,
-   `recurring_activities_project_gid`, `status_update_cache_file_id` (the
-   user can fill these in later, or by re-running setup — see
-   `references/item-sync.md` for what these three unlock and how they're
-   used).
+   empty-string placeholders for `meeting_run_log_sheet_id` and
+   `recurring_activities_project_gid` (the user can fill these in later,
+   or by re-running setup — see `references/item-sync.md` for what these
+   unlock and how they're used), and `asana_pat` from Phase 1 question 6
+   (the validated token string, or omit/leave empty if the user skipped
+   it).
 2. Create `/config/account-config.json` via `Google Drive: create_file`
    with the confirmed `accounts` array and top-level `internal_project_gid`
    plus `internal_project_name` (the human-readable name of that internal

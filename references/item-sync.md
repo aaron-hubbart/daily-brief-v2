@@ -9,10 +9,13 @@ folder, its ID stored in `config.json`). Two write paths are used:
 
 1. **New section files** (everything under `/briefs/{date}/`): use the
    `Google Drive: create_file` connector. These files are new each date.
-2. **Existing files updated in place** (`config.json` and the status-update
-   cache): use the Google Drive REST API v3 PATCH method via `bash_tool`
-   with an OAuth2 token (see "Google Drive write mechanics" in `SKILL.md`).
-   These files have stable IDs that must not change between runs.
+2. **Updating existing files** (`config.json` and the status-update cache
+   `status-cache.json`, both in `/config/`): use the **title-based lookup
+   + create-new/trash-old** pattern described in "Google Drive write
+   mechanics" in `SKILL.md`. The connector's `update_file` only changes
+   metadata, not content, so an "update" is: find the file by title in
+   `/config/`, create a new file with the same title and parent, then
+   trash the old one.
 
 **This skill is responsible for creating the folder hierarchy below itself, but only for folders that don't already exist.** Before creating any folder, query `BRIEF_DATA_FOLDER_ID` to check if `/briefs`, `/config`, `/briefs/{date}`, `/briefs/{date}/accounts`, and `/briefs/{date}/updates` folders already exist. Use the existing folder IDs for all file writes; only create new folders if they don't exist. This prevents duplicate folder creation on subsequent brief runs — the first run creates the hierarchy, and later runs reuse the existing folder IDs instead of creating duplicates.
 
