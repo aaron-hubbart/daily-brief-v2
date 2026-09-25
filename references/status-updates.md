@@ -1,10 +1,10 @@
 # Status Updates & Team Standup Reference (Section 2 Addendum, 3 & 4)
 
-Read this file only when the generation gate below says to actually generate or regenerate. On runs where the gate says "reuse cache," skip this file entirely and pull the cached content straight from `STATUS_UPDATE_CACHE_FILE_ID` — do not re-run the searches or synthesis described here. This is the single biggest cost item in the whole skill (a fresh per-account Slack search plus full narrative synthesis for every account, every run), so the gate exists specifically to stop that from happening on every "brief me" of the day.
+Read this file only when the generation gate below says to actually generate or regenerate. On runs where the gate says "reuse cache," skip this file entirely and pull the cached content straight from the status cache (`status-cache.json` in the `/config/` folder) — do not re-run the searches or synthesis described here. This is the single biggest cost item in the whole skill (a fresh per-account Slack search plus full narrative synthesis for every account, every run), so the gate exists specifically to stop that from happening on every "brief me" of the day.
 
 ## Cache schema
 
-`STATUS_UPDATE_CACHE_FILE_ID` is a small JSON file in Drive holding per-entry state, not one global flag — this is what makes a single-account refresh possible without touching the other seven:
+The status cache (`status-cache.json` in the `/config/` folder under `BRIEF_DATA_FOLDER_ID`) is a small JSON file in Drive holding per-entry state, not one global flag — this is what makes a single-account refresh possible without touching the other seven:
 
 ```json
 {
@@ -19,14 +19,14 @@ Read this file only when the generation gate below says to actually generate or 
 
 Key by Account Name exactly as it appears in `/config/account-config.json`'s `account_name` field, so entries line up with the account list read at generation time.
 
-`STATUS_UPDATE_CACHE_FILE_ID` is unchanged from v1: it is still its own separately-configured Drive file, not inside `BRIEF_DATA_FOLDER_ID` and not part of the `/briefs/{date}/` layout described in `references/item-sync.md`. It tracks generation state across however many brief runs happen in a day — a different lifetime than one day's section content, which is why it stays outside that per-day layout rather than becoming, say, a `/briefs/{date}/status-cache.json` file.
+The status cache lives in the `/config/` subfolder of `BRIEF_DATA_FOLDER_ID` as `status-cache.json`, found by title rather than by a stored file ID. It tracks generation state across however many brief runs happen in a day — a different lifetime than one day’s section content, which is why it stays in `/config/` rather than becoming a `/briefs/{date}/status-cache.json` file.
 
 ## Generation gate (check this first, every run that reaches Section 2's Team Standup card, or Section 3/4)
 
 Evaluate this **per account** (and separately for the manager update and the Today section's Team Standup card), not once for the whole section — a full brief run can end up reusing six cached accounts and regenerating two, all in the same pass.
 
-1. Read `STATUS_UPDATE_CACHE_FILE_ID`.
-2. **For each account:** if `customer_updates[account].generated_at` falls on today's local date, reuse that `content` verbatim — no Slack search, no synthesis. If it's missing or dated before today, generate fresh per the process below, then write the new `content` and `generated_at` (now) back into that account's entry only. Leave every other account's entry in the file untouched. **Write the updated cache back to the same file ID using the Google Drive REST API v3 PATCH method** (see "Google Drive write mechanics" in `SKILL.md`) — do not create a new file, as that would change the file ID and break the pointer in `config.json`.
+1. Read `status-cache.json` from the `/config/` folder (search by title: `name='status-cache.json' and parents='{config_folder_id}' and trashed=false`). If the file doesn’t exist, treat every entry as a miss.
+2. **For each account:** if `customer_updates[account].generated_at` falls on today's local date, reuse that `content` verbatim — no Slack search, no synthesis. If it's missing or dated before today, generate fresh per the process below, then write the new `content` and `generated_at` (now) back into that account's entry only. Leave every other account's entry in the file untouched. **Write the updated cache back using the create-new/trash-old pattern** (see "Google Drive write mechanics" in `SKILL.md`) — create a new `status-cache.json` with the merged content, then trash the old one.
 3. **Manager update and Team Standup card:** same rule, against `manager_update.generated_at` and `team_standup.generated_at` respectively.
 4. **Explicit refresh request** ("refresh the AcmeFin update," "regenerate manager update," "refresh team standup," or a click on a card's Refresh button — see `references/section-refresh.md`) forces regeneration for that one named entry regardless of its `generated_at` date, and overwrites only that entry.
 5. **Cache read fails** (Drive error, file missing and can't be created): treat every entry as a miss for this run — generate fresh for all of them, and note in the brief that the cache couldn't be read. Don't block the brief on this.
@@ -41,7 +41,7 @@ A card's Refresh button (see `references/section-refresh.md`) is the normal path
 
 ## Team Standup (Section 2 Addendum)
 
-Same cache gate as Sections 3/4 above, keyed by `team_standup` in `STATUS_UPDATE_CACHE_FILE_ID`. Generated fresh only on a cache miss or explicit refresh (`/daily-brief Refresh section:today date:{brief_date} item:today-standup` — see `references/section-refresh.md`).
+Same cache gate as Sections 3/4 above, keyed by `team_standup` in the status cache (`status-cache.json` in `/config/`). Generated fresh only on a cache miss or explicit refresh (`/daily-brief Refresh section:today date:{brief_date} item:today-standup` — see `references/section-refresh.md`).
 
 **Source data:** no new data pulls. Synthesize over the same "organize by customer account or internal initiative" buckets already computed for Section 2 (Today/Tomorrow Ahead — see `SKILL.md`), plus Action Items due today folded in per account/initiative. Include one bullet per account/initiative with something on today's docket (a meeting or a due-today action item); omit anything with nothing to report, same rule used everywhere else in this skill. A "Training" bullet appears under Internal only when a calendar block or task actually indicates a training session today.
 
