@@ -101,7 +101,10 @@ def test_get_portfolio_project_names_returns_sorted_names():
         ]},
     })
     result = get_portfolio_project_names(fetch_fn, pat='fake-pat', portfolio_gid='999')
-    assert result == ['Acme Corp', 'Zebra Corp']
+    assert result == [
+        {'gid': 'p2', 'name': 'Acme Corp', 'theater': None},
+        {'gid': 'p1', 'name': 'Zebra Corp', 'theater': None},
+    ]
 
 
 def test_get_portfolio_project_names_skips_items_missing_name():
@@ -112,10 +115,58 @@ def test_get_portfolio_project_names_skips_items_missing_name():
         ]},
     })
     result = get_portfolio_project_names(fetch_fn, pat='fake-pat', portfolio_gid='999')
-    assert result == ['Acme Corp']
+    assert result == [{'gid': 'p1', 'name': 'Acme Corp', 'theater': None}]
+
+
+def test_get_portfolio_project_names_skips_items_missing_gid():
+    fetch_fn = _fake_fetch({
+        '/portfolios/999/items': {'data': [
+            {'name': 'No GID Project'},
+            {'gid': 'p2', 'name': 'Valid Project'},
+        ]},
+    })
+    result = get_portfolio_project_names(fetch_fn, pat='fake-pat', portfolio_gid='999')
+    assert result == [{'gid': 'p2', 'name': 'Valid Project', 'theater': None}]
 
 
 def test_get_portfolio_project_names_returns_empty_list_when_portfolio_empty():
     fetch_fn = _fake_fetch({'/portfolios/999/items': {'data': []}})
     result = get_portfolio_project_names(fetch_fn, pat='fake-pat', portfolio_gid='999')
     assert result == []
+
+
+def test_get_portfolio_project_names_extracts_theater_custom_field():
+    fetch_fn = _fake_fetch({
+        '/portfolios/999/items': {'data': [
+            {'gid': 'p1', 'name': 'Acme Corp', 'custom_fields': [
+                {'name': 'Priority', 'display_value': 'High'},
+                {'name': 'Theater', 'display_value': 'AMER'},
+            ]},
+        ]},
+    })
+    result = get_portfolio_project_names(fetch_fn, pat='fake-pat', portfolio_gid='999')
+    assert result == [{'gid': 'p1', 'name': 'Acme Corp', 'theater': 'AMER'}]
+
+
+def test_get_portfolio_project_names_theater_field_name_is_case_insensitive():
+    fetch_fn = _fake_fetch({
+        '/portfolios/999/items': {'data': [
+            {'gid': 'p1', 'name': 'Acme Corp', 'custom_fields': [
+                {'name': 'THEATER', 'display_value': 'EMEA'},
+            ]},
+        ]},
+    })
+    result = get_portfolio_project_names(fetch_fn, pat='fake-pat', portfolio_gid='999')
+    assert result == [{'gid': 'p1', 'name': 'Acme Corp', 'theater': 'EMEA'}]
+
+
+def test_get_portfolio_project_names_theater_is_none_without_that_field():
+    fetch_fn = _fake_fetch({
+        '/portfolios/999/items': {'data': [
+            {'gid': 'p1', 'name': 'Acme Corp', 'custom_fields': [
+                {'name': 'Priority', 'display_value': 'High'},
+            ]},
+        ]},
+    })
+    result = get_portfolio_project_names(fetch_fn, pat='fake-pat', portfolio_gid='999')
+    assert result == [{'gid': 'p1', 'name': 'Acme Corp', 'theater': None}]

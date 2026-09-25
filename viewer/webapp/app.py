@@ -53,6 +53,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import asana_discovery
 import db
 import gdrive_briefs
+from action_items import group_action_items
 
 APP_DIR = Path(__file__).resolve().parent
 # In the VM deployment, app.py lives at viewer/webapp/app.py and the shared
@@ -362,93 +363,6 @@ def _fetch_live_action_items(pat, account_projects, exclude_gids):
 
     return items
 
-
-# Fixed order and labels for the Action Items subsections (see
-# _group_action_items below). "New Items" always renders first regardless
-# of due date so a freshly created task doesn't get buried under overdue
-# items from prior days.
-ACTION_SUBSECTIONS = [
-    {'slug': 'new', 'label': 'New Items'},
-    {'slug': 'overdue', 'label': 'Overdue'},
-    {'slug': 'due-soon', 'label': 'Due Next 7 Days'},
-    {'slug': 'no-due-date', 'label': 'No Due Date'},
-]
-
-
-def _group_action_items(items, today_iso: str):
-    """
-    Splits the flat Action Items list into the four fixed subsections the
-    template renders. Membership is exclusive — an item lands in exactly
-    one group, checked in this priority order:
-
-      1. is_new  — content.is_new is true (this brief run created the
-         Asana task itself; see references/item-sync.md). Takes priority
-         over the date-based groups below so a brand-new overdue-looking
-         task still shows up under "New Items", not "Overdue".
-      2. overdue — content.due_on is set and before today.
-      3. due-soon — content.due_on is set and within the next 7 days
-         (inclusive of today).
-      4. no-due-date — everything else: no due_on at all, or a non-Asana
-         action item with no natural date.
-
-    Items are sorted by due_on ascending within groups 2 and 3; group 4
-    keeps upstream display_order (already priority-ordered by the skill)
-    since there's no date to sort on, and group 1 does the same.
-    Returns a list of {slug, label, items} dicts, omitting empty groups —
-    the template skips rendering a subsection header with nothing under it.
-    """
-    today = date.fromisoformat(today_iso)
-    week_out = today + timedelta(days=7)
-    buckets = {s['slug']: [] for s in ACTION_SUBSECTIONS}
-
-    for item in items:
-        content = item.get('content') or {}
-        due_on = content.get('due_on')
-        if content.get('is_new'):
-            buckets['new'].append(item)
-            continue
-        if due_on:
-            try:
-                due_date = date.fromisoformat(due_on)
-            except ValueError:
-                due_date = None
-        else:
-            due_date = None
-        if due_date is not None and due_date < today:
-            buckets['overdue'].append(item)
-        elif due_date is not None and due_date <= week_out:
-            buckets['due-soon'].append(item)
-        else:
-            buckets['no-due-date'].append(item)
-
-    for slug in ('overdue', 'due-soon'):
-        buckets[slug].sort(key=lambda it: (it.get('content') or {}).get('due_on') or '')
-
-    groups = [
-        {**s, 'items': buckets[s['slug']]}
-        for s in ACTION_SUBSECTIONS
-        if buckets[s['slug']]
-    ]
-
-    # Every subsection is further split by board (Asana project name) so
-    # items are visually grouped by account rather than rendering as one
-    # undifferentiated list. "My Tasks" (content.project_name is null,
-    # meaning no configured project GID for that account, or a non-Asana
-    # action item) sorts last since it's the catch-all. Item order within
-    # each board is preserved from the incoming list (display_order for
-    # New-Item-shaped rows, due_on sort for date-bucketed rows, upstream
-    # ordering for live-pulled ones).
-    for group in groups:
-        boards = {}
-        for item in group['items']:
-            board_name = (item.get('content') or {}).get('project_name') or 'My Tasks'
-            boards.setdefault(board_name, []).append(item)
-        group['boards'] = [
-            {'name': name, 'items': boards[name]}
-            for name in sorted(boards, key=lambda n: (n == 'My Tasks', n))
-        ]
-
-    return groups
 
 
 def _count_label(slug, items):
@@ -1217,25 +1131,33 @@ def environments_page():
 @app.route('/api/environments/config')
 @login_required
 def api_environments_config():
-    """Returns the current in-scope customer name list (from the Asana
-    portfolio). Each customer's own teams/environments data is fetched
-    lazily via GET /api/environments/config/<account_name> once selected —
-    it lives in a separate Drive file per account, not here."""
+    """Returns the current in-scope customer list (name + Asana Theater).
+    Each customer's own teams/environments data is fetched lazily via GET
+    /api/environments/config/<account_name> once selected — it lives in a
+    separate Drive file per account under Consulting > Customers, not here.
+    The Environments portfolio is authoritative for scope — every project
+    in it is a customer, full stop, with no cross-check against
+    account-config.json (a customer list scoped to the signed-in user's
+    own accounts, not the shared portfolio this tab tracks)."""
     pat = db.get_asana_pat(request.brief_user['id'])
     if not pat:
-        return jsonify({'in_scope_names': None, 'needs_pat': True})
+        return jsonify({'in_scope_customers': None, 'needs_pat': True})
 
     try:
-        in_scope_names = asana_discovery.get_portfolio_project_names(
+        portfolio_items = asana_discovery.get_portfolio_project_names(
             _asana_api_get, pat, ENVIRONMENTS_PORTFOLIO_GID,
         )
     except (urllib.error.URLError, json.JSONDecodeError) as e:
         return jsonify({
-            'in_scope_names': None,
+            'in_scope_customers': None,
             'error': f'Could not load customer list from Asana: {e}',
         })
 
-    return jsonify({'in_scope_names': in_scope_names})
+    in_scope_customers = [
+        {'name': p['name'], 'theater': p['theater']} for p in portfolio_items
+    ]
+
+    return jsonify({'in_scope_customers': in_scope_customers})
 
 
 @app.route('/api/environments/config/<account_name>')
@@ -1480,7 +1402,7 @@ def api_live_action_items(date_str):
     t_asana = time.monotonic()
 
     all_items = brief_action_items + live_items
-    action_subsections = _group_action_items(all_items, today_iso)
+    action_subsections = group_action_items(all_items, today_iso)
     total_count = sum(len(g['items']) for g in action_subsections)
 
     html = render_template(
@@ -1497,6 +1419,86 @@ def api_live_action_items(date_str):
         date_str, t_gdrive - t0, t_asana - t_gdrive, t_render - t_asana, t_render - t0, total_count,
     )
     return jsonify({'html': html, 'count': total_count})
+
+
+@app.route('/tasks')
+@login_required
+def tasks_page():
+    return render_template('tasks.html', user_email=request.brief_user['email'])
+
+
+@app.route('/api/tasks')
+@login_required
+def api_tasks():
+    """Standalone, cross-day view of every open Asana task relevant to the
+    signed-in user — everything api_live_action_items pulls for one brief
+    day, but with nothing excluded (there's no specific day's stored items
+    to de-duplicate against here)."""
+    asana_pat = db.get_asana_pat(request.brief_user['id'])
+    if not asana_pat:
+        html = render_template('tasks_fragment.html', action_subsections=[], asana_pat_configured=False)
+        return jsonify({'html': html, 'count': 0, 'needs_pat': True})
+
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    account_projects = (
+        gdrive_briefs.get_account_projects(google_token, folder_id)
+        if google_token
+        else []
+    )
+    live_items = _fetch_live_action_items(asana_pat, account_projects, set())
+    today_iso = date.today().isoformat()
+    action_subsections = group_action_items(live_items, today_iso)
+    total_count = sum(len(g['items']) for g in action_subsections)
+
+    html = render_template(
+        'tasks_fragment.html', action_subsections=action_subsections,
+        asana_pat_configured=True, today_iso=today_iso,
+    )
+    return jsonify({'html': html, 'count': total_count})
+
+
+@app.route('/api/tasks/<item_key>/checked', methods=['PATCH'])
+@login_required
+def set_task_checked(item_key):
+    """Marks an open task complete/incomplete directly in Asana. Unlike
+    /api/items/<section>/<item_key>/checked, there's no Postgres row
+    backing this up — these items are never persisted (see
+    api_tasks/_fetch_live_action_items) — so a failed Asana write has
+    nothing else to fall back on; the client surfaces asana_synced=false
+    as an error rather than treating the checkbox as settled."""
+    body = request.get_json(silent=True) or {}
+    if 'checked' not in body:
+        abort(400, 'checked (bool) is required')
+    checked = bool(body['checked'])
+    pat = db.get_asana_pat(request.brief_user['id'])
+    attempted, ok = _sync_asana_completed(pat, item_key, checked)
+    if not attempted:
+        abort(404)
+    return jsonify({'status': 'ok', 'asana_synced': ok})
+
+
+@app.route('/api/tasks/<item_key>/due-date', methods=['PATCH'])
+@login_required
+def set_task_due_date(item_key):
+    """Sets the due date on an open task directly in Asana. Same
+    no-Postgres-row situation as set_task_checked above — these items are
+    the live, unpersisted Asana pull (see api_tasks) — so this always
+    writes straight to Asana rather than going through the brief's
+    Postgres-backed /api/items/<section>/<item_key>/due-date route. Mirrors
+    the Action Items due-date box: the four shortcut buttons and the raw
+    date input both funnel through here."""
+    body = request.get_json(silent=True) or {}
+    if 'due_on' not in body:
+        abort(400, 'due_on (YYYY-MM-DD or null) is required')
+    due_on = body['due_on']
+    if due_on is not None and not DATE_RE.match(due_on):
+        abort(400, 'due_on must be YYYY-MM-DD or null')
+    pat = db.get_asana_pat(request.brief_user['id'])
+    attempted, ok = _sync_asana_due_date(pat, item_key, due_on)
+    if not attempted:
+        abort(404)
+    return jsonify({'status': 'ok', 'asana_synced': ok})
 
 
 @app.route('/api/brief/<date_str>/section/<slug>')
@@ -1530,7 +1532,7 @@ def api_section(date_str, slug):
     if slug == 'action-items':
         asana_pat = db.get_asana_pat(request.brief_user['id'])
         new_only = [it for it in items if (it.get('content') or {}).get('is_new')]
-        action_subsections = _group_action_items(new_only, today_iso)
+        action_subsections = group_action_items(new_only, today_iso)
         html = render_template(
             'section_fragment.html',
             section_slug=slug,
