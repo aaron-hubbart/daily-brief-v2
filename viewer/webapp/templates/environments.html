@@ -274,6 +274,8 @@ async function load() {
     ]);
     if (!envResp.ok) throw new Error((await envResp.json()).error || envResp.statusText);
     STATE = await envResp.json();
+    STATE.customers = {};      // per-account data, fetched lazily on selection
+    STATE.loadError = {};      // name -> error message, when that account's file couldn't be read
     if (custResp && custResp.ok) {
       const custConfig = await custResp.json();
       MY_CUSTOMER_NORMALIZED = new Set(
@@ -363,15 +365,47 @@ function renderCustomerSelect() {
     `<option value="${escAttr(name)}">${esc(name)}</option>`
   ).join('');
   if (!CURRENT || !names.includes(CURRENT)) CURRENT = names[0];
-  select.value = CURRENT;
-  ensureCustomer(CURRENT);
-  renderCustomer();
+  selectCustomer(CURRENT);
 }
 
-function onCustomerChange() {
-  CURRENT = document.getElementById('customer-select').value;
-  ensureCustomer(CURRENT);
+async function onCustomerChange() {
+  const select = document.getElementById('customer-select');
+  const next = select.value;
+  if (dirty && !confirm('You have unsaved changes for ' + CURRENT + '. Discard them and switch customer?')) {
+    select.value = CURRENT;
+    return;
+  }
+  dirty = false;
+  await selectCustomer(next);
+}
+
+async function selectCustomer(name) {
+  CURRENT = name;
+  document.getElementById('customer-select').value = name;
+  document.getElementById('save-btn').disabled = true;
+  document.getElementById('save-status').textContent = '';
+
+  if (!STATE.customers[name] && !STATE.loadError[name]) {
+    document.getElementById('content').innerHTML = '<div class="empty">Loading&hellip;</div>';
+    try {
+      const r = await fetch(`${BASE}api/environments/config/${encodeURIComponent(name)}`, {credentials:'include'});
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || r.statusText);
+      STATE.customers[name] = body;
+    } catch(e) {
+      STATE.loadError[name] = e.message;
+    }
+  }
+
+  if (STATE.loadError[name]) {
+    document.getElementById('content').innerHTML =
+      `<div class="hint" style="color:var(--bad-t)">${esc(STATE.loadError[name])}</div>`;
+    return;
+  }
+
+  ensureCustomer(name);
   renderCustomer();
+  document.getElementById('save-btn').disabled = !dirty;
 }
 
 function ensureCustomer(name) {
@@ -811,18 +845,19 @@ function markDirty() {
 async function saveAll() {
   const btn = document.getElementById('save-btn');
   const status = document.getElementById('save-status');
+  const c = STATE.customers[CURRENT];
   btn.disabled = true;
   status.textContent = 'Saving…';
   try {
-    const r = await fetch(`${BASE}api/environments/config`, {
+    const r = await fetch(`${BASE}api/environments/config/${encodeURIComponent(CURRENT)}`, {
       method: 'PUT', credentials: 'include',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({customers: STATE.customers}),
+      body: JSON.stringify({teams: c.teams, environments: c.environments}),
     });
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     dirty = false;
     status.textContent = '';
-    showToast('Saved to Drive', 'ok', 4000);
+    showToast(`Saved ${CURRENT} to Drive`, 'ok', 4000);
   } catch(e) {
     showToast('Save failed: ' + e.message, 'err', 5000);
     status.textContent = 'Unsaved changes';

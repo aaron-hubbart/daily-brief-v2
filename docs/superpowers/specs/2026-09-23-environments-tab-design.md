@@ -24,63 +24,105 @@ don't change it — so building this first is a hard prerequisite either way.
 
 ## Data model
 
-New `environments-config.json`, stored in the same Drive `/config` folder as
-the existing `account-config.json`, read/written with the exact same
-pattern already in `gdrive_briefs.py` (`_download_json` /
-`MediaIoBaseUpload`, 5-minute cache, create-on-first-write). No new
-database — this is organizational reference data with the same low write
-frequency and single-digit-user scale as `account-config.json`, so the same
-"one JSON file in Drive" approach applies without modification.
+**One JSON file per account**, not a combined file — stored not in this
+app's own per-user briefs Drive tree, but in the **Consulting > Customers
+Shared Drive** that TAMs already use for every other account artifact
+(sizing decks, meeting notes, handover sheets, and — as of the
+`account-context` skill — a per-account `<Account Name>-context.md` file
+already living in the same folder). This app writes into that same
+human-curated folder rather than a Drive folder scoped to the daily-brief
+app.
+
+Path: `<Consulting > Customers>/<Letter>/<Account Name>/<Account Name>-environments.json`
+
+- `<Letter>` is the account name's first character, uppercased (`A`-`Z`),
+  or `1-9` for a name starting with a digit — matching the bucket scheme
+  already in use under Customers today.
+- `<Account Name>` is an existing subfolder under that letter — **this app
+  never creates the letter or account folder**; only a human curates that
+  structure. If no matching account folder is found, the read/write
+  functions return a clear error (surfaced by the API as 404) telling the
+  TAM to create the account folder in Drive first, rather than silently
+  writing somewhere unexpected or auto-creating clutter in a shared,
+  human-curated drive.
+- The JSON *file* itself is still create-on-first-write (same
+  `_download_json`/`MediaIoBaseUpload` pattern as every other config file
+  in `gdrive_briefs.py`), since an empty/missing file just means no TAM has
+  saved data for that account yet.
+- The Shared Drive's `Customers` folder ID is a fixed, org-wide value
+  (`CONSULTING_CUSTOMERS_FOLDER_ID` in `gdrive_briefs.py`, defaulted in code
+  the same way `ENVIRONMENTS_PORTFOLIO_GID` is, overridable via env var) —
+  unlike `BRIEFS_FOLDER_ID`, this is the same folder for every user, not a
+  per-user Drive root.
+- Because this lives in a Shared Drive, every Drive API call against it
+  needs `supportsAllDrives`/`includeItemsFromAllDrives` — the personal-Drive
+  helpers elsewhere in `gdrive_briefs.py` don't set these, so this feature
+  has its own small set of Shared-Drive-aware helpers
+  (`_find_account_folder`, `read_account_environments`,
+  `write_account_environments`) rather than reusing `_find_folder_cached`
+  directly.
+- Account-name → folder-name matching is exact first, then case-insensitive
+  as a fallback (matching is done in Python against a listing, not baked
+  into the Drive query string, so punctuation/quotes in account names can't
+  break the query). The file itself is named after the **matched Drive
+  folder's own spelling**, not the incoming Asana project name, so it stays
+  byte-for-byte consistent with sibling files like
+  `<Account Name>-context.md` even if the Asana project name differs in
+  case or trailing whitespace.
+
+Per-account file shape (this is the whole file — no longer wrapped in an
+outer customer-name key, since the account is now identified by which file
+it is rather than a dict key):
 
 ```json
 {
-  "Acme, Inc.": {
-    "teams": [
-      {"id": "team-platform", "name": "Platform Team", "notes": ""},
-      {"id": "team-claims-app", "name": "Claims App Team", "notes": ""}
-    ],
-    "environments": [
-      {
-        "id": "prod",
-        "label": "Production",
-        "team_ids": ["team-platform", "team-claims-app"],
-        "deployment": {
-          "model": "SaaS",
-          "install_method": "",
-          "region": "",
-          "multi_tenancy": "",
-          "sizing": ""
-        },
-        "versions": {
-          "camunda_version": "",
-          "components": ["Zeebe", "Operate", "Tasklist", "Optimize", "Connectors"]
-        },
-        "links": {
-          "console_url": "",
-          "cluster_urls": [],
-          "support_plan": "",
-          "runbook_links": []
-        },
-        "notes": "",
-        "diagnostic_reports": [
-          {"link": "", "generated_date": "YYYY-MM-DD", "ticket": ""}
-        ],
-        "helm_values": [
-          {"link": "", "date": "YYYY-MM-DD"}
-        ]
-      }
-    ]
-  }
+  "teams": [
+    {"id": "team-platform", "name": "Platform Team", "notes": ""},
+    {"id": "team-claims-app", "name": "Claims App Team", "notes": ""}
+  ],
+  "environments": [
+    {
+      "id": "prod",
+      "label": "Production",
+      "team_ids": ["team-platform", "team-claims-app"],
+      "deployment": {
+        "model": "SaaS",
+        "install_method": "",
+        "region": "",
+        "multi_tenancy": "",
+        "sizing": ""
+      },
+      "versions": {
+        "camunda_version": "",
+        "components": ["Zeebe", "Operate", "Tasklist", "Optimize", "Connectors"]
+      },
+      "links": {
+        "console_url": "",
+        "cluster_urls": [],
+        "support_plan": "",
+        "runbook_links": []
+      },
+      "notes": "",
+      "diagnostic_reports": [
+        {"link": "", "generated_date": "YYYY-MM-DD", "ticket": ""}
+      ],
+      "helm_values": [
+        {"link": "", "date": "YYYY-MM-DD"}
+      ]
+    }
+  ]
 }
 ```
 
-Keyed by the same account name `account-config.json` already uses, so an
-environment list hangs off the same customer identity the Customers and
-Tasks tabs use — no second customer list to keep in sync by hand.
 `diagnostic_reports` and `helm_values` are both append-mostly dated lists
 per environment (a customer's Production environment accumulates a history
 of reports and Helm values snapshots over time, rather than only ever
 holding the latest one).
+
+**No migration from the earlier combined-file design**: this per-account
+layout replaced the original single `environments-config.json` (in this
+app's own `/config` Drive folder) before any real TAM data had been entered
+against it, so there was nothing to carry over.
 
 **Teams**: each customer has its own small list of named teams (e.g. "Platform
 Team", "Claims App Team") — scoped to that customer, not shared globally.
@@ -89,7 +131,7 @@ The relationship to environments is many-to-many, represented as
 environment (e.g. Platform Team owns both Staging and Production), and an
 environment can list more than one team (e.g. Production is jointly owned
 by Platform and an app team). No separate join structure is needed since
-both sides live under the same customer key — deleting a team just means
+both sides live in the same per-account file — deleting a team just means
 removing its id from any environment's `team_ids` and from the `teams`
 list.
 
@@ -132,10 +174,14 @@ in the portfolio.
   intersection with `account-config.json`; the implemented and reviewed
   behavior is portfolio-only, and this is that call made explicit rather
   than a stray non-customer project silently requiring a second config
-  file to stay in sync.) Environment records are still keyed by this same
-  project-name string, matching how `account-config.json`'s `account_name`
-  is used elsewhere in this app — so renaming the Asana project orphans
-  its saved environments, a known limitation for this first cut.
+  file to stay in sync.) The Asana project name is used to resolve which
+  Consulting > Customers account folder to read/write (see Data model
+  above) — so renaming the Asana project without also renaming (or
+  matching against) the Drive folder breaks that lookup. Unlike the
+  original combined-file design, this fails loudly (a clear "no folder
+  found" error) rather than silently orphaning data, but it's still a
+  known limitation: keep the Asana project name and the Drive account
+  folder name in sync.
 - **No caching**: every other Asana call in this app (`_fetch_live_action_items`,
   `asana_discovery.find_new_projects`, PAT validation) is called fresh on
   each request rather than cached — only Drive *folder-GID* lookups are
@@ -164,14 +210,15 @@ rest of the viewer.
   `fetch_fn(pat, path, params) -> dict`), so it's unit-tested with a
   hand-rolled fake — no network, no mocking library — exactly like
   `test_asana_discovery.py` already does for that sibling function.
-- **No automated test for the new `read_environments_config`/
-  `write_environments_config` functions or the new Flask routes.**
-  `read_account_config`/`write_account_config`/`read_config`/`write_config`
-  — the three existing sibling "config JSON in Drive" pairs this new one
-  matches exactly — have no tests today either (there's no stubbed-Drive-
-  client pattern anywhere in this codebase to extend), and no route in
-  this app has an automated test (same reason as the Tasks tab: `app.py`
-  needs live env vars and Postgres to import). This isn't a new gap this
-  feature introduces — it's the existing, consistent level of coverage for
-  this whole category of code. Verified manually instead, same as every
-  sibling function and every route.
+- **No automated test for `read_account_environments`/
+  `write_account_environments` (or their Shared-Drive folder-resolution
+  helpers) or the new Flask routes.** `read_account_config`/
+  `write_account_config`/`read_config`/`write_config` — the existing
+  sibling "config JSON in Drive" pairs this new one is closest to — have no
+  tests today either (there's no stubbed-Drive-client pattern anywhere in
+  this codebase to extend), and no route in this app has an automated test
+  (same reason as the Tasks tab: `app.py` needs live env vars and Postgres
+  to import). This isn't a new gap this feature introduces — it's the
+  existing, consistent level of coverage for this whole category of code.
+  Verified manually instead, same as every sibling function and every
+  route.
