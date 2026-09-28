@@ -96,6 +96,25 @@ it is rather than a dict key):
         "camunda_version": "",
         "components": ["Zeebe", "Operate", "Tasklist", "Optimize", "Connectors"]
       },
+      "infrastructure": {
+        "os": "",
+        "hosting_platform": "",
+        "kubectl_access": "",
+        "secondary_storage": ""
+      },
+      "cluster": {
+        "broker_count": "",
+        "replication": "",
+        "multi_region": ""
+      },
+      "observability": {
+        "kibana": "",
+        "prometheus": ""
+      },
+      "multi_tenant": {
+        "tenant_isolation": "",
+        "tenant_names": []
+      },
       "links": {
         "console_url": "",
         "cluster_urls": [],
@@ -118,6 +137,12 @@ it is rather than a dict key):
 per environment (a customer's Production environment accumulates a history
 of reports and Helm values snapshots over time, rather than only ever
 holding the latest one).
+
+`observability.kibana` and `observability.prometheus` are each one of
+`"Not Used"`, `"Within cluster"`, or `"External to cluster"` (or `""` if
+unanswered), describing how that tool is deployed relative to the Camunda
+cluster — not a URL. `multi_tenant.tenant_isolation` is a separate, free-text
+field from the existing `deployment.multi_tenancy` — the two aren't merged.
 
 **No migration from the earlier combined-file design**: this per-account
 layout replaced the original single `environments-config.json` (in this

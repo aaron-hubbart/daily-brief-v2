@@ -55,6 +55,9 @@ tr:last-child td{border-bottom:none;}
 .env-card{border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
 .env-card-head{padding:8px 12px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:600;}
 .env-card-body{padding:10px 12px;}
+.env-subsection{border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden;}
+.env-subsection-head{padding:6px 10px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);}
+.env-subsection-body{padding:10px;}
 .env-group{border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
 .group-head{padding:8px 12px;background:var(--surface2);display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);}
 .group-body{padding:10px 12px;}
@@ -130,6 +133,7 @@ let dirty = false;
 
 const COMPONENT_OPTIONS = ['Zeebe', 'Operate', 'Tasklist', 'Optimize', 'Connectors'];
 const STANDARD_ENV_NAMES = ['Production', 'Staging', 'QA/Test', 'Development', 'Sandbox', 'DR/Failover'];
+const OBSERVABILITY_OPTIONS = ['Not Used', 'Within cluster', 'External to cluster'];
 
 let MY_CUSTOMER_NORMALIZED = new Set();
 let filterRegion = localStorage.getItem('env-tab:region') || '';
@@ -255,6 +259,21 @@ function normalizeEnvironment(env) {
   env.versions = env.versions || {};
   env.versions.camunda_version = env.versions.camunda_version || '';
   env.versions.components = env.versions.components || [];
+  env.infrastructure = env.infrastructure || {};
+  env.infrastructure.os = env.infrastructure.os || '';
+  env.infrastructure.hosting_platform = env.infrastructure.hosting_platform || '';
+  env.infrastructure.kubectl_access = env.infrastructure.kubectl_access || '';
+  env.infrastructure.secondary_storage = env.infrastructure.secondary_storage || '';
+  env.cluster = env.cluster || {};
+  env.cluster.broker_count = env.cluster.broker_count || '';
+  env.cluster.replication = env.cluster.replication || '';
+  env.cluster.multi_region = env.cluster.multi_region || '';
+  env.observability = env.observability || {};
+  env.observability.kibana = env.observability.kibana || '';
+  env.observability.prometheus = env.observability.prometheus || '';
+  env.multi_tenant = env.multi_tenant || {};
+  env.multi_tenant.tenant_isolation = env.multi_tenant.tenant_isolation || '';
+  env.multi_tenant.tenant_names = env.multi_tenant.tenant_names || [];
   env.links = env.links || {};
   env.links.console_url = env.links.console_url || '';
   env.links.cluster_urls = env.links.cluster_urls || [];
@@ -623,6 +642,10 @@ function addTeam() {
       team_ids: [id],
       deployment: {model: 'SaaS', install_method: '', region: '', multi_tenancy: '', sizing: ''},
       versions: {camunda_version: '', components: []},
+      infrastructure: {os: '', hosting_platform: '', kubectl_access: '', secondary_storage: ''},
+      cluster: {broker_count: '', replication: '', multi_region: ''},
+      observability: {kibana: '', prometheus: ''},
+      multi_tenant: {tenant_isolation: '', tenant_names: []},
       links: {console_url: '', cluster_urls: [], support_plan: '', runbook_links: []},
       notes: '',
       diagnostic_reports: [],
@@ -730,8 +753,65 @@ function environmentCardHtml(env, idx, teams) {
         <div class="field"><label>Cluster URLs (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'links', 'cluster_urls', this.value)">${esc((env.links.cluster_urls||[]).join('\n'))}</textarea></div>
         <div class="field"><label>Runbook links (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'links', 'runbook_links', this.value)">${esc((env.links.runbook_links||[]).join('\n'))}</textarea></div>
         <div class="field"><label>Notes</label><textarea onchange="updateEnvField(${idx}, 'notes', this.value)">${esc(env.notes || '')}</textarea></div>
-        <div class="field"><label>Diagnostic reports</label>${datedListHtml(idx, 'diagnostic_reports', env.diagnostic_reports, true)}</div>
-        <div class="field"><label>Helm values.yaml history</label>${datedListHtml(idx, 'helm_values', env.helm_values, false)}</div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Infrastructure</div>
+          <div class="env-subsection-body">
+            <div class="field-grid">
+              <div><label>OS</label><input type="text" value="${escAttr(env.infrastructure.os)}" onchange="updateEnvNested(${idx}, 'infrastructure', 'os', this.value)"></div>
+              <div><label>Hosting platform</label><input type="text" value="${escAttr(env.infrastructure.hosting_platform)}" onchange="updateEnvNested(${idx}, 'infrastructure', 'hosting_platform', this.value)"></div>
+              <div><label>Kubectl access</label><input type="text" value="${escAttr(env.infrastructure.kubectl_access)}" onchange="updateEnvNested(${idx}, 'infrastructure', 'kubectl_access', this.value)"></div>
+              <div><label>Secondary storage</label><input type="text" value="${escAttr(env.infrastructure.secondary_storage)}" onchange="updateEnvNested(${idx}, 'infrastructure', 'secondary_storage', this.value)"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Cluster</div>
+          <div class="env-subsection-body">
+            <div class="field-grid">
+              <div><label>Broker count</label><input type="text" value="${escAttr(env.cluster.broker_count)}" onchange="updateEnvNested(${idx}, 'cluster', 'broker_count', this.value)"></div>
+              <div><label>Replication</label><input type="text" value="${escAttr(env.cluster.replication)}" onchange="updateEnvNested(${idx}, 'cluster', 'replication', this.value)"></div>
+            </div>
+            <div class="field"><label>Multi-region</label><input type="text" style="width:100%" value="${escAttr(env.cluster.multi_region)}" onchange="updateEnvNested(${idx}, 'cluster', 'multi_region', this.value)"></div>
+          </div>
+        </div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Observability</div>
+          <div class="env-subsection-body">
+            <div class="field-grid">
+              <div><label>Kibana</label>
+                <select onchange="updateEnvNested(${idx}, 'observability', 'kibana', this.value)">
+                  <option value=""></option>
+                  ${OBSERVABILITY_OPTIONS.map(o => `<option value="${escAttr(o)}" ${env.observability.kibana===o?'selected':''}>${esc(o)}</option>`).join('')}
+                </select>
+              </div>
+              <div><label>Prometheus</label>
+                <select onchange="updateEnvNested(${idx}, 'observability', 'prometheus', this.value)">
+                  <option value=""></option>
+                  ${OBSERVABILITY_OPTIONS.map(o => `<option value="${escAttr(o)}" ${env.observability.prometheus===o?'selected':''}>${esc(o)}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Multi-tenant</div>
+          <div class="env-subsection-body">
+            <div class="field"><label>Tenant isolation</label><input type="text" style="width:100%" value="${escAttr(env.multi_tenant.tenant_isolation)}" onchange="updateEnvNested(${idx}, 'multi_tenant', 'tenant_isolation', this.value)"></div>
+            <div class="field"><label>Tenant names (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'multi_tenant', 'tenant_names', this.value)">${esc((env.multi_tenant.tenant_names||[]).join('\n'))}</textarea></div>
+          </div>
+        </div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Supporting Files</div>
+          <div class="env-subsection-body">
+            <div class="field"><label>Diagnostic reports</label>${datedListHtml(idx, 'diagnostic_reports', env.diagnostic_reports, true)}</div>
+            <div class="field"><label>Helm values.yaml history</label>${datedListHtml(idx, 'helm_values', env.helm_values, false)}</div>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -759,6 +839,10 @@ function addEnvironment() {
     team_ids: [],
     deployment: {model: 'SaaS', install_method: '', region: '', multi_tenancy: '', sizing: ''},
     versions: {camunda_version: '', components: []},
+    infrastructure: {os: '', hosting_platform: '', kubectl_access: '', secondary_storage: ''},
+    cluster: {broker_count: '', replication: '', multi_region: ''},
+    observability: {kibana: '', prometheus: ''},
+    multi_tenant: {tenant_isolation: '', tenant_names: []},
     links: {console_url: '', cluster_urls: [], support_plan: '', runbook_links: []},
     notes: '',
     diagnostic_reports: [],
