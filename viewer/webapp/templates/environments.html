@@ -37,6 +37,11 @@ textarea{width:100%;min-height:52px;resize:vertical;}
 .btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
 .btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
 .btn:disabled{opacity:.4;cursor:default;}
+input:disabled,select:disabled{opacity:.5;cursor:not-allowed;background:var(--surface2);}
+.link-field-row{display:flex;gap:6px;align-items:center;}
+.link-field-row input{flex:1;}
+.link-icon{font-size:13px;color:var(--accent-t);text-decoration:none;flex:0 0 auto;padding:2px 4px;}
+.link-icon:hover{text-decoration:underline;}
 .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
 .customer-select{min-width:260px;}
 .region-select{min-width:140px;}
@@ -134,6 +139,9 @@ let dirty = false;
 const COMPONENT_OPTIONS = ['Zeebe', 'Operate', 'Tasklist', 'Optimize', 'Connectors'];
 const STANDARD_ENV_NAMES = ['Production', 'Staging', 'QA/Test', 'Development', 'Sandbox', 'DR/Failover'];
 const OBSERVABILITY_OPTIONS = ['Not Used', 'Within cluster', 'External to cluster'];
+const HOSTING_PLATFORM_OPTIONS = ['AWS', 'GCP', 'Azure', 'Customer Data Center'];
+const KUBECTL_ACCESS_OPTIONS = ['Yes', 'No'];
+const SECONDARY_STORAGE_OPTIONS = ['ElasticSearch', 'Open Search', 'PostgreSQL', 'Oracle', 'Amazon Aurora PostgreSQL', 'MariaDB', 'MySQL', 'MSSQL'];
 
 let MY_CUSTOMER_NORMALIZED = new Set();
 let filterRegion = localStorage.getItem('env-tab:region') || '';
@@ -253,8 +261,6 @@ function normalizeEnvironment(env) {
   env.deployment = env.deployment || {};
   env.deployment.model = env.deployment.model || 'SaaS';
   env.deployment.install_method = env.deployment.install_method || '';
-  env.deployment.region = env.deployment.region || '';
-  env.deployment.multi_tenancy = env.deployment.multi_tenancy || '';
   env.deployment.sizing = env.deployment.sizing || '';
   env.versions = env.versions || {};
   env.versions.camunda_version = env.versions.camunda_version || '';
@@ -266,19 +272,25 @@ function normalizeEnvironment(env) {
   env.infrastructure.secondary_storage = env.infrastructure.secondary_storage || '';
   env.cluster = env.cluster || {};
   env.cluster.broker_count = env.cluster.broker_count || '';
+  env.cluster.partitions = env.cluster.partitions || '';
   env.cluster.replication = env.cluster.replication || '';
   env.cluster.multi_region = env.cluster.multi_region || '';
   env.observability = env.observability || {};
   env.observability.kibana = env.observability.kibana || '';
   env.observability.prometheus = env.observability.prometheus || '';
+  env.observability.dashboard_links = env.observability.dashboard_links || [];
   env.multi_tenant = env.multi_tenant || {};
+  env.multi_tenant.multi_tenancy = env.multi_tenant.multi_tenancy || env.deployment.multi_tenancy || '';
   env.multi_tenant.tenant_isolation = env.multi_tenant.tenant_isolation || '';
   env.multi_tenant.tenant_names = env.multi_tenant.tenant_names || [];
+  delete env.deployment.multi_tenancy;
+  delete env.deployment.region;
   env.links = env.links || {};
-  env.links.console_url = env.links.console_url || '';
-  env.links.cluster_urls = env.links.cluster_urls || [];
+  env.links.cluster_url = env.links.cluster_url || (Array.isArray(env.links.cluster_urls) ? (env.links.cluster_urls[0] || '') : '');
   env.links.support_plan = env.links.support_plan || '';
   env.links.runbook_links = env.links.runbook_links || [];
+  delete env.links.cluster_urls;
+  delete env.links.console_url;
   env.notes = env.notes || '';
   env.diagnostic_reports = env.diagnostic_reports || [];
   env.helm_values = env.helm_values || [];
@@ -640,13 +652,13 @@ function addTeam() {
       id: envId,
       label,
       team_ids: [id],
-      deployment: {model: 'SaaS', install_method: '', region: '', multi_tenancy: '', sizing: ''},
+      deployment: {model: 'SaaS', install_method: '', sizing: ''},
       versions: {camunda_version: '', components: []},
       infrastructure: {os: '', hosting_platform: '', kubectl_access: '', secondary_storage: ''},
-      cluster: {broker_count: '', replication: '', multi_region: ''},
-      observability: {kibana: '', prometheus: ''},
-      multi_tenant: {tenant_isolation: '', tenant_names: []},
-      links: {console_url: '', cluster_urls: [], support_plan: '', runbook_links: []},
+      cluster: {broker_count: '', partitions: '', replication: '', multi_region: ''},
+      observability: {kibana: '', prometheus: '', dashboard_links: []},
+      multi_tenant: {multi_tenancy: '', tenant_isolation: '', tenant_names: []},
+      links: {cluster_url: '', support_plan: '', runbook_links: []},
       notes: '',
       diagnostic_reports: [],
       helm_values: [],
@@ -734,24 +746,19 @@ function environmentCardHtml(env, idx, teams) {
         <div class="field"><label>Teams</label><div class="team-checks">${teamChecks}</div></div>
         <div class="field-grid">
           <div><label>Deployment model</label>
-            <select onchange="updateEnvNested(${idx}, 'deployment', 'model', this.value)">
+            <select onchange="updateDeploymentModel(${idx}, this.value)">
               <option value="SaaS" ${env.deployment.model==='SaaS'?'selected':''}>SaaS</option>
               <option value="Self-Managed" ${env.deployment.model==='Self-Managed'?'selected':''}>Self-Managed</option>
             </select>
           </div>
-          <div><label>Install method</label><input type="text" value="${escAttr(env.deployment.install_method)}" onchange="updateEnvNested(${idx}, 'deployment', 'install_method', this.value)"></div>
-          <div><label>Region</label><input type="text" value="${escAttr(env.deployment.region)}" onchange="updateEnvNested(${idx}, 'deployment', 'region', this.value)"></div>
-          <div><label>Multi-tenancy</label><input type="text" value="${escAttr(env.deployment.multi_tenancy)}" onchange="updateEnvNested(${idx}, 'deployment', 'multi_tenancy', this.value)"></div>
-          <div><label>Sizing</label><input type="text" value="${escAttr(env.deployment.sizing)}" onchange="updateEnvNested(${idx}, 'deployment', 'sizing', this.value)"></div>
+          <div><label>Install method</label><input type="text" value="${escAttr(env.deployment.install_method)}" ${env.deployment.model==='SaaS'?'disabled':''} onchange="updateEnvNested(${idx}, 'deployment', 'install_method', this.value)"></div>
+          <div><label>Sizing</label><input type="text" value="${escAttr(env.deployment.sizing)}" ${env.deployment.model==='Self-Managed'?'disabled':''} onchange="updateEnvNested(${idx}, 'deployment', 'sizing', this.value)"></div>
           <div><label>Camunda version</label><input type="text" value="${escAttr(env.versions.camunda_version)}" onchange="updateEnvNested(${idx}, 'versions', 'camunda_version', this.value)"></div>
         </div>
         <div class="field"><label>Components</label><div class="team-checks">${componentChecks}</div></div>
-        <div class="field-grid">
-          <div><label>Console URL</label><input type="text" value="${escAttr(env.links.console_url)}" onchange="updateEnvNested(${idx}, 'links', 'console_url', this.value)"></div>
-          <div><label>Support plan</label><input type="text" value="${escAttr(env.links.support_plan)}" onchange="updateEnvNested(${idx}, 'links', 'support_plan', this.value)"></div>
-        </div>
-        <div class="field"><label>Cluster URLs (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'links', 'cluster_urls', this.value)">${esc((env.links.cluster_urls||[]).join('\n'))}</textarea></div>
-        <div class="field"><label>Runbook links (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'links', 'runbook_links', this.value)">${esc((env.links.runbook_links||[]).join('\n'))}</textarea></div>
+        <div class="field"><label>Support plan</label>${linkFieldHtml(env.links.support_plan, `updateEnvNestedAndRerender(${idx}, 'links', 'support_plan', this.value)`)}</div>
+        <div class="field"><label>Cluster URL</label>${linkFieldHtml(env.links.cluster_url, `updateEnvNestedAndRerender(${idx}, 'links', 'cluster_url', this.value)`)}</div>
+        <div class="field"><label>Runbook links</label>${urlListHtml(idx, 'links', 'runbook_links', env.links.runbook_links)}</div>
         <div class="field"><label>Notes</label><textarea onchange="updateEnvField(${idx}, 'notes', this.value)">${esc(env.notes || '')}</textarea></div>
 
         <div class="env-subsection">
@@ -759,9 +766,19 @@ function environmentCardHtml(env, idx, teams) {
           <div class="env-subsection-body">
             <div class="field-grid">
               <div><label>OS</label><input type="text" value="${escAttr(env.infrastructure.os)}" onchange="updateEnvNested(${idx}, 'infrastructure', 'os', this.value)"></div>
-              <div><label>Hosting platform</label><input type="text" value="${escAttr(env.infrastructure.hosting_platform)}" onchange="updateEnvNested(${idx}, 'infrastructure', 'hosting_platform', this.value)"></div>
-              <div><label>Kubectl access</label><input type="text" value="${escAttr(env.infrastructure.kubectl_access)}" onchange="updateEnvNested(${idx}, 'infrastructure', 'kubectl_access', this.value)"></div>
-              <div><label>Secondary storage</label><input type="text" value="${escAttr(env.infrastructure.secondary_storage)}" onchange="updateEnvNested(${idx}, 'infrastructure', 'secondary_storage', this.value)"></div>
+              <div>${hostingPlatformHtml(idx, env)}</div>
+              <div><label>Kubectl access</label>
+                <select onchange="updateEnvNested(${idx}, 'infrastructure', 'kubectl_access', this.value)">
+                  <option value=""></option>
+                  ${KUBECTL_ACCESS_OPTIONS.map(o => `<option value="${escAttr(o)}" ${env.infrastructure.kubectl_access===o?'selected':''}>${esc(o)}</option>`).join('')}
+                </select>
+              </div>
+              <div><label>Secondary storage</label>
+                <select onchange="updateEnvNested(${idx}, 'infrastructure', 'secondary_storage', this.value)">
+                  <option value=""></option>
+                  ${SECONDARY_STORAGE_OPTIONS.map(o => `<option value="${escAttr(o)}" ${env.infrastructure.secondary_storage===o?'selected':''}>${esc(o)}</option>`).join('')}
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -771,6 +788,7 @@ function environmentCardHtml(env, idx, teams) {
           <div class="env-subsection-body">
             <div class="field-grid">
               <div><label>Broker count</label><input type="text" value="${escAttr(env.cluster.broker_count)}" onchange="updateEnvNested(${idx}, 'cluster', 'broker_count', this.value)"></div>
+              <div><label>Partitions</label><input type="text" value="${escAttr(env.cluster.partitions)}" onchange="updateEnvNested(${idx}, 'cluster', 'partitions', this.value)"></div>
               <div><label>Replication</label><input type="text" value="${escAttr(env.cluster.replication)}" onchange="updateEnvNested(${idx}, 'cluster', 'replication', this.value)"></div>
             </div>
             <div class="field"><label>Multi-region</label><input type="text" style="width:100%" value="${escAttr(env.cluster.multi_region)}" onchange="updateEnvNested(${idx}, 'cluster', 'multi_region', this.value)"></div>
@@ -794,12 +812,14 @@ function environmentCardHtml(env, idx, teams) {
                 </select>
               </div>
             </div>
+            <div class="field"><label>Custom dashboard links</label>${urlListHtml(idx, 'observability', 'dashboard_links', env.observability.dashboard_links)}</div>
           </div>
         </div>
 
         <div class="env-subsection">
           <div class="env-subsection-head">Multi-tenant</div>
           <div class="env-subsection-body">
+            <div class="field"><label>Multi-tenancy</label><input type="text" style="width:100%" value="${escAttr(env.multi_tenant.multi_tenancy)}" onchange="updateEnvNested(${idx}, 'multi_tenant', 'multi_tenancy', this.value)"></div>
             <div class="field"><label>Tenant isolation</label><input type="text" style="width:100%" value="${escAttr(env.multi_tenant.tenant_isolation)}" onchange="updateEnvNested(${idx}, 'multi_tenant', 'tenant_isolation', this.value)"></div>
             <div class="field"><label>Tenant names (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'multi_tenant', 'tenant_names', this.value)">${esc((env.multi_tenant.tenant_names||[]).join('\n'))}</textarea></div>
           </div>
@@ -837,13 +857,13 @@ function addEnvironment() {
     id,
     label: label.trim(),
     team_ids: [],
-    deployment: {model: 'SaaS', install_method: '', region: '', multi_tenancy: '', sizing: ''},
+    deployment: {model: 'SaaS', install_method: '', sizing: ''},
     versions: {camunda_version: '', components: []},
     infrastructure: {os: '', hosting_platform: '', kubectl_access: '', secondary_storage: ''},
-    cluster: {broker_count: '', replication: '', multi_region: ''},
-    observability: {kibana: '', prometheus: ''},
-    multi_tenant: {tenant_isolation: '', tenant_names: []},
-    links: {console_url: '', cluster_urls: [], support_plan: '', runbook_links: []},
+    cluster: {broker_count: '', partitions: '', replication: '', multi_region: ''},
+    observability: {kibana: '', prometheus: '', dashboard_links: []},
+    multi_tenant: {multi_tenancy: '', tenant_isolation: '', tenant_names: []},
+    links: {cluster_url: '', support_plan: '', runbook_links: []},
     notes: '',
     diagnostic_reports: [],
     helm_values: [],
@@ -873,10 +893,109 @@ function updateEnvNested(idx, group, field, value) {
   markDirty();
 }
 
+function updateEnvNestedAndRerender(idx, group, field, value) {
+  updateEnvNested(idx, group, field, value);
+  renderCustomer();
+}
+
+function updateDeploymentModel(idx, value) {
+  updateEnvNested(idx, 'deployment', 'model', value);
+  renderCustomer();
+}
+
 function updateEnvListField(idx, group, field, textareaValue) {
   STATE.customers[CURRENT].environments[idx][group][field] =
     textareaValue.split('\n').map(s => s.trim()).filter(Boolean);
   markDirty();
+}
+
+// Whether a value looks like an http(s) URL — used to decide when to show
+// a clickable link icon next to an otherwise-freeform text field.
+function isLikelyUrl(value) {
+  return !!value && /^https?:\/\//i.test(value.trim());
+}
+
+function urlLinkIcon(value) {
+  if (!isLikelyUrl(value)) return '';
+  return `<a href="${escAttr(value.trim())}" target="_blank" rel="noopener noreferrer" class="link-icon" title="Open link">&#8599;</a>`;
+}
+
+// Single-URL field: a text input plus a clickable link icon that appears
+// once the value looks like a URL. `onchange` is the raw JS expression for
+// the input's onchange attribute (caller wires it to rerender so the icon
+// reflects the latest value).
+function linkFieldHtml(value, onchange) {
+  return `<div class="link-field-row">
+    <input type="text" placeholder="https://..." value="${escAttr(value)}" onchange="${onchange}">
+    ${urlLinkIcon(value)}
+  </div>`;
+}
+
+// Multi-URL field: one row per URL, each with its own clickable link icon,
+// plus add/remove controls. Used for fields that can hold several links
+// (runbook links, custom dashboard links).
+function urlListHtml(envIdx, group, key, rows) {
+  const rowsHtml = (rows || []).map((url, rowIdx) => `
+    <div class="dated-list-row">
+      <input type="text" placeholder="https://..." value="${escAttr(url)}" onchange="updateUrlListItem(${envIdx}, '${group}', '${key}', ${rowIdx}, this.value)">
+      ${urlLinkIcon(url)}
+      <button class="btn danger" onclick="removeUrlListItem(${envIdx}, '${group}', '${key}', ${rowIdx})">Remove</button>
+    </div>
+  `).join('');
+  return rowsHtml + `<button class="btn" onclick="addUrlListItem(${envIdx}, '${group}', '${key}')">Add link</button>`;
+}
+
+function addUrlListItem(envIdx, group, key) {
+  const env = STATE.customers[CURRENT].environments[envIdx];
+  env[group][key] = env[group][key] || [];
+  env[group][key].push('');
+  markDirty();
+  renderCustomer();
+}
+
+function removeUrlListItem(envIdx, group, key, rowIdx) {
+  STATE.customers[CURRENT].environments[envIdx][group][key].splice(rowIdx, 1);
+  markDirty();
+  renderCustomer();
+}
+
+function updateUrlListItem(envIdx, group, key, rowIdx, value) {
+  STATE.customers[CURRENT].environments[envIdx][group][key][rowIdx] = value;
+  markDirty();
+  renderCustomer();
+}
+
+// Hosting platform is a fixed dropdown plus a free-text "Other" option.
+// A stored value that isn't one of the fixed options is treated as a
+// custom "Other" value and shown in the text box instead of the select.
+function hostingPlatformHtml(idx, env) {
+  const value = env.infrastructure.hosting_platform || '';
+  const isOther = value !== '' && !HOSTING_PLATFORM_OPTIONS.includes(value);
+  return `
+    <label>Hosting platform</label>
+    <select id="hosting-platform-select-${idx}" onchange="onHostingPlatformSelectChange(${idx}, this.value)">
+      <option value="" ${value===''?'selected':''}></option>
+      ${HOSTING_PLATFORM_OPTIONS.map(o => `<option value="${escAttr(o)}" ${value===o?'selected':''}>${esc(o)}</option>`).join('')}
+      <option value="__other__" ${isOther?'selected':''}>Other</option>
+    </select>
+    <input type="text" id="hosting-platform-custom-${idx}" placeholder="Enter platform"
+      style="margin-top:4px;width:100%;${isOther ? '' : 'display:none;'}"
+      value="${escAttr(isOther ? value : '')}"
+      onchange="updateEnvNested(${idx}, 'infrastructure', 'hosting_platform', this.value)">
+  `;
+}
+
+function onHostingPlatformSelectChange(idx, value) {
+  const customInput = document.getElementById('hosting-platform-custom-' + idx);
+  if (value === '__other__') {
+    customInput.style.display = '';
+    customInput.value = '';
+    customInput.focus();
+    updateEnvNested(idx, 'infrastructure', 'hosting_platform', '');
+  } else {
+    customInput.style.display = 'none';
+    updateEnvNested(idx, 'infrastructure', 'hosting_platform', value);
+  }
 }
 
 function toggleEnvTeam(idx, teamId, checked) {
