@@ -29,7 +29,7 @@ a.back{font-size:12px;color:var(--accent-t);text-decoration:none;}
 a.back:hover{text-decoration:underline;}
 .hint{font-size:12.5px;color:var(--t3);padding:12px 0;}
 .empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
-select,input[type="text"],input[type="date"],textarea{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+select,input[type="text"],input[type="date"],input[type="number"],textarea{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
 textarea{width:100%;min-height:52px;resize:vertical;}
 .btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
 .btn:hover{filter:brightness(.95);}
@@ -67,8 +67,9 @@ tr:last-child td{border-bottom:none;}
 .group-head{padding:8px 12px;background:var(--surface2);display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);}
 .group-body{padding:10px 12px;}
 .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
-.field-grid label,.field label{display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);margin-bottom:3px;}
-.field-grid input,.field-grid select{width:100%;}
+.field-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;}
+.field-grid label,.field label,.field-grid-3 label{display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);margin-bottom:3px;}
+.field-grid input,.field-grid select,.field-grid-3 input,.field-grid-3 select{width:100%;}
 .field{margin-bottom:10px;}
 .team-checks label{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--t1);margin-right:12px;margin-bottom:4px;}
 .dated-list-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;}
@@ -136,12 +137,12 @@ let STATE = null;
 let CURRENT = null;
 let dirty = false;
 
-const COMPONENT_OPTIONS = ['Zeebe', 'Operate', 'Tasklist', 'Optimize', 'Connectors'];
-const STANDARD_ENV_NAMES = ['Production', 'Staging', 'QA/Test', 'Development', 'Sandbox', 'DR/Failover'];
-const OBSERVABILITY_OPTIONS = ['Not Used', 'Within cluster', 'External to cluster'];
-const HOSTING_PLATFORM_OPTIONS = ['AWS', 'GCP', 'Azure', 'Customer Data Center'];
-const KUBECTL_ACCESS_OPTIONS = ['Yes', 'No'];
-const SECONDARY_STORAGE_OPTIONS = ['ElasticSearch', 'Open Search', 'PostgreSQL', 'Oracle', 'Amazon Aurora PostgreSQL', 'MariaDB', 'MySQL', 'MSSQL'];
+const COMPONENT_OPTIONS = ['Connectors', 'Operate', 'Optimize', 'Tasklist', 'Zeebe'];
+const STANDARD_ENV_NAMES = ['Development', 'DR/Failover', 'Production', 'QA/Test', 'Sandbox', 'Staging'];
+const OBSERVABILITY_OPTIONS = ['External to cluster', 'Not Used', 'Within cluster'];
+const HOSTING_PLATFORM_OPTIONS = ['AWS', 'Azure', 'Customer Data Center', 'GCP'];
+const YES_NO_OPTIONS = ['No', 'Yes'];
+const SECONDARY_STORAGE_OPTIONS = ['Amazon Aurora PostgreSQL', 'ElasticSearch', 'MariaDB', 'MSSQL', 'MySQL', 'Open Search', 'Oracle', 'PostgreSQL'];
 
 let MY_CUSTOMER_NORMALIZED = new Set();
 let filterRegion = localStorage.getItem('env-tab:region') || '';
@@ -337,7 +338,7 @@ function visibleCustomerNames() {
   let names = (STATE.in_scope_customers || []).map(c => c.name);
   if (filterMyCustomers) names = names.filter(isMyCustomer);
   if (filterRegion) names = names.filter(n => customerTheater(n) === filterRegion);
-  return names;
+  return names.sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'}));
 }
 
 function onRegionFilterChange() {
@@ -770,7 +771,7 @@ function environmentCardHtml(env, idx, teams) {
               <div><label>Kubectl access</label>
                 <select onchange="updateEnvNested(${idx}, 'infrastructure', 'kubectl_access', this.value)">
                   <option value=""></option>
-                  ${KUBECTL_ACCESS_OPTIONS.map(o => `<option value="${escAttr(o)}" ${env.infrastructure.kubectl_access===o?'selected':''}>${esc(o)}</option>`).join('')}
+                  ${YES_NO_OPTIONS.map(o => `<option value="${escAttr(o)}" ${env.infrastructure.kubectl_access===o?'selected':''}>${esc(o)}</option>`).join('')}
                 </select>
               </div>
               <div><label>Secondary storage</label>
@@ -786,10 +787,10 @@ function environmentCardHtml(env, idx, teams) {
         <div class="env-subsection">
           <div class="env-subsection-head">Cluster</div>
           <div class="env-subsection-body">
-            <div class="field-grid">
-              <div><label>Broker count</label><input type="text" value="${escAttr(env.cluster.broker_count)}" onchange="updateEnvNested(${idx}, 'cluster', 'broker_count', this.value)"></div>
-              <div><label>Partitions</label><input type="text" value="${escAttr(env.cluster.partitions)}" onchange="updateEnvNested(${idx}, 'cluster', 'partitions', this.value)"></div>
-              <div><label>Replication</label><input type="text" value="${escAttr(env.cluster.replication)}" onchange="updateEnvNested(${idx}, 'cluster', 'replication', this.value)"></div>
+            <div class="field-grid-3">
+              <div><label>Broker count</label><input type="number" min="0" step="1" value="${escAttr(env.cluster.broker_count)}" onchange="updateEnvNested(${idx}, 'cluster', 'broker_count', this.value)"></div>
+              <div><label>Partitions</label><input type="number" min="0" step="1" value="${escAttr(env.cluster.partitions)}" onchange="updateEnvNested(${idx}, 'cluster', 'partitions', this.value)"></div>
+              <div><label>Replication</label><input type="number" min="0" step="1" value="${escAttr(env.cluster.replication)}" onchange="updateEnvNested(${idx}, 'cluster', 'replication', this.value)"></div>
             </div>
             <div class="field"><label>Multi-region</label><input type="text" style="width:100%" value="${escAttr(env.cluster.multi_region)}" onchange="updateEnvNested(${idx}, 'cluster', 'multi_region', this.value)"></div>
           </div>
@@ -819,9 +820,16 @@ function environmentCardHtml(env, idx, teams) {
         <div class="env-subsection">
           <div class="env-subsection-head">Multi-tenant</div>
           <div class="env-subsection-body">
-            <div class="field"><label>Multi-tenancy</label><input type="text" style="width:100%" value="${escAttr(env.multi_tenant.multi_tenancy)}" onchange="updateEnvNested(${idx}, 'multi_tenant', 'multi_tenancy', this.value)"></div>
+            <div class="field"><label>Multi-tenancy</label>
+              <select style="width:100%" onchange="updateMultiTenancy(${idx}, this.value)">
+                <option value=""></option>
+                ${YES_NO_OPTIONS.map(o => `<option value="${escAttr(o)}" ${env.multi_tenant.multi_tenancy===o?'selected':''}>${esc(o)}</option>`).join('')}
+              </select>
+            </div>
+            ${env.multi_tenant.multi_tenancy === 'Yes' ? `
             <div class="field"><label>Tenant isolation</label><input type="text" style="width:100%" value="${escAttr(env.multi_tenant.tenant_isolation)}" onchange="updateEnvNested(${idx}, 'multi_tenant', 'tenant_isolation', this.value)"></div>
             <div class="field"><label>Tenant names (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'multi_tenant', 'tenant_names', this.value)">${esc((env.multi_tenant.tenant_names||[]).join('\n'))}</textarea></div>
+            ` : ''}
           </div>
         </div>
 
@@ -900,6 +908,11 @@ function updateEnvNestedAndRerender(idx, group, field, value) {
 
 function updateDeploymentModel(idx, value) {
   updateEnvNested(idx, 'deployment', 'model', value);
+  renderCustomer();
+}
+
+function updateMultiTenancy(idx, value) {
+  updateEnvNested(idx, 'multi_tenant', 'multi_tenancy', value);
   renderCustomer();
 }
 
