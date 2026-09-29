@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Fail if any SKILL.md's frontmatter `description` is 1024 characters or longer.
+"""Fail if any SKILL.md's frontmatter `description` is invalid.
 
-Skill-loading platforms enforce a 1024-char cap on this field; anything at
-or over that gets truncated or rejected at load time, so this is checked
-in CI rather than discovered after merge.
+Checks enforced:
+- Skill-loading platforms enforce a 1024-char cap on this field; anything at
+  or over that gets truncated or rejected at load time.
+- The field is parsed as XML-ish content by some loaders, so angle-bracket
+  placeholders like "<account>" get misread as literal tags and rejected.
+  Use square brackets ("[account]") for placeholders instead.
+
+Both are checked in CI rather than discovered after merge/upload.
 """
 import re
 import sys
@@ -12,6 +17,7 @@ from pathlib import Path
 import yaml
 
 LIMIT = 1024
+TAG_PATTERN = re.compile(r"</?[a-zA-Z][a-zA-Z0-9_-]*(?:\s[^<>]*)?>")
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL_FILES = [
     REPO_ROOT / "daily-brief-generation" / "SKILL.md",
@@ -36,6 +42,8 @@ def check_file(skill_file: Path) -> bool:
         print(f"::error::{skill_file} frontmatter has no 'description' field")
         return False
 
+    ok = True
+
     length = len(description)
     if length >= LIMIT:
         print(
@@ -43,10 +51,21 @@ def check_file(skill_file: Path) -> bool:
             f"which is at or over the {LIMIT}-character limit. Shorten it by "
             f"at least {length - LIMIT + 1} characters."
         )
-        return False
+        ok = False
 
-    print(f"OK: {skill_file} description is {length} characters (limit {LIMIT}).")
-    return True
+    tags = TAG_PATTERN.findall(description)
+    if tags:
+        print(
+            f"::error file={skill_file}::description contains XML/HTML-like "
+            f"tag(s) {tags}, which some skill loaders reject. Use square "
+            f"brackets (e.g. \"[account]\") for placeholders instead of "
+            f"angle brackets."
+        )
+        ok = False
+
+    if ok:
+        print(f"OK: {skill_file} description is {length} characters (limit {LIMIT}) and has no tag-like content.")
+    return ok
 
 
 def main() -> int:
