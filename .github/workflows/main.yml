@@ -38,7 +38,7 @@ jobs:
       - name: Build source zip
         id: zip
         run: |
-          ZIP_NAME="skill-download-${{ steps.bump.outputs.new_version }}.zip"
+          ZIP_NAME="daily-brief-skill-download-${{ steps.bump.outputs.new_version }}.zip"
           mkdir -p staging
           rsync -a daily-brief-generation/ staging/
           cd staging && zip -r ../$ZIP_NAME .
@@ -47,7 +47,7 @@ jobs:
       - name: Build account-environments-discovery zip
         id: zip_aed
         run: |
-          ZIP_NAME="account-environments-discovery-${{ steps.bump.outputs.new_version }}.zip"
+          ZIP_NAME="account-environments-discovery-skill-download-${{ steps.bump.outputs.new_version }}.zip"
           mkdir -p staging-aed
           rsync -a account-environments-discovery/ staging-aed/
           cd staging-aed && zip -r ../$ZIP_NAME .
