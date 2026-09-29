@@ -3,7 +3,7 @@ name: account-environments-discovery
 description: >
   Researches a Camunda customer account across every connected source (Google Drive, Slack, Asana, and enterprise search such as Glean/Salesforce/Confluence) and proposes Teams, Environments, and Use Case data to fill into that account's Environments tab record — never writing anything until the user reviews and approves the proposal.
 
-  Trigger on "discover environments for <account>", "populate environments tab for <account>", "populate environments for <account>", or the explicit "/account-environments-discovery <account>".
+  Trigger on "discover environments for [account]", "populate environments tab for [account]", "populate environments for [account]", or the explicit "/account-environments-discovery [account]".
 
   Invoked either directly in claude.ai/Claude Desktop, or via the "Discover via Claude" button on the hosted daily-brief viewer's Environments page (viewer/webapp/templates/environments.html), which opens a claude:// deep link with the currently-selected account name already filled in.
 ---
