@@ -10,7 +10,7 @@ description: >
 
 # Account Environments Discovery
 
-Fills in gaps in a customer's Environments tab record — Teams, Environments, and Use Cases — by researching across connected sources, then proposing what it found for the user to approve before anything is written. This is the discovery pass described as future work ("Phase 3") in `docs/superpowers/specs/2026-09-23-environments-tab-design.md`, plus discovery of the newer Use Cases section from `docs/superpowers/specs/2026-09-28-environments-use-cases-and-discovery-skill-design.md` — read both if you need the full data-model and storage-path rationale; this file has everything needed to run the skill.
+Fills in gaps in a customer's Environments tab record — Teams, Environments, and Use Cases — by researching across connected sources, then proposing what it found for the user to approve before anything is written. This is the discovery pass described as future work ("Phase 3") in `docs/superpowers/specs/2026-09-23-environments-tab-design.md`, plus discovery of the newer Use Cases section from `docs/superpowers/specs/2026-09-28-environments-use-cases-and-discovery-skill-design.md` — those two docs are good background/rationale reading, but the **Data model** section below is the source of truth for field names. This file is self-contained: it never depends on a run remembering to fetch either doc, and drift or unavailability of those docs can't break the schema this skill writes.
 
 **Golden rule: propose, don't write.** This skill never overwrites a field that already has a value, never invents plausible-sounding data, and never writes to Drive without an explicit "yes, save this" from the user in the same conversation.
 
@@ -40,7 +40,55 @@ Via the Google Drive connector: find the account's folder under the Customers Sh
 - **If the file doesn't exist yet** (or the account folder has no such file): treat the baseline as empty — `{teams: [], environments: [], use_cases: []}`. Everything you find becomes a "new record" (see Step 4), not an "update."
 - **If the account folder itself can't be found**: tell the user and stop.
 
-Keep the exact shape of `teams[]`, `environments[]`, and `use_cases[]` entries in mind for Step 4 — see the schema in `docs/superpowers/specs/2026-09-28-environments-use-cases-and-discovery-skill-design.md` (Use Cases) and `2026-09-23-environments-tab-design.md` (Teams/Environments) if you need a refresher on field names.
+Keep the exact shape of `teams[]`, `environments[]`, and `use_cases[]` entries in mind for Step 4 — the canonical shape is inlined in **Data model** below.
+
+## Data model
+
+This is the canonical JSON shape for the whole record, copied verbatim from the two design docs referenced above. Use these exact field names when drafting a proposal in Step 4 and writing in Step 5 — do not invent alternate field names.
+
+```json
+{
+  "teams": [
+    {"id": "team-x", "name": "", "notes": ""}
+  ],
+  "environments": [
+    {
+      "id": "",
+      "label": "",
+      "team_ids": [],
+      "deployment": {"model": "", "install_method": "", "region": "", "multi_tenancy": "", "sizing": ""},
+      "versions": {"camunda_version": "", "components": []},
+      "infrastructure": {"os": "", "hosting_platform": "", "kubectl_access": "", "secondary_storage": ""},
+      "cluster": {"broker_count": "", "replication": "", "multi_region": ""},
+      "observability": {"kibana": "", "prometheus": ""},
+      "multi_tenant": {"tenant_isolation": "", "tenant_names": []},
+      "links": {"console_url": "", "cluster_urls": [], "support_plan": "", "runbook_links": []},
+      "notes": "",
+      "diagnostic_reports": [{"link": "", "generated_date": "YYYY-MM-DD", "ticket": ""}],
+      "helm_values": [{"link": "", "date": "YYYY-MM-DD"}]
+    }
+  ],
+  "use_cases": [
+    {
+      "id": "usecase-<timestamp>",
+      "name": "",
+      "description": "",
+      "status": "",
+      "go_live_date": "",
+      "environment_id": "",
+      "team_id": ""
+    }
+  ]
+}
+```
+
+**Field-name gotchas** — these are the exact mistakes a past run made, which broke the viewer's rendering (environment cards showed up unlabeled because the UI reads `env.label`):
+- Environments use **`label`** for their display title — never `name`. `environments[]` entries also need the full nested `deployment`/`versions`/`infrastructure`/`cluster`/`observability`/`multi_tenant`/`links` objects, not a flattened set of fields.
+- Use cases reference exactly **one** `environment_id` and **one** `team_id` — never arrays, never free-text environment/team names, and never split fields like `environment`/`team`.
+- Use cases have a single **`go_live_date`** field — never `target_go_live`/`actual_go_live` or any other split date fields.
+- `status` must be one of: `Discovery`, `In Progress`, `Live`, `On Hold`, `Retired`, or `""` (empty) — no other values.
+- `observability.kibana` and `observability.prometheus` are each one of: `Not Used`, `Within cluster`, `External to cluster`, or `""` — never a URL.
+- An environment's **`team_ids`** must be an array of `id` values that actually exist in `teams[]` — never a team's display `name`, never free text, and never a dangling id that doesn't match any team record (in the baseline *or* in this same proposal). If a team hasn't been proposed yet, propose it first (Step 4) so its `id` exists before any environment references it.
 
 ## Step 3 — Research broadly
 
@@ -56,8 +104,8 @@ Look specifically for:
 | Target | What to look for |
 |---|---|
 | **Teams** | Named teams/squads on the customer side, their members (name, title, email), notes about ownership |
-| **Environments** | Environment names (Production, Staging, ...), SaaS vs. Self-Managed, install method, sizing, Camunda version, components (Zeebe/Operate/Tasklist/Optimize/Connectors), OS, hosting platform, cluster/broker/partition/replication counts, multi-region, observability setup, multi-tenancy, links (cluster URL, support plan, runbooks) |
-| **Use Cases** | Named business processes or automation initiatives running on Camunda — a name, a short description, lifecycle status, target/actual go-live date, and which environment/team it's tied to if that's evident |
+| **Environments** | Environment names (Production, Staging, ...), SaaS vs. Self-Managed, install method, sizing, Camunda version, components (Zeebe/Operate/Tasklist/Optimize/Connectors), OS, hosting platform, cluster/broker/partition/replication counts, multi-region, observability setup, multi-tenancy, links (cluster URL, support plan, runbooks), **and which team(s) own or operate it** — look for this explicitly (e.g. "Platform team owns Production," a channel topic naming a team, a runbook's on-call owner) so each environment can be linked to the right team(s) rather than left unlinked |
+| **Use Cases** | Named business processes or automation initiatives running on Camunda — a name, a short description, lifecycle status, a single go-live date, and the one environment/team it's tied to if that's evident |
 
 Don't fabricate anything. If a field can't be found anywhere, leave it out of the proposal entirely rather than guessing.
 
@@ -68,8 +116,10 @@ Present findings in chat as two clearly separated groups, so the user can tell a
 ### New records
 Full new entries — a team, environment, or use case that isn't in the baseline at all. Show the whole proposed entry plus a short source note, e.g.:
 
-> **New environment: "Staging"** — SaaS, Camunda 8.6, cluster URL `https://...`
+> **New environment: "Staging"** — SaaS, Camunda 8.6, cluster URL `https://...`, owned by **Platform Team**
 > *(source: #acme-tiger-team, 2026-09-10)*
+
+**Link environments to teams whenever the research supports it.** If an environment's owning team is evident from Step 3, propose that team first (creating its `id` if it's new) and set the environment's `team_ids` to reference it — don't propose an environment with an empty `team_ids` when a source clearly names its owner. If an environment can plausibly belong to more than one team, list all of them in `team_ids` rather than guessing a single one. If no source ties an environment to any team, leave `team_ids` empty rather than inventing a link — an empty link is correct; a fabricated one is not.
 
 ### Updates to existing records
 Only for currently-blank fields on a record that already exists. Show each field change scoped to its record so it's unambiguous which existing team/environment/use case it applies to, e.g.:
@@ -88,8 +138,9 @@ End with a plain question: which of these should be saved?
 Once the user confirms (they may approve everything, a subset, or ask for edits first):
 
 1. Take the current baseline read in Step 2 (re-read it if meaningful time has passed, in case someone edited it in the viewer meanwhile) and merge in only the approved items: append approved new records to their respective arrays, and set only the specific approved blank fields on existing records.
-2. Write the merged `{teams, environments, use_cases}` object back to `<Account Name>-environments.json` using the same Drive write pattern the viewer's backend uses: find the existing file by name in the account folder, create a new file with the same name and same parent folder containing the merged content, then trash the old file (Drive's `update` only changes metadata, not content — this is a create-new/trash-old replace, not an in-place patch).
-3. Confirm back to the user what was written, and where (link to the file/folder if easily available).
+2. **Validate the merged object against the Data model before writing anything.** For every entry in `environments[]`, confirm it has `id` and `label` keys (not `name`), and that every id in its `team_ids` array actually matches an `id` present in the merged `teams[]` array — drop or fix any that don't resolve (e.g. a team name that was never turned into a proper `teams[]` entry with an `id`). For every entry in `use_cases[]`, confirm it has single-value `environment_id`/`team_id` keys (not `environment`/`team`, and not arrays) and that those ids resolve to real entries in `environments[]`/`teams[]`, plus a single `go_live_date` key (not split target/actual date fields). If a proposed record doesn't match the canonical shape or references an id that doesn't exist, fix the field names/structure/links before writing — never write a record as-is if it deviates from the Data model or points at a team/environment that isn't actually in the file.
+3. Write the merged `{teams, environments, use_cases}` object back to `<Account Name>-environments.json` using the same Drive write pattern the viewer's backend uses: find the existing file by name in the account folder, create a new file with the same name and same parent folder containing the merged content, then trash the old file (Drive's `update` only changes metadata, not content — this is a create-new/trash-old replace, not an in-place patch).
+4. Confirm back to the user what was written, and where (link to the file/folder if easily available).
 
 If the user declines the whole proposal, don't write anything — just end the conversation there.
 
