@@ -1176,7 +1176,7 @@ def api_environments_config():
 @app.route('/api/environments/config/<account_name>')
 @login_required
 def api_environments_account(account_name):
-    """Returns one account's {teams, environments} data, read from
+    """Returns one account's {teams, environments, use_cases} data, read from
     <Account Name>-environments.json in that account's folder under the
     Consulting > Customers Shared Drive."""
     google_token = db.get_google_refresh_token(request.brief_user['id'])
@@ -1193,7 +1193,7 @@ def api_environments_account(account_name):
 @app.route('/api/environments/config/<account_name>', methods=['PUT'])
 @login_required
 def api_environments_account_update(account_name):
-    """Writes one account's {teams, environments} data back to
+    """Writes one account's {teams, environments, use_cases} data back to
     <Account Name>-environments.json in that account's folder under the
     Consulting > Customers Shared Drive."""
     google_token = db.get_google_refresh_token(request.brief_user['id'])
@@ -1202,8 +1202,13 @@ def api_environments_account_update(account_name):
     data = request.get_json(silent=True)
     if not data or not isinstance(data.get('teams'), list) or not isinstance(data.get('environments'), list):
         return jsonify({'error': 'Invalid payload — must include teams and environments arrays'}), 400
+    use_cases = data.get('use_cases', [])
+    if not isinstance(use_cases, list):
+        return jsonify({'error': 'Invalid payload — use_cases must be an array'}), 400
     result = gdrive_briefs.write_account_environments(
-        account_name, {'teams': data['teams'], 'environments': data['environments']}, google_token,
+        account_name,
+        {'teams': data['teams'], 'environments': data['environments'], 'use_cases': use_cases},
+        google_token,
     )
     if result is not True:
         status = 404 if 'create the account folder' in result else 500

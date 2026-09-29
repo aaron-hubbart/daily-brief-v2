@@ -127,6 +127,7 @@ tr:last-child td{border-bottom:none;}
     <option value="">All regions</option>
   </select>
   <button type="button" class="toggle-btn" id="my-customers-toggle" onclick="toggleMyCustomers()">My Customers</button>
+  <button type="button" class="btn" id="discover-btn" onclick="openDiscoverySkill()" disabled>Discover via Claude</button>
 </div>
 
 <div id="content"><div class="empty">Loading&hellip;</div></div>
@@ -143,6 +144,7 @@ const OBSERVABILITY_OPTIONS = ['External to cluster', 'Not Used', 'Within cluste
 const HOSTING_PLATFORM_OPTIONS = ['AWS', 'Azure', 'Customer Data Center', 'GCP'];
 const YES_NO_OPTIONS = ['No', 'Yes'];
 const SECONDARY_STORAGE_OPTIONS = ['Amazon Aurora PostgreSQL', 'ElasticSearch', 'MariaDB', 'MSSQL', 'MySQL', 'Open Search', 'Oracle', 'PostgreSQL'];
+const USE_CASE_STATUS_OPTIONS = ['Discovery', 'In Progress', 'Live', 'On Hold', 'Retired'];
 
 let MY_CUSTOMER_NORMALIZED = new Set();
 let filterRegion = localStorage.getItem('env-tab:region') || '';
@@ -298,6 +300,17 @@ function normalizeEnvironment(env) {
   return env;
 }
 
+function normalizeUseCase(uc) {
+  uc.id = uc.id || ('usecase-' + Date.now());
+  uc.name = uc.name || '';
+  uc.description = uc.description || '';
+  uc.status = uc.status || '';
+  uc.go_live_date = uc.go_live_date || '';
+  uc.environment_id = uc.environment_id || '';
+  uc.team_id = uc.team_id || '';
+  return uc;
+}
+
 async function load() {
   try {
     const [envResp, custResp] = await Promise.all([
@@ -360,6 +373,7 @@ function renderCustomerSelect() {
   const content = document.getElementById('content');
 
   myCustomersBtn.classList.toggle('active', filterMyCustomers);
+  document.getElementById('discover-btn').disabled = true;
 
   if (STATE.needs_pat) {
     select.innerHTML = '<option value="">—</option>';
@@ -438,15 +452,24 @@ async function selectCustomer(name) {
   ensureCustomer(name);
   renderCustomer();
   document.getElementById('save-btn').disabled = !dirty;
+  document.getElementById('discover-btn').disabled = false;
+}
+
+function openDiscoverySkill() {
+  if (!CURRENT) return;
+  const url = 'claude://claude.ai/new?q=' +
+    encodeURIComponent('/account-environments-discovery ' + CURRENT);
+  window.open(url, '_blank');
 }
 
 function ensureCustomer(name) {
   if (!STATE.customers[name]) {
-    STATE.customers[name] = {teams: [], environments: []};
+    STATE.customers[name] = {teams: [], environments: [], use_cases: []};
   }
   const c = STATE.customers[name];
   c.teams = (c.teams || []).map(normalizeTeam);
   c.environments = (c.environments || []).map(normalizeEnvironment);
+  c.use_cases = (c.use_cases || []).map(normalizeUseCase);
 }
 
 function renderCustomer() {
@@ -465,6 +488,13 @@ function renderCustomer() {
         <button class="btn primary" onclick="addEnvironment()">Add environment</button>
       </div>
       <div class="panel-body" id="envs-body">${environmentsHtml(c)}</div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <span>Use Cases</span>
+        <button class="btn primary" onclick="addUseCase()">Add use case</button>
+      </div>
+      <div class="panel-body" id="use-cases-body">${useCasesHtml(c)}</div>
     </div>
   `;
   wireTeamCheckboxes();
@@ -845,6 +875,66 @@ function environmentCardHtml(env, idx, teams) {
   `;
 }
 
+function useCasesHtml(c) {
+  if (!c.use_cases.length) return '<div class="empty">No use cases yet</div>';
+  return c.use_cases.map((uc, idx) => useCaseCardHtml(uc, idx, c)).join('');
+}
+
+function useCaseCardHtml(uc, idx, c) {
+  const collapsed = isExpanded(uc.id) ? '' : 'collapsed';
+  const envOptions = '<option value="">—</option>' + c.environments.map(env =>
+    `<option value="${escAttr(env.id)}" ${uc.environment_id === env.id ? 'selected' : ''}>${esc(env.label)}</option>`
+  ).join('');
+  const teamOptions = '<option value="">—</option>' + c.teams.map(team =>
+    `<option value="${escAttr(team.id)}" ${uc.team_id === team.id ? 'selected' : ''}>${esc(team.name)}</option>`
+  ).join('');
+  const statusOptions = '<option value=""></option>' + USE_CASE_STATUS_OPTIONS.map(o =>
+    `<option value="${escAttr(o)}" ${uc.status === o ? 'selected' : ''}>${esc(o)}</option>`
+  ).join('');
+  return `
+    <div class="env-card">
+      <div class="env-card-head">
+        ${caretHtml(uc.id)}
+        <input type="text" placeholder="Use case name" value="${escAttr(uc.name)}" onchange="updateUseCaseField(${idx}, 'name', this.value)" style="font-weight:600;font-size:12.5px;">
+        <button class="btn danger" onclick="removeUseCase(${idx})">Remove</button>
+      </div>
+      <div class="env-card-body collapsible-body ${collapsed}">
+        <div class="field"><label>Description</label><textarea onchange="updateUseCaseField(${idx}, 'description', this.value)">${esc(uc.description || '')}</textarea></div>
+        <div class="field-grid">
+          <div><label>Status</label><select onchange="updateUseCaseField(${idx}, 'status', this.value)">${statusOptions}</select></div>
+          <div><label>Go-live date</label><input type="date" value="${escAttr(uc.go_live_date)}" onchange="updateUseCaseField(${idx}, 'go_live_date', this.value)"></div>
+          <div><label>Related environment</label><select onchange="updateUseCaseField(${idx}, 'environment_id', this.value)">${envOptions}</select></div>
+          <div><label>Related team</label><select onchange="updateUseCaseField(${idx}, 'team_id', this.value)">${teamOptions}</select></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function addUseCase() {
+  const id = 'usecase-' + Date.now();
+  STATE.customers[CURRENT].use_cases.push({
+    id, name: '', description: '', status: '', go_live_date: '', environment_id: '', team_id: '',
+  });
+  expandedIds.add(id);
+  saveExpandedIds();
+  markDirty();
+  renderCustomer();
+}
+
+function removeUseCase(idx) {
+  const uc = STATE.customers[CURRENT].use_cases[idx];
+  if (!confirm(`Remove use case "${uc.name || '(unnamed)'}"?`)) return;
+  STATE.customers[CURRENT].use_cases.splice(idx, 1);
+  markDirty();
+  renderCustomer();
+}
+
+function updateUseCaseField(idx, field, value) {
+  STATE.customers[CURRENT].use_cases[idx][field] = value;
+  markDirty();
+}
+
 function datedListHtml(envIdx, key, rows, withTicket) {
   const rowsHtml = (rows || []).map((row, rowIdx) => `
     <div class="dated-list-row">
@@ -1068,7 +1158,7 @@ async function saveAll() {
     const r = await fetch(`${BASE}api/environments/config/${encodeURIComponent(CURRENT)}`, {
       method: 'PUT', credentials: 'include',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({teams: c.teams, environments: c.environments}),
+      body: JSON.stringify({teams: c.teams, environments: c.environments, use_cases: c.use_cases}),
     });
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     dirty = false;

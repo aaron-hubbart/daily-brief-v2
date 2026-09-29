@@ -610,7 +610,7 @@ def write_account_config(config_data: Dict, refresh_token: str,
         return f'Drive API error: {e}'
 
 
-_EMPTY_ACCOUNT_ENVIRONMENTS: Dict = {'teams': [], 'environments': []}
+_EMPTY_ACCOUNT_ENVIRONMENTS: Dict = {'teams': [], 'environments': [], 'use_cases': []}
 
 # Consulting > Customers Shared Drive folder — one JSON file per account
 # lives at <this>/<Letter>/<Account Name>/<Account Name>-environments.json.
@@ -742,8 +742,9 @@ def read_account_environments(refresh_token: str, account_name: str) -> Optional
     under the Consulting > Customers Shared Drive (see
     docs/superpowers/specs/2026-09-23-environments-tab-design.md for the
     folder layout and JSON shape). Returns {"teams": [...], "environments":
-    [...]} — empty defaults if the account folder exists but no one has
-    saved a file yet. Returns a string (not a dict) if the account folder
+    [...], "use_cases": [...]} — empty defaults if the account folder
+    exists but no one has saved a file yet. Returns a string (not a dict)
+    if the account folder
     itself can't be found, so the route can surface it directly as an
     error message. Returns None only on an actual Drive/auth failure."""
     if not refresh_token:
