@@ -250,15 +250,25 @@ function wireCarets() {
   });
 }
 
+// Date.now() alone isn't unique when normalizeTeam/normalizeEnvironment/normalizeUseCase
+// run back-to-back in a .map() over items that are all missing an id (e.g. environments
+// with a blank/duplicate name from discovery) — same-millisecond calls returned the same
+// value, so those items collided on one id and shared expand/collapse state via expandedIds.
+let _fallbackIdSeq = 0;
+function nextFallbackId(prefix) {
+  _fallbackIdSeq += 1;
+  return prefix + '-' + Date.now() + '-' + _fallbackIdSeq;
+}
+
 function normalizeTeam(team) {
-  team.id = team.id || ('team-' + Date.now());
+  team.id = team.id || nextFallbackId('team');
   team.notes = team.notes || '';
   team.members = team.members || [];
   return team;
 }
 
 function normalizeEnvironment(env) {
-  env.id = env.id || ('env-' + Date.now());
+  env.id = env.id || nextFallbackId('env');
   env.label = env.label || '(unlabeled environment)';
   env.team_ids = env.team_ids || [];
   env.deployment = env.deployment || {};
@@ -301,7 +311,7 @@ function normalizeEnvironment(env) {
 }
 
 function normalizeUseCase(uc) {
-  uc.id = uc.id || ('usecase-' + Date.now());
+  uc.id = uc.id || nextFallbackId('usecase');
   uc.name = uc.name || '';
   uc.description = uc.description || '';
   uc.status = uc.status || '';
