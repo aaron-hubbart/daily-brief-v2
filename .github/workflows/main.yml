@@ -40,30 +40,17 @@ jobs:
         run: |
           ZIP_NAME="skill-download-${{ steps.bump.outputs.new_version }}.zip"
           mkdir -p staging
-          rsync -a \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='.gitignore' \
-            --exclude='.gitattributes' \
-            --exclude='tests' \
-            --exclude='test' \
-            --exclude='__pycache__' \
-            --exclude='*.pyc' \
-            --exclude='coverage' \
-            --exclude='node_modules' \
-            --exclude='.env*' \
-            --exclude='*.test.*' \
-            --exclude='*.spec.*' \
-            --exclude='.eslintrc*' \
-            --exclude='.prettierrc*' \
-            --exclude='jest.config*' \
-            --exclude='staging' \
-            --exclude='docs' \
-            --exclude='viewer' \
-            --exclude='deploy.ps1' \
-            --exclude='daily-brief-viewer-requirements.md' \
-            . staging/
+          rsync -a daily-brief-generation/ staging/
           cd staging && zip -r ../$ZIP_NAME .
+          echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
+
+      - name: Build account-environments-discovery zip
+        id: zip_aed
+        run: |
+          ZIP_NAME="account-environments-discovery-${{ steps.bump.outputs.new_version }}.zip"
+          mkdir -p staging-aed
+          rsync -a account-environments-discovery/ staging-aed/
+          cd staging-aed && zip -r ../$ZIP_NAME .
           echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
 
       - name: Push tag
@@ -79,4 +66,6 @@ jobs:
           tag_name: ${{ steps.bump.outputs.new_version }}
           name: ${{ steps.bump.outputs.new_version }}
           generate_release_notes: true
-          files: ${{ steps.zip.outputs.zip_name }}
+          files: |
+            ${{ steps.zip.outputs.zip_name }}
+            ${{ steps.zip_aed.outputs.zip_name }}

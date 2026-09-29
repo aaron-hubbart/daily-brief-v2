@@ -1,5 +1,5 @@
 ---
-name: daily-brief-v2
+name: daily-brief
 description: >
   Generates the current user's personalized daily briefing from Outlook, Slack (DMs, account channels, tiger team, mentions), Zoom, and Asana — a recap of the day so far plus a plan ahead.
 

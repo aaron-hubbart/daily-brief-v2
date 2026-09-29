@@ -270,8 +270,8 @@ Use the `create_scheduled_task` tool with:
 - **prompt:** a self-contained instruction that future scheduled runs can
   execute without any session context. The prompt should read roughly:
 
-  > Run the daily-brief-v2 skill to generate today's morning brief.
-  > Read SKILL.md from the daily-brief-v2 project, load config from
+  > Run the daily-brief skill to generate today's morning brief.
+  > Read SKILL.md from the daily-brief project, load config from
   > Google Drive using the CONFIG_FILE_ID in this project's instructions,
   > pull data from all connected sources (Outlook, Slack, Zoom, Asana),
   > and write the brief files to Google Drive. If any connector fails,
