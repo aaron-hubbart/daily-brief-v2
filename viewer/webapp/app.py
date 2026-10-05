@@ -1131,6 +1131,56 @@ def api_customers_discover_asana():
     return jsonify({'candidates': candidates})
 
 
+# ── Time Tracking Config management ──────────────────────────────────
+# Editable copy of the weekly-time-tracking skill's own Drive config file
+# (Claude Outputs/Configs/Time Tracking Config.json). The skill reads and
+# writes this same file on its own side; this just gives it a GUI so config
+# changes (daily minimum, exclusion category, new customer short names)
+# don't require going through a chat turn.
+
+@app.route('/api/time-tracking/config')
+@login_required
+def api_time_tracking_config():
+    """Return the raw Time Tracking Config.json for the Settings modal."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    config = gdrive_briefs.read_time_tracking_config(google_token, folder_id)
+    if config is None:
+        return jsonify({'error': 'Could not read Time Tracking Config.json'}), 500
+    return jsonify(config)
+
+
+@app.route('/api/time-tracking/config', methods=['PUT'])
+@login_required
+def api_time_tracking_config_update():
+    """Write updated Time Tracking Config.json back to Drive."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    data = request.get_json(silent=True)
+    if not data or not isinstance(data.get('customer_short_names', {}), dict):
+        return jsonify({'error': 'Invalid payload — customer_short_names must be an object'}), 400
+    try:
+        daily_min = float(data.get('daily_minimum_hours', 8.0))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'daily_minimum_hours must be a number'}), 400
+    payload = {
+        'time_tracking_calendar_name': str(data.get('time_tracking_calendar_name') or 'Time Tracking'),
+        'daily_minimum_hours': daily_min,
+        'personal_calendar_exclusion_category': str(data.get('personal_calendar_exclusion_category') or 'z-Personal'),
+        'customer_short_names': data.get('customer_short_names', {}),
+        'notes': str(data.get('notes') or ''),
+    }
+    result = gdrive_briefs.write_time_tracking_config(payload, google_token, folder_id)
+    if result is not True:
+        msg = result if isinstance(result, str) else 'Failed to write Time Tracking Config.json'
+        return jsonify({'error': msg}), 500
+    return jsonify({'ok': True})
+
+
 # ── Environments management ──────────────────────────────────────────
 
 @app.route('/environments')

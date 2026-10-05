@@ -293,6 +293,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
       <button class="settings-tab active" data-tab="setup" onclick="switchSettingsTab('setup')">Setup</button>
       <button class="settings-tab" data-tab="account" onclick="switchSettingsTab('account')">Account</button>
       <button class="settings-tab" data-tab="customers" onclick="switchSettingsTab('customers')">Customers</button>
+      <button class="settings-tab" data-tab="time-tracking" onclick="switchSettingsTab('time-tracking')">Time Tracking</button>
       <button class="settings-tab" id="settings-tab-admin" data-tab="admin" onclick="switchSettingsTab('admin')" style="display:none;">Admin</button>
     </div>
     <div class="modal-body settings-body">
@@ -441,6 +442,69 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
             <div class="cust-msg" id="msg"></div>
           </div>
         </div>
+      </div>
+
+      <div class="tab-panel" id="tab-time-tracking">
+        <p style="font-size:11.5px;color:var(--t3);margin-bottom:12px;">
+          Settings for the weekly-time-tracking skill. Read and written from
+          the same <span class="cust-mono">Claude Outputs/Configs/Time Tracking Config.json</span>
+          file the skill itself uses — changes made here take effect the
+          next time the skill runs, no code required.
+        </p>
+
+        <div class="account-row">Outlook calendar name</div>
+        <div class="copy-row">
+          <input class="text-input" id="tt-calendar-name" type="text" placeholder="Time Tracking" autocomplete="off">
+        </div>
+        <hr class="account-hr">
+
+        <div class="account-row">Daily minimum hours</div>
+        <div class="copy-row">
+          <input class="text-input" id="tt-daily-min" type="number" step="0.25" min="0" placeholder="8.0" style="max-width:120px;">
+        </div>
+        <hr class="account-hr">
+
+        <div class="account-row">Personal-event exclusion category</div>
+        <div class="copy-row">
+          <input class="text-input" id="tt-exclusion-category" type="text" placeholder="z-Personal" autocomplete="off">
+        </div>
+        <hr class="account-hr">
+
+        <div class="cust-panel" style="margin-top:4px;">
+          <div class="cust-panel-head">
+            <span>Customer short names</span>
+          </div>
+          <div class="cust-panel-body">
+            <table>
+              <thead>
+                <tr><th>Account name</th><th>Short token</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="tt-shortnames-body">
+                <tr><td colspan="3" class="cust-empty">Loading…</td></tr>
+              </tbody>
+            </table>
+            <div class="cust-add-row">
+              <input type="text" id="tt-new-account" placeholder="Account name (e.g. Bank of America)">
+              <input type="text" id="tt-new-token" placeholder="Short token (e.g. Bank)" class="cust-mono">
+              <button class="cust-btn primary" onclick="addTimeTrackingShortName()">Add</button>
+            </div>
+          </div>
+        </div>
+        <p style="font-size:11px;color:var(--t3);margin-top:6px;">
+          Subscriber vs. non-subscriber status (C :: / NS ::) is looked up live from the
+          Enterprise Success Customers Asana portfolio by the skill itself and isn't stored here.
+        </p>
+        <hr class="account-hr">
+
+        <div class="account-row">Notes</div>
+        <div class="copy-row">
+          <input class="text-input" id="tt-notes" type="text" placeholder="Free-text, ignored by the skill" autocomplete="off">
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+          <button class="cust-btn save" id="tt-save-btn" onclick="saveTimeTrackingConfig()">Save to Drive</button>
+        </div>
+        <div class="account-msg" id="tt-msg"></div>
       </div>
 
       <div class="tab-panel" id="tab-admin">
@@ -1613,6 +1677,7 @@ async function openSetup(fromReplay) {
 // ── Settings modal (tabs) ───────────────────────────────────────
 let custLoaded = false;
 let adminLoaded = false;
+let ttLoaded = false;
 
 function openSettings(tab) {
   document.getElementById('settings-overlay').classList.add('show');
@@ -1631,6 +1696,7 @@ function switchSettingsTab(tab) {
   if (tab === 'account') initAccountTab();
   if (tab === 'customers' && !custLoaded) { custLoaded = true; load(); }
   if (tab === 'admin' && !adminLoaded) { adminLoaded = true; loadConfig(); loadUsers(); loadTestUsers(); }
+  if (tab === 'time-tracking' && !ttLoaded) { ttLoaded = true; loadTimeTrackingConfig(); }
 }
 
 async function initAccountTab() {
@@ -1728,6 +1794,7 @@ async function saveNotificationPrefs() {
 // ── Customers tab (migrated from templates/customers.html) ─────
 let CONFIG = null;
 let dirty = false;
+let TT_CONFIG = null;
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
@@ -1927,6 +1994,99 @@ async function saveConfig() {
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
+
+// ── Time Tracking Config tab ────────────────────────────────────────
+
+async function loadTimeTrackingConfig() {
+  const msg = document.getElementById('tt-msg');
+  msg.textContent = '';
+  msg.className = 'account-msg';
+  try {
+    const r = await fetch('api/time-tracking/config', {credentials:'include'});
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    TT_CONFIG = await r.json();
+    document.getElementById('tt-calendar-name').value = TT_CONFIG.time_tracking_calendar_name || 'Time Tracking';
+    document.getElementById('tt-daily-min').value = TT_CONFIG.daily_minimum_hours ?? 8.0;
+    document.getElementById('tt-exclusion-category').value = TT_CONFIG.personal_calendar_exclusion_category || 'z-Personal';
+    document.getElementById('tt-notes').value = TT_CONFIG.notes || '';
+    if (!TT_CONFIG.customer_short_names || typeof TT_CONFIG.customer_short_names !== 'object') {
+      TT_CONFIG.customer_short_names = {};
+    }
+    renderTimeTrackingShortNames();
+  } catch(e) {
+    document.getElementById('tt-shortnames-body').innerHTML =
+      `<tr><td colspan="3" class="cust-empty" style="color:var(--bad-t)">Failed to load: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function renderTimeTrackingShortNames() {
+  const tbody = document.getElementById('tt-shortnames-body');
+  const names = TT_CONFIG.customer_short_names || {};
+  const accounts = Object.keys(names).sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'}));
+  if (!accounts.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="cust-empty">No short names configured yet — the skill will prompt for one the first time it sees a new account.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = accounts.map(account => `
+    <tr>
+      <td>${esc(account)}</td>
+      <td><span class="cust-mono">${esc(names[account])}</span></td>
+      <td class="cust-actions"><button class="cust-btn danger" onclick="removeTimeTrackingShortName('${escAttr(account)}')">Remove</button></td>
+    </tr>
+  `).join('');
+}
+
+function addTimeTrackingShortName() {
+  const accountInput = document.getElementById('tt-new-account');
+  const tokenInput = document.getElementById('tt-new-token');
+  const account = accountInput.value.trim();
+  const token = tokenInput.value.trim();
+  if (!account || !token) return;
+  TT_CONFIG.customer_short_names[account] = token;
+  accountInput.value = '';
+  tokenInput.value = '';
+  renderTimeTrackingShortNames();
+}
+
+function removeTimeTrackingShortName(account) {
+  if (!confirm(`Remove the short name for ${account}?`)) return;
+  delete TT_CONFIG.customer_short_names[account];
+  renderTimeTrackingShortNames();
+}
+
+async function saveTimeTrackingConfig() {
+  const btn = document.getElementById('tt-save-btn');
+  const msg = document.getElementById('tt-msg');
+  btn.disabled = true;
+  msg.textContent = 'Saving…';
+  msg.className = 'account-msg';
+
+  const payload = {
+    time_tracking_calendar_name: document.getElementById('tt-calendar-name').value.trim() || 'Time Tracking',
+    daily_minimum_hours: parseFloat(document.getElementById('tt-daily-min').value) || 8.0,
+    personal_calendar_exclusion_category: document.getElementById('tt-exclusion-category').value.trim() || 'z-Personal',
+    customer_short_names: TT_CONFIG.customer_short_names || {},
+    notes: document.getElementById('tt-notes').value.trim() || '',
+  };
+
+  try {
+    const r = await fetch('api/time-tracking/config', {
+      method: 'PUT', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    TT_CONFIG = payload;
+    msg.textContent = '';
+    showToast('Time Tracking config saved to Drive', 'ok', 5000);
+  } catch(e) {
+    msg.textContent = '';
+    showToast('Save failed: ' + e.message, 'err', 5000);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 
 let SCAN_CANDIDATES = [];
 

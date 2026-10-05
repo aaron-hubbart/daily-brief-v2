@@ -610,6 +610,131 @@ def write_account_config(config_data: Dict, refresh_token: str,
         return f'Drive API error: {e}'
 
 
+# ── Time Tracking Config management ──────────────────────────────────
+# Owned by the weekly-time-tracking skill (github.com/aaron-hubbart/
+# weekly-time-tracking), which reads/writes this same file from its own
+# side via the Google Drive connector. The webapp just gives it a GUI.
+# Lives at <parent_folder>/Configs/Time Tracking Config.json — note the
+# capital, plural "Configs", a different folder from this webapp's own
+# lowercase /config (account-config.json, config.json) above.
+
+_DEFAULT_TIME_TRACKING_CONFIG: Dict = {
+    'time_tracking_calendar_name': 'Time Tracking',
+    'daily_minimum_hours': 8.0,
+    'personal_calendar_exclusion_category': 'z-Personal',
+    'customer_short_names': {},
+    'notes': '',
+}
+
+
+def read_time_tracking_config(refresh_token: str, folder_id: Optional[str] = None) -> Optional[Dict]:
+    """Read Time Tracking Config.json from Drive's /Configs subfolder.
+    Returns the parsed JSON merged over the skill's own defaults for any
+    field the file doesn't have yet. A missing /Configs folder or file is
+    not an error — the skill's own first-run setup just hasn't created it
+    yet — so the defaults are returned so the GUI can bootstrap it.
+    Returns None only on an actual Drive/auth failure."""
+    parent_folder = folder_id or BRIEFS_FOLDER_ID
+    if not parent_folder or not refresh_token:
+        return None
+
+    try:
+        drive = _get_drive_service(refresh_token)
+        if not drive:
+            return None
+
+        configs_folder_id = _find_folder_cached(drive, parent_folder, 'Configs')
+        if not configs_folder_id:
+            logger.info('read_time_tracking_config: no /Configs folder found — returning defaults')
+            return dict(_DEFAULT_TIME_TRACKING_CONFIG)
+
+        query = (
+            f"parents='{configs_folder_id}' "
+            f"and name='Time Tracking Config.json' "
+            f"and trashed=false"
+        )
+        results = drive.files().list(
+            q=query, spaces='drive', pageSize=1, fields='files(id)',
+        ).execute()
+        files = results.get('files', [])
+        if not files:
+            logger.info('read_time_tracking_config: Time Tracking Config.json not found — returning defaults')
+            return dict(_DEFAULT_TIME_TRACKING_CONFIG)
+
+        data = _download_json(drive, files[0]['id'])
+        if data is None:
+            return dict(_DEFAULT_TIME_TRACKING_CONFIG)
+        return {**_DEFAULT_TIME_TRACKING_CONFIG, **data}
+
+    except Exception as e:
+        logger.error('read_time_tracking_config: %s', e, exc_info=True)
+        return None
+
+
+def write_time_tracking_config(config_data: Dict, refresh_token: str,
+                                folder_id: Optional[str] = None) -> Union[bool, str]:
+    """Write Time Tracking Config.json back to Drive's /Configs subfolder,
+    creating the folder and/or file if either doesn't exist yet — a
+    brand-new setup saving from the GUI before the skill's own first-run
+    flow has ever created either. Returns True on success, or an error
+    string on failure."""
+    parent_folder = folder_id or BRIEFS_FOLDER_ID
+    if not parent_folder:
+        return 'No Drive folder configured'
+    if not refresh_token:
+        return 'No Google refresh token — re-link Google Drive'
+
+    try:
+        from io import BytesIO
+        from googleapiclient.http import MediaIoBaseUpload
+
+        drive = _get_drive_service(refresh_token)
+        if not drive:
+            return 'Could not authenticate with Google Drive — re-link Google Drive'
+
+        configs_folder_id = _find_folder_cached(drive, parent_folder, 'Configs')
+        if not configs_folder_id:
+            logger.info('write_time_tracking_config: no /Configs folder found — creating it')
+            folder_metadata = {
+                'name': 'Configs',
+                'mimeType': 'application/vnd.google-apps.folder',
+                'parents': [parent_folder],
+            }
+            created_folder = drive.files().create(body=folder_metadata, fields='id').execute()
+            configs_folder_id = created_folder['id']
+            with _cache_lock:
+                _folder_cache[f'{parent_folder}/Configs'] = (configs_folder_id, time.monotonic() + _FOLDER_TTL)
+
+        query = (
+            f"parents='{configs_folder_id}' "
+            f"and name='Time Tracking Config.json' "
+            f"and trashed=false"
+        )
+        results = drive.files().list(
+            q=query, spaces='drive', pageSize=1, fields='files(id)',
+        ).execute()
+        files = results.get('files', [])
+
+        payload = json.dumps(config_data, indent=2).encode('utf-8')
+        media = MediaIoBaseUpload(BytesIO(payload), mimetype='application/json', resumable=False)
+
+        if not files:
+            logger.info('write_time_tracking_config: Time Tracking Config.json not found — creating it')
+            file_metadata = {'name': 'Time Tracking Config.json', 'parents': [configs_folder_id]}
+            created_file = drive.files().create(body=file_metadata, media_body=media, fields='id').execute()
+            file_id = created_file['id']
+        else:
+            file_id = files[0]['id']
+            drive.files().update(fileId=file_id, media_body=media).execute()
+
+        logger.info('write_time_tracking_config: saved Time Tracking Config.json (file_id=%s)', file_id)
+        return True
+
+    except Exception as e:
+        logger.error('write_time_tracking_config: %s', e, exc_info=True)
+        return f'Drive API error: {e}'
+
+
 _EMPTY_ACCOUNT_ENVIRONMENTS: Dict = {'teams': [], 'environments': [], 'use_cases': []}
 
 # Consulting > Customers Shared Drive folder — one JSON file per account
