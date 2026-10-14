@@ -53,7 +53,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import asana_discovery
 import db
 import gdrive_briefs
-from action_items import group_action_items
+from action_items import group_action_items, task_intelligence_deep_links
 
 APP_DIR = Path(__file__).resolve().parent
 # In the VM deployment, app.py lives at viewer/webapp/app.py and the shared
@@ -280,16 +280,20 @@ def _fetch_live_action_items(pat, account_projects, exclude_gids):
             badge = {'label': f"assigned to {assignee.get('name')}" if assignee.get('name') else 'assigned to someone else', 'class': 'bwarn'}
         else:
             badge = None
+        task_title = task.get('name') or '(untitled task)'
         items.append({
             'item_key': f'{ASANA_ACTION_ITEM_PREFIX}{task_gid}',
-            'title': task.get('name') or '(untitled task)',
+            'title': task_title,
             'subtitle': None,
             'badge': badge,
-            'links': [{
-                'label': 'Open in Asana',
-                'url': task.get('permalink_url') or f'https://app.asana.com/0/0/{task_gid}/f',
-                'class': 'lbtn',
-            }],
+            'links': [
+                {
+                    'label': 'Open in Asana',
+                    'url': task.get('permalink_url') or f'https://app.asana.com/0/0/{task_gid}/f',
+                    'class': 'lbtn',
+                },
+                *task_intelligence_deep_links(task_title, task_gid),
+            ],
             'content': {
                 'due_on': task.get('due_on'),
                 'is_new': False,
