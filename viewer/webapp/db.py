@@ -7,17 +7,19 @@ handler — simplest option that's correct for this app's traffic level
 overkill here and adds a failure mode (pool exhaustion) this app doesn't
 need to think about yet.
 """
+import glob
 import json
 import os
 import secrets
 from contextlib import contextmanager
-from typing import Optional
+from typing import List, Optional
 
 import psycopg2
 import psycopg2.extras
 from flask import g
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
+MIGRATIONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db', 'migrations')
 
 
 def get_conn():
@@ -36,6 +38,53 @@ def close_conn(exc=None):
         if exc is not None:
             conn.rollback()
         conn.close()
+
+
+def _migration_files_on_disk() -> List[str]:
+    """Sorted basenames of every db/migrations/*.sql file, e.g.
+    ['001_add_api_token.sql', ..., '011_add_schema_migrations.sql']."""
+    return sorted(
+        os.path.basename(p) for p in glob.glob(os.path.join(MIGRATIONS_DIR, '*.sql'))
+    )
+
+
+def _pending_from(on_disk: List[str], applied: set) -> List[str]:
+    """Pure diff between what's on disk and what schema_migrations records
+    as applied, split out from get_pending_migrations so it's testable
+    without a live Postgres connection."""
+    return [f for f in on_disk if f not in applied]
+
+
+def get_pending_migrations() -> Optional[List[str]]:
+    """Returns the db/migrations/*.sql filenames that haven't been recorded
+    as applied in the schema_migrations table (see
+    migrations/011_add_schema_migrations.sql), so app.py can refuse to
+    start rather than serve requests against a schema that's missing a
+    migration — see the module docstring in migration 011 for the incident
+    this replaces.
+
+    Returns [] if DATABASE_URL isn't set (this app runs read-only from
+    Google Drive in that mode — no schema to check), or None if
+    schema_migrations itself doesn't exist yet, meaning migration 011 (this
+    safeguard's own migration) hasn't been applied.
+
+    Uses its own short-lived connection rather than get_conn()/cursor(),
+    since this runs at import time, before any Flask request or app
+    context exists for `g` to attach to.
+    """
+    if not DATABASE_URL:
+        return []
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT to_regclass('public.schema_migrations')")
+            if cur.fetchone()[0] is None:
+                return None
+            cur.execute("SELECT version FROM schema_migrations")
+            applied = {row[0] for row in cur.fetchall()}
+    finally:
+        conn.close()
+    return _pending_from(_migration_files_on_disk(), applied)
 
 
 @contextmanager

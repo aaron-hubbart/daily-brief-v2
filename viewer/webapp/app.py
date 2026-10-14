@@ -514,6 +514,32 @@ app.wsgi_app = ForcePrefixMiddleware(
 )
 app.teardown_appcontext(db.close_conn)
 
+# Refuse to start against a database that's missing a migration, rather than
+# serve requests that 500 on the missing column/table -- see
+# db/migrations/011_add_schema_migrations.sql for the incident (migration
+# 010 shipped code depending on a column that was never applied in prod).
+_pending_migrations = db.get_pending_migrations()
+if _pending_migrations is None:
+    logger.critical(
+        "schema_migrations table not found. Apply "
+        "db/migrations/011_add_schema_migrations.sql by hand before this "
+        "app can start -- see DEPLOYMENT.md's 'Schema migrations' section."
+    )
+    raise RuntimeError("schema_migrations table missing -- see startup log above")
+elif _pending_migrations:
+    logger.critical(
+        "Unapplied database migration(s) found, refusing to start: %s. "
+        "Apply each by hand against the running Postgres pod -- see "
+        "DEPLOYMENT.md's 'Schema migrations' section -- for example:\n%s",
+        ', '.join(_pending_migrations),
+        '\n'.join(
+            f"  Get-Content -Raw viewer/webapp/db/migrations/{f} | "
+            f"kubectl exec -i -n daily-brief postgres-0 -- psql -U dailybrief -d dailybrief"
+            for f in _pending_migrations
+        ),
+    )
+    raise RuntimeError(f"Unapplied migrations: {', '.join(_pending_migrations)}")
+
 
 JIRA_BASE_URL = os.environ.get('JIRA_BASE_URL', 'https://jira.camunda.com/browse').rstrip('/')
 

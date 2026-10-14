@@ -97,3 +97,29 @@ CREATE TABLE IF NOT EXISTS sso_sessions (
 CREATE INDEX IF NOT EXISTS idx_sso_sessions_user ON sso_sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_sso_sessions_expires ON sso_sessions (expires_at);
 
+-- Tracks which db/migrations/*.sql files have been applied -- see
+-- migrations/011_add_schema_migrations.sql and db.get_pending_migrations.
+-- app.py refuses to start if a migration file exists on disk that isn't
+-- recorded here, so a schema change can't silently go live without being
+-- applied (see migration 011's comment for the incident this prevents).
+-- A fresh install via this file already has every column/table below, so
+-- every migration up to this schema's own revision is seeded as applied.
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version     TEXT PRIMARY KEY,
+    applied_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO schema_migrations (version) VALUES
+    ('001_add_api_token.sql'),
+    ('002_add_onboarding_completed.sql'),
+    ('003_add_asana_pat.sql'),
+    ('004_add_account_projects.sql'),
+    ('005_add_google_refresh_token.sql'),
+    ('006_add_google_drive_folder_id.sql'),
+    ('007_drop_api_token_and_account_projects.sql'),
+    ('008_add_sso_sessions.sql'),
+    ('009_add_notification_prefs.sql'),
+    ('010_add_last_active_at.sql'),
+    ('011_add_schema_migrations.sql')
+ON CONFLICT (version) DO NOTHING;
+

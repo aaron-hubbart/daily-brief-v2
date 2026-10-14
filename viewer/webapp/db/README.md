@@ -2,6 +2,10 @@
 
 Applies `schema.sql`. See `../DEPLOYMENT.md` for how to actually run it against the cluster's Postgres.
 
+## Adding a migration
+
+Every file in `migrations/` must end with an `INSERT INTO schema_migrations (version) VALUES ('<its own filename>') ON CONFLICT (version) DO NOTHING;` (see `migrations/011_add_schema_migrations.sql`). `app.py` compares this table against the files on disk at startup and refuses to boot if one is missing — see `db.get_pending_migrations` — so an unapplied migration fails loudly at deploy time instead of 500ing once traffic hits the missing column (what happened with migration 010 before this existed). Also add the new file's `kubectl exec` command to `../DEPLOYMENT.md`'s "4. Postgres" section — migration 010 shipping without one is why that gap went unnoticed.
+
 ## Why per-item rows instead of one HTML blob per day
 
 The old model (`data/{slug}/Daily Brief_*.html`) stored a whole rendered page per run. Refreshing one Customer Update card meant downloading the latest file, finding the right `<details>` node by `data-id`, splicing in new markup, and re-uploading a whole new timestamped file (`references/section-refresh.md` in the skill repo does exactly this). That's the price of treating a day's brief as one opaque document.
