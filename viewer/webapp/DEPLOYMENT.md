@@ -88,6 +88,28 @@ Same again for the `sso_sessions` table added for cross-app single sign-on (see 
 Get-Content -Raw viewer/webapp/db/migrations/008_add_sso_sessions.sql | kubectl exec -i -n daily-brief-v2 postgres-0 -- psql -U dailybrief -d dailybrief
 ```
 
+Same again for migrations 005 (Google refresh token), 006 (Google Drive folder ID), and 009 (Slack notification prefs) — all safe to run more than once, all no-ops for existing users until they go through the relevant connect flow:
+
+```powershell
+Get-Content -Raw viewer/webapp/db/migrations/005_add_google_refresh_token.sql | kubectl exec -i -n daily-brief-v2 postgres-0 -- psql -U dailybrief -d dailybrief
+Get-Content -Raw viewer/webapp/db/migrations/006_add_google_drive_folder_id.sql | kubectl exec -i -n daily-brief-v2 postgres-0 -- psql -U dailybrief -d dailybrief
+Get-Content -Raw viewer/webapp/db/migrations/009_add_notification_prefs.sql | kubectl exec -i -n daily-brief-v2 postgres-0 -- psql -U dailybrief -d dailybrief
+```
+
+**Migration 010 (`last_active_at`) must be applied before deploying any app image built from a commit at or after it** — the app writes to this column on every authenticated request (see `db.touch_last_active`), so skipping this step 500s every authenticated page (this happened once in production — see migration 011 below, added to make that failure mode loud instead of silent):
+
+```powershell
+Get-Content -Raw viewer/webapp/db/migrations/010_add_last_active_at.sql | kubectl exec -i -n daily-brief-v2 postgres-0 -- psql -U dailybrief -d dailybrief
+```
+
+**Migration 011 (`schema_migrations`) is a one-time, must-run-first step** for any database that predates it — app.py now refuses to start (see "Schema migrations" below) unless every file in `db/migrations/` is recorded in this table, and 011 is what creates it:
+
+```powershell
+Get-Content -Raw viewer/webapp/db/migrations/011_add_schema_migrations.sql | kubectl exec -i -n daily-brief-v2 postgres-0 -- psql -U dailybrief -d dailybrief
+```
+
+**Going forward, every new migration file must end with an `INSERT INTO schema_migrations (version) VALUES ('<its own filename>') ON CONFLICT (version) DO NOTHING;`** (see `db/migrations/011_add_schema_migrations.sql` or any migration after it for the pattern) — the app checks this table against the files in `db/migrations/` on startup and refuses to boot if any file is missing, so a migration applied by hand with `kubectl exec` (as above) registers itself in the same command instead of needing a separate step.
+
 
 ## 5. The app
 
@@ -212,4 +234,4 @@ This runs the Flask dev server directly (not gunicorn, not a container) for quic
 - **Account panel.** The "Account" button in the topbar shows the signed-in person's email, Google Drive connection status, and Asana connection status with save/disconnect controls for `asana_pat`, so connecting or removing Asana doesn't require replaying the whole setup walkthrough.
 - **Admin impersonation.** `/admin` can create throwaway test users (synthetic `@daily-brief.local` emails, `is_test = TRUE`) and impersonate them to exercise the new-user onboarding flow without touching real data. A banner shows while impersonating, with a one-click return to the admin's own session. Impersonation can only ever target a test user — never a real one, even via a crafted user ID.
 - **Image tag pinning.** Currently `:latest` for simplicity during testing.
-- **Schema migrations.** `schema.sql` only runs once, on first Postgres init (see step 4). There's no migration tooling yet for changing the schema after that.
+- **Schema migrations.** `schema.sql` only runs once, on first Postgres init (see step 4). There's still no tooling that *applies* `db/migrations/*.sql` automatically after that — each new one is applied by hand with `kubectl exec` (see step 4's examples) — but the app now tracks which ones have been applied in a `schema_migrations` table (migration 011) and refuses to start if one is missing, instead of silently 500ing on the missing column once traffic arrives. In a rolling Kubernetes deployment this means the broken image simply never becomes Ready and the old pods keep serving, rather than replacing them with ones that 500.
