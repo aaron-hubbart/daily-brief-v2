@@ -6,6 +6,7 @@ requirements (FLASK_SECRET_KEY, AZURE_TENANT_ID, etc.) or a live Postgres
 connection. Moved out of app.py verbatim; see app.py's git history before
 this change for the original inline version."""
 from datetime import date, timedelta
+from urllib.parse import quote
 
 # Fixed order and labels for the Action Items subsections. "New Items"
 # always renders first regardless of due date so a freshly created task
@@ -17,6 +18,27 @@ ACTION_SUBSECTIONS = [
     {'slug': 'due-soon', 'label': 'Due Next 7 Days'},
     {'slug': 'no-due-date', 'label': 'No Due Date'},
 ]
+
+
+def task_intelligence_deep_links(task_title: str, task_gid: str):
+    """Two claude:// deep-links attached to every Asana task item, same
+    pattern as the meeting-manager links in references/item-sync.md: Method A
+    (signal sync — look for updates) and Method B (per-task research) from
+    the task-intelligence-sync skill, scoped to this one task by GID so it
+    doesn't sweep the person's whole task list."""
+    ref = f'{task_title} (GID: {task_gid})'
+    prompts = [
+        ('Check for updates', f'/task-intelligence-sync Run Method A (signal sync) for just this task — {ref}. Do not pull my full task list.'),
+        ('Research', f'/task-intelligence-sync Run Method B (task triage/research) for: {ref}'),
+    ]
+    return [
+        {
+            'label': label,
+            'url': 'claude://claude.ai/new?q=' + quote(prompt, safe=''),
+            'class': 'lbtn',
+        }
+        for label, prompt in prompts
+    ]
 
 
 def group_action_items(items, today_iso: str):
