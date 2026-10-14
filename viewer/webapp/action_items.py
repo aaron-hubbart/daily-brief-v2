@@ -20,6 +20,13 @@ ACTION_SUBSECTIONS = [
 ]
 
 
+# Matches app.py's own ASANA_ACTION_ITEM_PREFIX constant of the same name —
+# duplicated rather than imported to keep this module Flask/env-free (see
+# module docstring). Both must stay 'action-' per the item_key convention
+# in references/item-sync.md.
+ASANA_ACTION_ITEM_PREFIX = 'action-'
+
+
 def task_intelligence_deep_links(task_title: str, task_gid: str):
     """Two claude:// deep-links attached to every Asana task item, same
     pattern as the meeting-manager links in references/item-sync.md: Method A
@@ -39,6 +46,30 @@ def task_intelligence_deep_links(task_title: str, task_gid: str):
         }
         for label, prompt in prompts
     ]
+
+
+def _ensure_task_intelligence_links(item):
+    """Backfills the two task_intelligence_deep_links onto an Action Item
+    if they're not already there. Live-pulled items already have them (see
+    app.py's _fetch_live_action_items), but brief-written "New Items" get
+    their links from the daily-brief-generation skill's own output at
+    content-generation time (references/item-sync.md) — this re-asserts
+    them at render time instead, so a New Item made by an older skill
+    version (or a run that just missed the instruction) still gets the
+    buttons rather than silently lacking them until the brief regenerates.
+    No-ops if both links are already present; mutates and returns item."""
+    item_key = item.get('item_key', '')
+    if not item_key.startswith(ASANA_ACTION_ITEM_PREFIX):
+        return item
+    existing_labels = {l.get('label') for l in (item.get('links') or [])}
+    task_gid = item_key[len(ASANA_ACTION_ITEM_PREFIX):]
+    missing = [
+        link for link in task_intelligence_deep_links(item.get('title') or '', task_gid)
+        if link['label'] not in existing_labels
+    ]
+    if missing:
+        item['links'] = [*(item.get('links') or []), *missing]
+    return item
 
 
 def group_action_items(items, today_iso: str):
@@ -69,6 +100,7 @@ def group_action_items(items, today_iso: str):
     buckets = {s['slug']: [] for s in ACTION_SUBSECTIONS}
 
     for item in items:
+        _ensure_task_intelligence_links(item)
         content = item.get('content') or {}
         due_on = content.get('due_on')
         if content.get('is_new'):
