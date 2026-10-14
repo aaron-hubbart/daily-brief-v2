@@ -26,7 +26,11 @@ CREATE TABLE IF NOT EXISTS users (
     -- Whether this user wants Slack notifications sent to them, and which
     -- channel/DM id to send them to (NULL until they configure it).
     slack_notify_enabled    BOOLEAN NOT NULL DEFAULT FALSE,
-    slack_notify_channel_id TEXT
+    slack_notify_channel_id TEXT,
+    -- Bumped to now() on every authenticated request (see login_required in
+    -- app.py) — see migrations/010_add_last_active_at.sql. NULL until the
+    -- person's first request after this column existed.
+    last_active_at TIMESTAMPTZ
 );
 
 -- One row per user per calendar date. This is the "day" the requirement

@@ -1,0 +1,12 @@
+-- Migration 010: Track real last-active time on users
+--
+-- list_users_with_stats() previously derived "last active" from
+-- MAX(brief_days.last_updated_at), but nothing writes to brief_days from
+-- the normal brief-viewing path (it's populated by serve_brief as of this
+-- same change, but only going forward) -- a plain per-request timestamp on
+-- users is a simpler, immediate signal of real app usage, bumped from
+-- login_required on every authenticated request.
+-- Up
+ALTER TABLE users ADD COLUMN last_active_at TIMESTAMPTZ;
+-- Down (rollback)
+-- ALTER TABLE users DROP COLUMN last_active_at;
