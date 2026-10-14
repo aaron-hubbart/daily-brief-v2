@@ -595,6 +595,7 @@ def login_required(view):
             session['post_login_redirect'] = request.script_root + request.path
             return redirect(url_for('login'))
         request.brief_user = user
+        db.touch_last_active(user['id'])
         return view(*args, **kwargs)
     return wrapped
 
@@ -1352,6 +1353,11 @@ def serve_brief(date_str):
 
     if not meta:
         abort(404)
+
+    # Mirror this day's existence/freshness into Postgres for the admin
+    # panel's "active briefs" count and the archive_briefs.py cronjob —
+    # content itself still lives in Drive and is read from there above.
+    db.upsert_brief_day(request.brief_user['id'], date_str, meta.get('brief_type'))
 
     asana_pat = gdrive_briefs.get_asana_pat_from_config(google_token, folder_id) if google_token else db.get_asana_pat(request.brief_user['id'])
     available = set(meta.get('available_sections', []))

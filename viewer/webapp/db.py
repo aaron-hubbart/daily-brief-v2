@@ -184,6 +184,14 @@ def set_notification_prefs(user_id: int, enabled: bool, channel_id: Optional[str
         )
 
 
+def touch_last_active(user_id: int) -> None:
+    """Called from login_required on every authenticated request. Cheap
+    enough at this app's traffic level (see module docstring) to just do
+    unconditionally rather than debounce."""
+    with cursor(commit=True) as cur:
+        cur.execute("UPDATE users SET last_active_at = now() WHERE id = %s", (user_id,))
+
+
 def mark_onboarding_complete(user_id: int) -> None:
     """Idempotent — only sets the timestamp the first time; re-completing
     (e.g. clicking through the walkthrough again from the Account panel)
@@ -201,14 +209,20 @@ def list_users_with_stats() -> list:
     joins so a user who signed in but whose skill has never synced anything
     still shows up (with brief_count 0 / last_active null) rather than being
     hidden. Test users (is_test = TRUE) are excluded — they appear in the
-    separate Test Users panel instead (see list_test_users)."""
+    separate Test Users panel instead (see list_test_users).
+
+    last_active_at comes from users.last_active_at (bumped on every
+    authenticated request — see touch_last_active/login_required), not
+    brief_days.last_updated_at: brief content lives in Google Drive and is
+    only mirrored into brief_days when a user actually opens a given day
+    (see serve_brief), so brief_days alone would miss activity that never
+    touched a brief page (e.g. Account settings)."""
     with cursor() as cur:
         cur.execute(
             """
             SELECT
-                u.id, u.email, u.slug, u.created_at,
-                COUNT(bd.id) FILTER (WHERE bd.status = 'active') AS active_brief_count,
-                MAX(bd.last_updated_at) AS last_active_at
+                u.id, u.email, u.slug, u.created_at, u.last_active_at,
+                COUNT(bd.id) FILTER (WHERE bd.status = 'active') AS active_brief_count
             FROM users u
             LEFT JOIN brief_days bd ON bd.user_id = u.id
             WHERE u.is_test = FALSE
