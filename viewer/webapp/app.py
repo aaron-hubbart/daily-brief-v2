@@ -203,14 +203,28 @@ def _post_to_slack(channel_id: str, text: str):
 def _validate_asana_pat(pat):
     """Used when a person saves a new PAT during setup or from the Account
     panel — calls Asana's own /users/me so a bad token is caught immediately
-    with a clear error, rather than silently failing later on the first
-    live pull. Returns the Asana user's name/email dict, or None if the
-    token is invalid or the call otherwise failed."""
+    rather than silently failing later on the first live pull.
+
+    Returns (user, error). user is the Asana user's name/email dict on
+    success. error is None on success, 'invalid' when Asana rejected the
+    token (401/403), or 'unreachable' when the call itself failed (timeout,
+    DNS, 5xx, bad response) -- the caller must not tell the person their
+    token is wrong in that case."""
     try:
         data = _asana_api_get(pat, '/users/me', {'opt_fields': 'name,email'})
-        return data.get('data')
-    except (urllib.error.URLError, json.JSONDecodeError):
-        return None
+    except urllib.error.HTTPError as e:
+        logger.warning('Asana PAT validation: HTTP %s from /users/me', e.code)
+        return None, ('invalid' if e.code in (401, 403) else 'unreachable')
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        # OSError covers socket.timeout/TimeoutError raised while reading the
+        # body, which urlopen does not wrap in URLError. ValueError covers
+        # JSONDecodeError and UnicodeDecodeError.
+        logger.warning('Asana PAT validation: request failed: %s', e)
+        return None, 'unreachable'
+    user = data.get('data') if isinstance(data, dict) else None
+    if not user:
+        return None, 'unreachable'
+    return user, None
 
 
 def _fetch_live_action_items(pat, account_projects, exclude_gids):
@@ -986,19 +1000,23 @@ def api_asana_pat_save():
     """Saves (or replaces) the Asana PAT in the skill's config.json on
     Google Drive. Validates against Asana first."""
     body = request.get_json(silent=True) or {}
-    pat = (body.get('pat') or '').strip()
+    pat = re.sub(r'\s+', '', body.get('pat') or '')
+    if pat.lower().startswith('bearer'):
+        pat = pat[len('bearer'):]
     if not pat:
-        abort(400, 'pat is required')
-    asana_user = _validate_asana_pat(pat)
-    if asana_user is None:
-        abort(400, 'Could not validate this token against Asana \u2014 check that it was copied correctly and hasn\'t been revoked.')
+        return jsonify({'description': 'Paste a token first.'}), 400
+    asana_user, err = _validate_asana_pat(pat)
+    if err == 'invalid':
+        return jsonify({'description': 'Asana rejected this token. Check that it was copied in full and has not been revoked.'}), 400
+    if err:
+        return jsonify({'description': 'Could not reach Asana to check this token. Try again in a moment.'}), 502
     google_token = db.get_google_refresh_token(request.brief_user['id'])
     folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
     if google_token:
         result = gdrive_briefs.write_config({'asana_pat': pat}, google_token, folder_id)
         if result is not True:
             logger.warning('Failed to save asana_pat to config.json: %s', result)
-            abort(500, f'Could not save to Google Drive config: {result}')
+            return jsonify({'description': f'Token is valid, but saving it to your Drive config failed: {result}'}), 500
         gdrive_briefs.invalidate_asana_pat_cache(google_token, folder_id)
     else:
         # Fall back to Postgres for users who haven't linked Google Drive
