@@ -301,10 +301,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
         <div class="modal-dots" id="setup-dots"></div>
 
         <div class="setup-step active" data-step="1">
-          <h3>1. Set up the daily-brief skill</h3>
-          <p>Install the skill in a Claude project from <a href="https://github.com/aaron-hubbart/daily-brief-v2" target="_blank" rel="noopener">github.com/aaron-hubbart/daily-brief-v2</a> — copy the <code>daily-brief-generation/</code> folder in (<code>SKILL.md</code> and <code>references/</code>).</p>
-          <p>Then, in Claude, run:</p>
-          <p><code>/daily-brief setup</code></p>
+          <h3>1. Set up the daily-brief-generation skill</h3>
+          <p>The skill is part of the <strong>customer-success-toolkit</strong> plugin, so there is nothing to install separately.</p>
+          <p>In Claude, run:</p>
+          <p><code>/daily-brief-generation setup</code></p>
           <p>Follow the prompts — it'll ask for your Drive folder ID and Slack user ID, then discover your customer accounts, Slack channels, and Asana projects automatically. Review and confirm what it finds.</p>
           <p>When it finishes, it saves your configuration to Google Drive automatically — no manual edits needed.</p>
         </div>
@@ -340,7 +340,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
           </div>
           <div class="account-msg" id="setup-asana-msg"></div>
           <p style="font-size:11.5px;color:var(--t3);">This is entirely optional. Skip it and finish setup — you can always add it later from the Account tab, and New Items will keep working either way.</p>
-          <p>Once your skill runs once, your brief shows up here automatically. Run <code>/daily-brief</code> in Claude any time to generate one — you're all set.</p>
+          <p>Once your skill runs once, your brief shows up here automatically. Run <code>/daily-brief-generation</code> in Claude any time to generate one — you're all set.</p>
         </div>
       </div>
 
@@ -1425,8 +1425,13 @@ async function saveAsanaPat(inputId, msgId, onSuccess) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pat }),
     });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.description || ('HTTP ' + res.status));
+    let body = {};
+    try { body = await res.json(); } catch (_) { /* non-JSON error page */ }
+    if (!res.ok) {
+      const err = new Error(body.description || ('Request failed (HTTP ' + res.status + ').'));
+      err.fromServer = true;
+      throw err;
+    }
     msg.className = 'account-msg ok';
     const name = body.asana_user && body.asana_user.name;
     msg.textContent = name ? `Connected as ${name}.` : 'Connected.';
@@ -1434,7 +1439,7 @@ async function saveAsanaPat(inputId, msgId, onSuccess) {
     if (onSuccess) onSuccess();
   } catch (e) {
     msg.className = 'account-msg err';
-    msg.textContent = 'Could not validate that token — check it was copied correctly.';
+    msg.textContent = e.fromServer ? e.message : 'Could not reach the viewer to save the token. Try again.';
   }
 }
 
