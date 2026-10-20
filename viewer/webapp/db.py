@@ -233,6 +233,29 @@ def set_notification_prefs(user_id: int, enabled: bool, channel_id: Optional[str
         )
 
 
+def get_max_briefs_to_load(user_id: int) -> int:
+    """Returns the signed-in user's "Max briefs to load" preference — how
+    many recent brief dates /api/briefs returns (see
+    migrations/012_add_max_briefs_to_load.sql). Falls back to the column
+    default (10) if the row somehow isn't found."""
+    with cursor() as cur:
+        cur.execute("SELECT max_briefs_to_load FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        return row['max_briefs_to_load'] if row else 10
+
+
+def set_max_briefs_to_load(user_id: int, value: int) -> None:
+    """Saves the signed-in user's "Max briefs to load" preference. Callers
+    are expected to have already clamped `value` to [1, 20] (see
+    gdrive_briefs.clamp_max_briefs_to_load) — the column's own CHECK
+    constraint is the last line of defense, not the primary validation."""
+    with cursor(commit=True) as cur:
+        cur.execute(
+            "UPDATE users SET max_briefs_to_load = %s WHERE id = %s",
+            (value, user_id),
+        )
+
+
 def touch_last_active(user_id: int) -> None:
     """Called from login_required on every authenticated request. Cheap
     enough at this app's traffic level (see module docstring) to just do

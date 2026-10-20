@@ -1088,6 +1088,37 @@ def api_missing_transcript_asana_task_update():
     return jsonify({'ok': True, 'missing_transcript_asana_task_enabled': enabled})
 
 
+@app.route('/api/settings/max-briefs-to-load')
+@login_required
+def api_max_briefs_to_load():
+    """Returns how many recent brief dates /api/briefs should return for
+    the signed-in user (Account tab setting; Postgres-backed, since this
+    is a webapp-only preference rather than a skill behavior toggle)."""
+    return jsonify({'max_briefs_to_load': db.get_max_briefs_to_load(request.brief_user['id'])})
+
+
+@app.route('/api/settings/max-briefs-to-load', methods=['PATCH'])
+@login_required
+def api_max_briefs_to_load_update():
+    """Saves the max-briefs-to-load setting. Rejects anything outside
+    [1, 20] rather than silently clamping, so a typo doesn't get saved
+    as some other number without the person noticing."""
+    body = request.get_json(silent=True) or {}
+    if 'max_briefs_to_load' not in body:
+        return jsonify({'error': 'max_briefs_to_load (int) is required'}), 400
+    try:
+        value = int(body['max_briefs_to_load'])
+    except (TypeError, ValueError):
+        return jsonify({'error': 'max_briefs_to_load must be an integer'}), 400
+    if not (gdrive_briefs.MIN_MAX_BRIEFS_TO_LOAD <= value <= gdrive_briefs.MAX_MAX_BRIEFS_TO_LOAD):
+        return jsonify({
+            'error': f'max_briefs_to_load must be between '
+                     f'{gdrive_briefs.MIN_MAX_BRIEFS_TO_LOAD} and {gdrive_briefs.MAX_MAX_BRIEFS_TO_LOAD}',
+        }), 400
+    db.set_max_briefs_to_load(request.brief_user['id'], value)
+    return jsonify({'ok': True, 'max_briefs_to_load': value})
+
+
 # ── Customer list management ─────────────────────────────────────────
 
 @app.route('/customers')
@@ -1353,9 +1384,10 @@ def api_briefs():
     if not google_token:
         # User hasn't connected Google Drive yet
         return jsonify([])
-    
+
     # List briefs from Google Drive using user's token and folder ID
-    days = gdrive_briefs.list_available_briefs(google_token, folder_id)
+    max_briefs = db.get_max_briefs_to_load(request.brief_user['id'])
+    days = gdrive_briefs.list_available_briefs(google_token, folder_id, max_briefs=max_briefs)
     return jsonify([
         {'name': d, 'label': d}
         for d in days

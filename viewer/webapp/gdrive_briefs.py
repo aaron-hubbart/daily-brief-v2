@@ -32,6 +32,7 @@ Performance notes:
 import json
 import logging
 import os
+import re
 import threading
 import time
 from typing import Optional, Dict, List, Tuple, Union
@@ -456,11 +457,31 @@ def get_account_projects(refresh_token: str, folder_id: Optional[str] = None) ->
         return []
 
 
-def list_available_briefs(refresh_token: str, folder_id: Optional[str] = None) -> List[str]:
-    """List all available brief dates from Google Drive in descending order."""
+DEFAULT_MAX_BRIEFS_TO_LOAD = 10
+MIN_MAX_BRIEFS_TO_LOAD = 1
+MAX_MAX_BRIEFS_TO_LOAD = 20
+
+
+def clamp_max_briefs_to_load(value) -> int:
+    """Coerces a "Max briefs to load" setting value into the valid [1, 20]
+    range, falling back to the default for anything that isn't a plain
+    int (missing setting, bad DB row, malformed request body)."""
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_BRIEFS_TO_LOAD
+    return max(MIN_MAX_BRIEFS_TO_LOAD, min(MAX_MAX_BRIEFS_TO_LOAD, value))
+
+
+def list_available_briefs(refresh_token: str, folder_id: Optional[str] = None,
+                           max_briefs: int = DEFAULT_MAX_BRIEFS_TO_LOAD) -> List[str]:
+    """List the most recent available brief dates from Google Drive in
+    descending order, capped at `max_briefs` (the user's "Max briefs to
+    load" setting — see db.get_max_briefs_to_load)."""
     parent_folder = folder_id or BRIEFS_FOLDER_ID
     if not parent_folder or not refresh_token:
         return []
+    max_briefs = clamp_max_briefs_to_load(max_briefs)
 
     try:
         drive = _get_drive_service(refresh_token)
@@ -490,8 +511,9 @@ def list_available_briefs(refresh_token: str, folder_id: Optional[str] = None) -
                 except ValueError:
                     pass
 
-        logger.info(f'list_available_briefs: Returning {len(dates)} valid dates')
-        return sorted(dates, reverse=True)
+        dates = sorted(dates, reverse=True)[:max_briefs]
+        logger.info(f'list_available_briefs: Returning {len(dates)} valid dates (max {max_briefs})')
+        return dates
 
     except Exception as e:
         logger.error(f'list_available_briefs: Error listing briefs: {e}', exc_info=True)
@@ -687,15 +709,37 @@ def _list_all_files_in_shared_drive(drive, query: str, fields: str = 'files(id,n
             return files
 
 
+_LEGAL_SUFFIX_RE = re.compile(r'\b(inc|llc|ltd|corp|corporation|co)\b')
+
+
+def _normalize_account_name(name: str) -> str:
+    """Last-resort match key for an account name: lowercase, drop '.'/','
+    and common legal-entity suffixes, collapse whitespace. Mirrors
+    environments.html's client-side normalizeCustomerName (used there for
+    the "My Customers" filter) so a human-curated Drive folder name that
+    differs from the Asana project name only in punctuation/casing/legal
+    suffix (e.g. "Acme Corp." vs "Acme Corp") still resolves instead of
+    reporting the account folder as missing — see the design spec's
+    "known limitation" note about keeping these two names in sync."""
+    normalized = name.strip().lower()
+    normalized = re.sub(r'[.,]', '', normalized)
+    normalized = _LEGAL_SUFFIX_RE.sub('', normalized)
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    return normalized
+
+
 def _find_account_folder(drive, account_name: str) -> Optional[Tuple[str, str]]:
     """Resolve an account name to its (folder_id, exact_drive_name) under
     Consulting/Customers/<Letter>/<Account Name>. Matching is done in
     Python (not baked into the Drive query string) so names with quotes
-    or other special characters can't break the query, and so we can
-    fall back to a case-insensitive match. Returns None if the letter
-    folder or the account folder itself doesn't exist — this Shared
-    Drive is human-curated, so a missing account folder is a lookup
-    failure, not something this app creates on your behalf."""
+    or other special characters can't break the query. Three tiers, each
+    tried only if the previous one found nothing: exact, case-insensitive,
+    then a punctuation/legal-suffix-normalized match (only when it
+    resolves to exactly one candidate, so it never guesses between two
+    similarly-named accounts). Returns None if the letter folder doesn't
+    exist or no candidate matches on any tier — this Shared Drive is
+    human-curated, so a missing account folder is a lookup failure, not
+    something this app creates on your behalf."""
     now = time.monotonic()
     cache_key = account_name.strip().lower()
     with _cache_lock:
@@ -722,6 +766,11 @@ def _find_account_folder(drive, account_name: str) -> Optional[Tuple[str, str]]:
         lowered = name.lower()
         match = next((f for f in candidates if f['name'].strip().lower() == lowered), None)
     if not match:
+        normalized = _normalize_account_name(name)
+        norm_matches = [f for f in candidates if _normalize_account_name(f['name']) == normalized]
+        if len(norm_matches) == 1:
+            match = norm_matches[0]
+    if not match:
         return None
 
     resolved = (match['id'], match['name'].strip())
@@ -734,19 +783,25 @@ def _account_not_found_error(account_name: str) -> str:
     letter = _letter_bucket(account_name) or '?'
     return (f"No Drive folder found for '{account_name}' under "
             f"Consulting > Customers > {letter} — create the account "
-            f"folder in Drive first.")
+            f"folder in Drive first, or check for a name mismatch if it "
+            f"already exists under a slightly different name.")
 
 
 def read_account_environments(refresh_token: str, account_name: str) -> Optional[Dict]:
     """Read <Account Name>-environments.json from that account's folder
     under the Consulting > Customers Shared Drive (see
     docs/superpowers/specs/2026-09-23-environments-tab-design.md for the
-    folder layout and JSON shape). Returns {"teams": [...], "environments":
-    [...], "use_cases": [...]} — empty defaults if the account folder
-    exists but no one has saved a file yet. Returns a string (not a dict)
-    if the account folder
-    itself can't be found, so the route can surface it directly as an
-    error message. Returns None only on an actual Drive/auth failure."""
+    folder layout and JSON shape). Two distinct "nothing here" cases, kept
+    separate rather than collapsed into one error:
+      - Account folder exists but no one has saved a file yet: not an
+        error — returns {"teams": [...], "environments": [...],
+        "use_cases": [...]} with each list empty, so the UI just shows a
+        blank slate for a legitimately new account.
+      - Account folder itself can't be found: returns a string (not a
+        dict) so the route can surface it directly as a 404 error message
+        distinct from the empty-defaults case above.
+    Returns None only on an actual Drive/auth failure (the route maps
+    that to a generic 500, a third distinct case)."""
     if not refresh_token:
         return None
 

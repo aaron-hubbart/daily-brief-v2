@@ -385,6 +385,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
         </div>
         <div class="account-msg" id="notif-msg"></div>
         <hr class="account-hr">
+        <div class="account-row">Max briefs to load</div>
+        <div class="copy-row">
+          <input class="text-input" id="max-briefs-to-load" type="number" min="1" max="20" step="1" style="width:70px;" autocomplete="off">
+          <button class="copy-btn" id="max-briefs-save-btn" onclick="saveMaxBriefsToLoad()">Save</button>
+        </div>
+        <p style="font-size:11.5px;color:var(--t3);margin:4px 0 0;">How many recent brief dates show up in the brief picker (1-20).</p>
+        <div class="account-msg" id="max-briefs-msg"></div>
+        <hr class="account-hr">
         <button class="icon-btn" onclick="openSetup(true)">Replay setup guide</button>
       </div>
 
@@ -1652,6 +1660,7 @@ async function initAccountTab() {
   refreshAsanaStatus();
   loadNotificationPrefs();
   loadMissingTranscriptAsanaPref();
+  loadMaxBriefsToLoad();
 }
 
 // ── Missing-transcript Asana task toggle ────────────────────────
@@ -1713,6 +1722,46 @@ async function saveNotificationPrefs() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ slack_notify_enabled: enabled, slack_notify_channel_id: slackId || null }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    msg.className = 'account-msg ok';
+    msg.textContent = 'Saved.';
+  } catch (e) {
+    msg.className = 'account-msg err';
+    msg.textContent = 'Could not save — try again.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Max briefs to load ───────────────────────────────────────────
+async function loadMaxBriefsToLoad() {
+  try {
+    const res = await fetch('api/settings/max-briefs-to-load');
+    if (!res.ok) return;
+    const d = await res.json();
+    document.getElementById('max-briefs-to-load').value = d.max_briefs_to_load != null ? d.max_briefs_to_load : 10;
+  } catch (e) { /* best effort — endpoint may not be available yet */ }
+}
+
+async function saveMaxBriefsToLoad() {
+  const input = document.getElementById('max-briefs-to-load');
+  const btn = document.getElementById('max-briefs-save-btn');
+  const msg = document.getElementById('max-briefs-msg');
+  const value = parseInt(input.value, 10);
+  if (!Number.isInteger(value) || value < 1 || value > 20) {
+    msg.className = 'account-msg err';
+    msg.textContent = 'Enter a whole number between 1 and 20.';
+    return;
+  }
+  btn.disabled = true;
+  msg.className = 'account-msg';
+  msg.textContent = 'Saving…';
+  try {
+    const res = await fetch('api/settings/max-briefs-to-load', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ max_briefs_to_load: value }),
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     msg.className = 'account-msg ok';

@@ -108,6 +108,12 @@ Get-Content -Raw viewer/webapp/db/migrations/010_add_last_active_at.sql | kubect
 Get-Content -Raw viewer/webapp/db/migrations/011_add_schema_migrations.sql | kubectl exec -i -n daily-brief-v2 postgres-0 -- psql -U dailybrief -d dailybrief
 ```
 
+**Migration 012 (`max_briefs_to_load`)** adds the per-user "Max briefs to load" setting (Account tab) — a no-op for existing users until they change it from the column default of 10:
+
+```powershell
+Get-Content -Raw viewer/webapp/db/migrations/012_add_max_briefs_to_load.sql | kubectl exec -i -n daily-brief-v2 postgres-0 -- psql -U dailybrief -d dailybrief
+```
+
 **Going forward, every new migration file must end with an `INSERT INTO schema_migrations (version) VALUES ('<its own filename>') ON CONFLICT (version) DO NOTHING;`** (see `db/migrations/011_add_schema_migrations.sql` or any migration after it for the pattern) — the app checks this table against the files in `db/migrations/` on startup and refuses to boot if any file is missing, so a migration applied by hand with `kubectl exec` (as above) registers itself in the same command instead of needing a separate step.
 
 

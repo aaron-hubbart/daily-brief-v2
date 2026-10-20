@@ -30,7 +30,11 @@ CREATE TABLE IF NOT EXISTS users (
     -- Bumped to now() on every authenticated request (see login_required in
     -- app.py) — see migrations/010_add_last_active_at.sql. NULL until the
     -- person's first request after this column existed.
-    last_active_at TIMESTAMPTZ
+    last_active_at TIMESTAMPTZ,
+    -- How many recent brief dates /api/briefs returns — see
+    -- migrations/012_add_max_briefs_to_load.sql.
+    max_briefs_to_load INTEGER NOT NULL DEFAULT 10
+        CHECK (max_briefs_to_load BETWEEN 1 AND 20)
 );
 
 -- One row per user per calendar date. This is the "day" the requirement
@@ -120,6 +124,7 @@ INSERT INTO schema_migrations (version) VALUES
     ('008_add_sso_sessions.sql'),
     ('009_add_notification_prefs.sql'),
     ('010_add_last_active_at.sql'),
-    ('011_add_schema_migrations.sql')
+    ('011_add_schema_migrations.sql'),
+    ('012_add_max_briefs_to_load.sql')
 ON CONFLICT (version) DO NOTHING;
 
