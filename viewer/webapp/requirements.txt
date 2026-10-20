@@ -6,3 +6,9 @@ google-api-python-client==2.111.0
 google-auth==2.32.0
 google-auth-oauthlib==1.2.0
 google-auth-httplib2==0.2.0
+# Encrypts users.asana_pat at rest (see db.py's _encrypt_asana_pat and
+# DEPLOYMENT.md's "Asana PAT encryption" section). Already resolved
+# transitively via google-auth/msal, but pinned explicitly here since this
+# app now imports it directly rather than relying on whatever version an
+# unrelated dependency happens to pull in.
+cryptography==43.0.0

@@ -192,6 +192,22 @@ The Post to Slack / Post to Manager buttons call Slack's `chat.postMessage` dire
    ```
 3. That's it — `k8s/deployment.yaml` already wires `SLACK_BOT_TOKEN` in as `optional: true`, so it's a no-op for anyone who hasn't set it.
 
+## Asana PAT encryption
+
+Each person's Asana Personal Access Token is stored per-user, not as a deployment-wide secret (see the `ASANA_PAT` note in `k8s/secret.template.yaml`) — but at rest it used to sit in Postgres's `users.asana_pat` column as plain text. `db.py` now encrypts it with [Fernet](https://cryptography.io/en/latest/fernet/) before writing and decrypts on read, keyed by a single deployment-wide `ASANA_PAT_ENCRYPTION_KEY` (the same role `FLASK_SECRET_KEY` plays for session signing). This only protects the Postgres fallback path — once a person connects Google Drive, their PAT lives in that account's own `config.json` on Drive instead (see `gdrive_briefs.get_asana_pat_from_config`), and `app.py`'s `_migrate_asana_pat_to_drive` clears any now-stale Postgres copy the moment Drive gets connected.
+
+**Set this key before or immediately after deploying any build that includes this encryption** — same ordering discipline as a schema migration, even though there's no SQL involved (the column's shape doesn't change, only what's inside it). Before the key is set, `db.get_asana_pat`/`set_asana_pat` raise loudly (`ASANA_PAT_ENCRYPTION_KEY is not set`) rather than silently falling back to storing plaintext, which 500s the Postgres-fallback Asana-PAT read/write path (Account panel save, live Action Items pull) for anyone without Google Drive connected until the key exists — everyone already using Drive-based storage is unaffected.
+
+1. Generate a key and add it to the live `daily-brief-secrets` Secret (see `k8s/secret.template.yaml`):
+   ```powershell
+   $asanaPatKey = python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   kubectl -n daily-brief-v2 patch secret daily-brief-secrets --type merge -p "{\"stringData\":{\"ASANA_PAT_ENCRYPTION_KEY\":\"$asanaPatKey\"}}"
+   kubectl -n daily-brief-v2 rollout restart deployment/daily-brief-viewer
+   ```
+2. `k8s/deployment.yaml` wires `ASANA_PAT_ENCRYPTION_KEY` in as `optional: true`, so a pod with no key set still starts — it just can't touch the Postgres-fallback asana_pat column until step 1 runs.
+3. No backfill needed for existing plaintext rows: `db._decrypt_asana_pat` falls back to returning a value unchanged if it isn't a valid Fernet token, and `set_asana_pat` always encrypts — so each legacy row is upgraded the next time that person re-saves their PAT (Account panel or setup walkthrough), not all at once.
+4. Losing this key makes every Postgres-fallback-stored PAT unreadable (not just unreadable-but-recoverable) — back it up the same way you would `FLASK_SECRET_KEY`.
+
 ## Updating the deployed image later
 
 ```powershell
