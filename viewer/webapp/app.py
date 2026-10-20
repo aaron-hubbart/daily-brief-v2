@@ -816,6 +816,30 @@ def auth_google():
     return redirect(auth_url)
 
 
+def _migrate_asana_pat_to_drive(user_id, refresh_token):
+    """Called right after a user connects Google Drive. Once Drive is
+    connected it becomes the authoritative store for the Asana PAT (see
+    api_asana_pat_save's "if google_token: Drive, else: Postgres" split),
+    so a PAT left behind in Postgres from before Drive was connected is
+    now just a stale secret nobody reads — clear it, migrating the value
+    to Drive's config.json first if Drive doesn't already have its own.
+    Only clears Postgres once the value is confirmed safe elsewhere, so a
+    failed Drive write never loses the user's Asana connection."""
+    pg_pat = db.get_asana_pat(user_id)
+    if not pg_pat:
+        return
+    folder_id = db.get_google_drive_folder_id(user_id)
+    if gdrive_briefs.get_asana_pat_from_config(refresh_token, folder_id):
+        db.clear_asana_pat(user_id)
+        return
+    result = gdrive_briefs.write_config({'asana_pat': pg_pat}, refresh_token, folder_id)
+    if result is True:
+        gdrive_briefs.invalidate_asana_pat_cache(refresh_token, folder_id)
+        db.clear_asana_pat(user_id)
+    else:
+        logger.warning('Could not migrate Postgres asana_pat to Drive config.json for user %s: %s', user_id, result)
+
+
 @app.route('/auth/google/callback')
 @login_required
 def auth_google_callback():
@@ -864,9 +888,10 @@ def auth_google_callback():
         # Store refresh token for this user
         if not db.set_google_refresh_token(request.brief_user['id'], refresh_token):
             return 'Failed to store Google token', 500
-        
+
         logger.info(f'Stored Google refresh token for user {request.brief_user["email"]}')
-        
+        _migrate_asana_pat_to_drive(request.brief_user['id'], refresh_token)
+
         # Redirect back to index
         session.pop('google_oauth_state', None)
         return redirect(url_for('index'))

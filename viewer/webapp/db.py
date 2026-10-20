@@ -16,10 +16,49 @@ from typing import List, Optional
 
 import psycopg2
 import psycopg2.extras
+from cryptography.fernet import Fernet, InvalidToken
 from flask import g
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
 MIGRATIONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db', 'migrations')
+
+# Encrypts the users.asana_pat column at rest (see DEPLOYMENT.md's "Asana
+# PAT encryption" section). No schema_migrations entry for this one — the
+# column's shape (TEXT) doesn't change, only what's inside it, so there's
+# no SQL to apply. Deliberately NOT validated at import time the way app.py's
+# FLASK_SECRET_KEY is -- db.py is imported by lightweight tooling (schema
+# migration tests, scripts) that never touch asana_pat and shouldn't need
+# this set. It's validated lazily, the first time something actually tries
+# to encrypt or decrypt a PAT.
+ASANA_PAT_ENCRYPTION_KEY = os.environ.get('ASANA_PAT_ENCRYPTION_KEY')
+
+
+def _get_fernet() -> Fernet:
+    if not ASANA_PAT_ENCRYPTION_KEY:
+        raise RuntimeError(
+            "ASANA_PAT_ENCRYPTION_KEY is not set -- required to store or read the "
+            "per-user Asana PAT. See DEPLOYMENT.md's 'Asana PAT encryption' section "
+            "to generate one and add it to the daily-brief-secrets Secret before "
+            "deploying a build that includes this column's encryption."
+        )
+    return Fernet(ASANA_PAT_ENCRYPTION_KEY.encode('utf-8'))
+
+
+def _encrypt_asana_pat(pat: str) -> str:
+    return _get_fernet().encrypt(pat.encode('utf-8')).decode('utf-8')
+
+
+def _decrypt_asana_pat(value: str) -> str:
+    """Decrypts a Fernet-encrypted asana_pat column value. Falls back to
+    returning `value` unchanged if it isn't a valid Fernet token, so rows
+    written before encryption was added (plain-text PATs) keep reading
+    back correctly without a one-off backfill migration — each one is
+    transparently upgraded to encrypted the next time the user re-saves
+    their PAT (set_asana_pat always encrypts)."""
+    try:
+        return _get_fernet().decrypt(value.encode('utf-8')).decode('utf-8')
+    except InvalidToken:
+        return value
 
 
 def get_conn():
@@ -180,16 +219,24 @@ def invalidate_sso_session(token: str) -> None:
 def get_asana_pat(user_id: int):
     """Returns the user's Asana PAT, or None if they've never set one (or
     skipped that step of setup). None disables the live Action Items pull
-    and the two-way checkbox/due-date sync back to Asana for this user."""
+    and the two-way checkbox/due-date sync back to Asana for this user.
+
+    The column stores a Fernet-encrypted value (see _encrypt_asana_pat
+    above and DEPLOYMENT.md's "Asana PAT encryption" section) — decrypted
+    here so every caller keeps seeing a plain token string, same as before
+    encryption was added."""
     with cursor() as cur:
         cur.execute("SELECT asana_pat FROM users WHERE id = %s", (user_id,))
         row = cur.fetchone()
-        return row['asana_pat'] if row else None
+        if not row or not row['asana_pat']:
+            return None
+        return _decrypt_asana_pat(row['asana_pat'])
 
 
 def set_asana_pat(user_id: int, pat: str) -> None:
+    encrypted = _encrypt_asana_pat(pat)
     with cursor(commit=True) as cur:
-        cur.execute("UPDATE users SET asana_pat = %s WHERE id = %s", (pat, user_id))
+        cur.execute("UPDATE users SET asana_pat = %s WHERE id = %s", (encrypted, user_id))
 
 
 def clear_asana_pat(user_id: int) -> None:

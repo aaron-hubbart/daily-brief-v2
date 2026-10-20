@@ -130,6 +130,21 @@ spec:
                   name: daily-brief-secrets
                   key: SLACK_BOT_TOKEN
                   optional: true
+            # optional: true — same reasoning as INTERNAL_SSO_SECRET/
+            # SLACK_BOT_TOKEN above: this key won't exist in the live Secret
+            # until DEPLOYMENT.md's "Asana PAT encryption" step is run.
+            # Without optional, the first rollout of the build that added
+            # db.py's encryption of users.asana_pat would crash-loop every
+            # pod (CreateContainerConfigError) instead of starting fine and
+            # only failing the (Postgres-fallback) Asana-PAT read/write path
+            # until the real key is added — see DEPLOYMENT.md for why that
+            # step should happen before or immediately after this deploy.
+            - name: ASANA_PAT_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: daily-brief-secrets
+                  key: ASANA_PAT_ENCRYPTION_KEY
+                  optional: true
           resources:
             requests:
               cpu: 50m
