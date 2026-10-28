@@ -1167,7 +1167,11 @@ def api_max_briefs_to_load_update():
 @app.route('/customers')
 @login_required
 def customers_page():
-    return render_template('customers.html', user_email=request.brief_user['email'])
+    """Old standalone page, superseded by the Settings > Customers tab in
+    daily-brief-viewer.html (see its "migrated from templates/customers.html"
+    comments) -- redirect bookmarks/old links there instead of maintaining
+    two separate editors of the same account-config.json/config.json."""
+    return redirect(url_for('index', openSettings='customers'))
 
 
 @app.route('/api/customers/config')
