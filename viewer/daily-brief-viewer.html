@@ -2346,10 +2346,19 @@ async function stopImpersonating() {
   window.location.href = './admin';
 }
 
+function openSettingsFromQuery() {
+  const tab = new URLSearchParams(window.location.search).get('openSettings');
+  if (tab) {
+    openSettings(tab);
+    history.replaceState(null, '', window.location.pathname);
+  }
+}
+
 initMode();
 loadBriefList();
 refreshGoogleStatus();
 checkOnboarding();
+openSettingsFromQuery();
 </script>
 </body>
 </html>

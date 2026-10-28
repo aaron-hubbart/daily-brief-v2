@@ -209,8 +209,8 @@ Once the user confirms:
 
    Setup doesn't need to ask for `default_section_name`/
    `internal_default_section_name` as a Phase 1/3 question — leave them
-   blank on initial write and point the user at the Manage Customers page
-   (`viewer/webapp/templates/customers.html`) to fill in the section name
+   blank on initial write and point the user at the webapp's Settings >
+   Customers tab (`viewer/daily-brief-viewer.html`) to fill in the section name
    per account (and the internal board) once they know which Asana
    section their team triages from. If the user volunteers a section name
    unprompted during Phase 3 confirmation, capture it then instead of
