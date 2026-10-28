@@ -449,6 +449,28 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
             <div class="cust-msg" id="msg"></div>
           </div>
         </div>
+
+        <div class="cust-panel" style="margin-top:16px">
+          <div class="cust-panel-head">
+            <span>Key Contacts</span>
+            <button class="cust-btn save" id="kc-save-btn" onclick="saveKeyContacts()" disabled>Save to Drive</button>
+          </div>
+          <div class="cust-panel-body">
+            <table>
+              <thead>
+                <tr><th>Name</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="kc-body">
+                <tr><td colspan="2" class="cust-empty">Loading…</td></tr>
+              </tbody>
+            </table>
+            <div class="cust-add-row">
+              <input type="text" id="kc-new-name" placeholder="Full name" onkeydown="if(event.key==='Enter'){event.preventDefault();addKeyContact();}">
+              <button class="cust-btn primary" onclick="addKeyContact()">Add contact</button>
+            </div>
+            <div class="cust-msg" id="kc-msg"></div>
+          </div>
+        </div>
       </div>
 
       <div class="tab-panel" id="tab-admin">
@@ -1642,7 +1664,7 @@ function switchSettingsTab(tab) {
   const foot = document.getElementById('setup-foot');
   if (foot) foot.style.display = tab === 'setup' ? 'flex' : 'none';
   if (tab === 'account') initAccountTab();
-  if (tab === 'customers' && !custLoaded) { custLoaded = true; load(); }
+  if (tab === 'customers' && !custLoaded) { custLoaded = true; load(); loadKeyContacts(); }
   if (tab === 'admin' && !adminLoaded) { adminLoaded = true; loadConfig(); loadUsers(); loadTestUsers(); }
 }
 
@@ -2044,7 +2066,94 @@ function addScannedAccounts() {
   }
 }
 
-window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+let KEY_CONTACTS = [];
+let kcDirty = false;
+
+async function loadKeyContacts() {
+  try {
+    const r = await fetch('api/key-contacts', {credentials:'include'});
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    const data = await r.json();
+    KEY_CONTACTS = (data.key_contacts || []).slice().sort((a,b) =>
+      a.localeCompare(b, undefined, {sensitivity:'base'})
+    );
+    renderKeyContacts();
+  } catch(e) {
+    document.getElementById('kc-body').innerHTML =
+      `<tr><td colspan="2" class="cust-empty" style="color:var(--bad-t)">Failed to load: ${e.message}</td></tr>`;
+  }
+}
+
+function renderKeyContacts() {
+  const tbody = document.getElementById('kc-body');
+  if (!KEY_CONTACTS.length) {
+    tbody.innerHTML = '<tr><td colspan="2" class="cust-empty">No key contacts configured</td></tr>';
+    return;
+  }
+  tbody.innerHTML = KEY_CONTACTS.map((name, i) => `
+    <tr>
+      <td class="cust-acct-name">${esc(name)}</td>
+      <td class="cust-actions"><button class="cust-btn danger" onclick="removeKeyContact(${i})">Remove</button></td>
+    </tr>
+  `).join('');
+}
+
+function addKeyContact() {
+  const input = document.getElementById('kc-new-name');
+  const name = input.value.trim();
+  if (!name) return;
+  if (KEY_CONTACTS.some(n => n.toLowerCase() === name.toLowerCase())) {
+    input.value = '';
+    return;
+  }
+  KEY_CONTACTS.push(name);
+  KEY_CONTACTS.sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
+  input.value = '';
+  markKeyContactsDirty();
+  renderKeyContacts();
+}
+
+function removeKeyContact(idx) {
+  const name = KEY_CONTACTS[idx];
+  if (!confirm(`Remove ${name} from key contacts?`)) return;
+  KEY_CONTACTS.splice(idx, 1);
+  markKeyContactsDirty();
+  renderKeyContacts();
+}
+
+function markKeyContactsDirty() {
+  kcDirty = true;
+  document.getElementById('kc-save-btn').disabled = false;
+  document.getElementById('kc-msg').textContent = 'Unsaved changes';
+  document.getElementById('kc-msg').className = 'cust-msg';
+}
+
+async function saveKeyContacts() {
+  const btn = document.getElementById('kc-save-btn');
+  const msg = document.getElementById('kc-msg');
+  btn.disabled = true;
+  msg.textContent = 'Saving…';
+  msg.className = 'cust-msg';
+  try {
+    const r = await fetch('api/key-contacts', {
+      method: 'PUT', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key_contacts: KEY_CONTACTS})
+    });
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    kcDirty = false;
+    msg.textContent = '';
+    msg.className = 'cust-msg';
+    showToast('Key contacts saved to Drive', 'ok', 5000);
+  } catch(e) {
+    msg.textContent = '';
+    msg.className = 'cust-msg';
+    showToast('Save failed: ' + e.message, 'err', 5000);
+    btn.disabled = false;
+  }
+}
+
+window.addEventListener('beforeunload', e => { if (dirty || kcDirty) { e.preventDefault(); e.returnValue = ''; } });
 
 // ── Admin tab (migrated from templates/admin.html) ──────────────
 function fmtDate(iso) {
