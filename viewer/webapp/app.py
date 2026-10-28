@@ -1236,6 +1236,46 @@ def api_customers_discover_asana():
     return jsonify({'candidates': candidates})
 
 
+# ── Key contacts management ──────────────────────────────────────────
+
+@app.route('/api/key-contacts')
+@login_required
+def api_key_contacts():
+    """Returns the key_contacts list from config.json — internal colleagues
+    whose emails the daily-brief-generation skill flags/prioritizes when
+    building the brief, matched against the sender's display name."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    config = gdrive_briefs.read_config(google_token, folder_id)
+    if config is None:
+        return jsonify({'error': 'Could not read config.json'}), 500
+    return jsonify({'key_contacts': config.get('key_contacts', [])})
+
+
+@app.route('/api/key-contacts', methods=['PUT'])
+@login_required
+def api_key_contacts_update():
+    """Saves the key_contacts list back to config.json. Kept as a flat
+    array of plain name strings — matching what the daily-brief-generation
+    skill already expects when it reads this field."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    body = request.get_json(silent=True) or {}
+    key_contacts = body.get('key_contacts')
+    if not isinstance(key_contacts, list) or not all(isinstance(n, str) for n in key_contacts):
+        return jsonify({'error': 'key_contacts must be an array of name strings'}), 400
+    key_contacts = [n.strip() for n in key_contacts if n.strip()]
+    result = gdrive_briefs.write_config({'key_contacts': key_contacts}, google_token, folder_id)
+    if result is not True:
+        msg = result if isinstance(result, str) else 'Failed to write config.json'
+        return jsonify({'error': msg}), 500
+    return jsonify({'ok': True, 'key_contacts': key_contacts})
+
+
 # ── Environments management ──────────────────────────────────────────
 
 @app.route('/environments')
