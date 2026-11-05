@@ -56,6 +56,16 @@ details.sec>.sec-body{padding:4px 14px 10px;}
 .ibody{flex:1;min-width:0;}
 .ititle{font-size:13px;font-weight:500;color:var(--t1);line-height:1.35;display:flex;flex-wrap:wrap;align-items:center;gap:4px;}
 .isub{font-size:11.5px;color:var(--t2);margin-top:3px;line-height:1.45;}
+.status-bucket{margin-top:8px;}
+.status-bucket:first-child{margin-top:4px;}
+.status-bucket-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;}
+.status-bucket.sb-fyi .status-bucket-label{color:var(--t3);}
+.status-bucket.sb-action .status-bucket-label{color:var(--accent-t);}
+.status-bucket.sb-risk .status-bucket-label{color:var(--warn-t);}
+.status-bucket-list{margin:0;padding-left:16px;}
+.status-bucket-list li{margin-bottom:2px;}
+.status-bucket-list li:last-child{margin-bottom:0;}
+.status-bucket-none{color:var(--t3);}
 .iboard{font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--accent-t);text-transform:uppercase;margin-top:2px;}
 .asana-hint{font-size:11.5px;color:var(--t2);background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:8px;line-height:1.45;}
 .ilinks{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
@@ -169,7 +179,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
           <div class="icb"><input type="checkbox" {% if item.checked %}checked{% endif %}></div>
           <div class="ibody">
             <div class="ititle">{{ item.title|autolink_jira }}</div>
-            {% if item.subtitle %}<div class="isub">{{ item.subtitle|autolink_jira }}</div>{% endif %}
+            {% if item.subtitle %}<div class="isub">{{ item.subtitle|format_status_buckets }}</div>{% endif %}
           </div>
         </div>
         {% endfor %}

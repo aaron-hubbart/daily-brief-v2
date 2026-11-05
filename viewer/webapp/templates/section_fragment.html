@@ -33,7 +33,7 @@
   {% if item.get('content', {}).get('time') %}<div class="itime">{{ item.get('content', {}).get('time') }}</div>{% endif %}
   <div class="ibody">
     <div class="ititle">{{ item.title|autolink_jira }}{% if item.badge %} <span class="badge {{ item.badge.get('class', '') }}">{{ item.badge.get('label', '') }}</span>{% endif %}</div>
-    {% if item.subtitle %}<div class="isub">{{ item.subtitle|autolink_jira }}</div>{% endif %}
+    {% if item.subtitle %}<div class="isub">{{ item.subtitle|format_status_buckets }}</div>{% endif %}
     {% if item.links %}
     <div class="ilinks">
       {% for link in item.links %}
