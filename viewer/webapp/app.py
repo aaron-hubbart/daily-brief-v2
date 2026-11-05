@@ -573,6 +573,60 @@ def autolink_jira(text):
     return Markup(JIRA_TICKET_RE.sub(_replace, safe_text))
 
 
+STATUS_BUCKET_HEADERS = ('Updates/FYI', 'Pending Action Items', 'Blockers/Risks')
+STATUS_BUCKET_CSS_CLASS = {
+    'Updates/FYI': 'sb-fyi',
+    'Pending Action Items': 'sb-action',
+    'Blockers/Risks': 'sb-risk',
+}
+STATUS_BUCKET_BULLET_RE = re.compile(r'^[-•]\s*')
+
+
+@app.template_filter('format_status_buckets')
+def format_status_buckets(text):
+    """Jinja2 filter for the daily-brief-generation skill's fixed three-bucket
+    status text (subtitle on account-recap items): a 'Updates/FYI' header
+    line, then 'Pending Action Items', then 'Blockers/Risks', each followed
+    by '-'/'•' bullet lines (a literal 'None' line when empty). Renders
+    each bucket as its own labeled block with a real <ul><li> list instead of
+    letting the newlines collapse into one paragraph.
+
+    Falls back to the plain autolink_jira rendering used before this format
+    existed when the text doesn't start with all three headers in order --
+    this filter also replaces autolink_jira on other sections' single-line
+    subtitles (yesterday's meetings, today), which should render unchanged."""
+    if not text:
+        return text
+    lines = [line.strip() for line in text.splitlines()]
+    header_positions = [i for i, line in enumerate(lines) if line in STATUS_BUCKET_HEADERS]
+    if (
+        len(header_positions) < len(STATUS_BUCKET_HEADERS)
+        or [lines[i] for i in header_positions[:3]] != list(STATUS_BUCKET_HEADERS)
+    ):
+        return autolink_jira(text)
+
+    header_positions = header_positions[:3]
+    html = []
+    for idx, pos in enumerate(header_positions):
+        header = lines[pos]
+        end = header_positions[idx + 1] if idx + 1 < len(header_positions) else len(lines)
+        bullets = [
+            STATUS_BUCKET_BULLET_RE.sub('', line)
+            for line in lines[pos + 1:end]
+            if line
+        ]
+        html.append(f'<div class="status-bucket {STATUS_BUCKET_CSS_CLASS[header]}">')
+        html.append(f'<div class="status-bucket-label">{escape(header)}</div>')
+        if len(bullets) == 1 and bullets[0].strip().lower() == 'none':
+            html.append('<div class="status-bucket-none">None</div>')
+        else:
+            html.append('<ul class="status-bucket-list">')
+            html.extend(f'<li>{autolink_jira(bullet)}</li>' for bullet in bullets)
+            html.append('</ul>')
+        html.append('</div>')
+    return Markup(''.join(html))
+
+
 @app.template_filter('resolve_link_url')
 def resolve_link_url(url):
     """Jinja2 filter for link href values: if the URL is a bare Jira ticket
