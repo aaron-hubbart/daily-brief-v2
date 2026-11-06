@@ -71,13 +71,14 @@ a.back:hover{text-decoration:underline;}
   <div>
     <a class="back" href="{{ url_for('index') }}">&larr; Back to briefs</a>
     <h1>Day Plan</h1>
-    <div class="sub">Signed in as {{ user_email }}</div>
+    <div class="sub">Signed in as {{ user_email }} &middot; Viewing <span id="dp-date-label"></span></div>
   </div>
 </div>
 
 <div class="toggle">
   <button type="button" class="toggle-btn" id="toggle-morning" onclick="setView('morning')">Morning</button>
   <button type="button" class="toggle-btn" id="toggle-evening" onclick="setView('evening')">Evening</button>
+  <a class="toggle-btn" id="dp-refresh-link" href="#" target="_blank">Refresh</a>
 </div>
 
 <div id="day-plan-body"><div class="empty">Loading&hellip;</div></div>
@@ -103,10 +104,22 @@ const IS_TODAY = VIEW_DATE === todayLocalIso();
 // Constraints.
 let currentView = (IS_TODAY && new Date().getHours() < 12) ? 'morning' : 'evening';
 
+// Slug each view's Drive file is stored under (see the Day Planning
+// design doc §2) -- used to build the per-view Refresh deep link, same
+// claude:// pattern brief_fragment.html's per-section Refresh links use.
+const VIEW_SLUG = {morning: 'morning-plan', evening: 'evening-wrapup'};
+
+function updateDateAndRefreshLink() {
+  document.getElementById('dp-date-label').textContent = IS_TODAY ? `Today (${VIEW_DATE})` : VIEW_DATE;
+  const query = `/daily-brief Refresh section:${VIEW_SLUG[currentView]} date:${VIEW_DATE}`;
+  document.getElementById('dp-refresh-link').href = `claude://claude.ai/new?q=${encodeURIComponent(query)}`;
+}
+
 function setView(view) {
   currentView = view;
   document.getElementById('toggle-morning').classList.toggle('active', view === 'morning');
   document.getElementById('toggle-evening').classList.toggle('active', view === 'evening');
+  updateDateAndRefreshLink();
   load();
 }
 

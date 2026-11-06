@@ -1967,10 +1967,27 @@ def _day_plan_payload(sections):
     existing handling). Both None and [] mean "not available" -- the
     route surfaces a {"available": false} placeholder either way rather
     than distinguishing a Drive hiccup from "not generated yet" to the
-    client."""
-    if not sections:
+    client. A non-dict single item (a malformed file, or a {"items": [...]}
+    wrapper that _extract_items unwrapped to its first element) is also
+    "not available" rather than something the caller tries to render."""
+    if not sections or not isinstance(sections[0], dict):
         return False, None
     return True, sections[0]
+
+
+def _day_plan_render_kwargs(data, dict_fields=(), list_fields=()):
+    """Fills in a safe empty default for any of `dict_fields`/`list_fields`
+    that's missing or null in `data`, so a partially-generated
+    morning-plan.json/evening-wrapup.json (the skill that writes these is
+    still being built) renders an incomplete page instead of raising
+    UndefinedError when its fragment template accesses a field that was
+    never spread in via **data."""
+    kwargs = {}
+    for name in dict_fields:
+        kwargs[name] = data.get(name) or {}
+    for name in list_fields:
+        kwargs[name] = data.get(name) or []
+    return kwargs
 
 
 @app.route('/day-plan')
@@ -1982,6 +1999,8 @@ def day_plan_page():
 @app.route('/api/day-plan/<date_str>/morning')
 @login_required
 def api_day_plan_morning(date_str):
+    if not DATE_RE.match(date_str):
+        abort(400)
     google_token = db.get_google_refresh_token(request.brief_user['id'])
     folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
     if not google_token:
@@ -1990,13 +2009,19 @@ def api_day_plan_morning(date_str):
     available, data = _day_plan_payload(sections)
     if not available:
         return jsonify({'available': False})
-    html = render_template('morning_plan_fragment.html', available=True, **data)
+    kwargs = _day_plan_render_kwargs(
+        data, dict_fields=('stats', 'quick_actions'),
+        list_fields=('recommendations', 'schedule', 'critical_path'),
+    )
+    html = render_template('morning_plan_fragment.html', available=True, **kwargs)
     return jsonify({'available': True, 'html': html})
 
 
 @app.route('/api/day-plan/<date_str>/evening')
 @login_required
 def api_day_plan_evening(date_str):
+    if not DATE_RE.match(date_str):
+        abort(400)
     google_token = db.get_google_refresh_token(request.brief_user['id'])
     folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
     if not google_token:
@@ -2005,7 +2030,11 @@ def api_day_plan_evening(date_str):
     available, data = _day_plan_payload(sections)
     if not available:
         return jsonify({'available': False})
-    html = render_template('evening_wrapup_fragment.html', available=True, **data)
+    kwargs = _day_plan_render_kwargs(
+        data, dict_fields=('stats',),
+        list_fields=('completed', 'carried_over', 'key_wins', 'still_blocking', 'tomorrows_focus'),
+    )
+    html = render_template('evening_wrapup_fragment.html', available=True, **kwargs)
     return jsonify({'available': True, 'html': html})
 
 
