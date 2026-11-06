@@ -52,6 +52,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 import asana_discovery
 import db
+import es_health
 import gdrive_briefs
 from action_items import group_action_items, task_intelligence_deep_links
 
@@ -1376,12 +1377,20 @@ def api_environments_config():
     return jsonify({'in_scope_customers': in_scope_customers})
 
 
+@app.route('/api/environments/meeting-catalog')
+@login_required
+def api_environments_meeting_catalog():
+    """Static catalog of ES playbook meeting types — see es_health.py."""
+    return jsonify({'meeting_catalog': es_health.MEETING_CATALOG})
+
+
 @app.route('/api/environments/config/<account_name>')
 @login_required
 def api_environments_account(account_name):
-    """Returns one account's {teams, environments, use_cases} data, read from
-    <Account Name>-environments.json in that account's folder under the
-    Consulting > Customers Shared Drive."""
+    """Returns one account's {teams, environments, use_cases, meetings,
+    es_activities} data, read from <Account Name>-environments.json in that
+    account's folder under the Consulting > Customers Shared Drive, annotated
+    with each team's computed health and the customer-level rollup."""
     google_token = db.get_google_refresh_token(request.brief_user['id'])
     if not google_token:
         return jsonify({'error': 'Google Drive not connected'}), 400
@@ -1390,6 +1399,7 @@ def api_environments_account(account_name):
         return jsonify({'error': 'Could not read environments data from Drive'}), 500
     if isinstance(result, str):
         return jsonify({'error': result}), 404
+    result = es_health.compute_account_health(result)
     return jsonify(result)
 
 
@@ -1408,9 +1418,18 @@ def api_environments_account_update(account_name):
     use_cases = data.get('use_cases', [])
     if not isinstance(use_cases, list):
         return jsonify({'error': 'Invalid payload — use_cases must be an array'}), 400
+    meetings = data.get('meetings', [])
+    if not isinstance(meetings, list):
+        return jsonify({'error': 'Invalid payload — meetings must be an array'}), 400
+    es_activities = data.get('es_activities', [])
+    if not isinstance(es_activities, list):
+        return jsonify({'error': 'Invalid payload — es_activities must be an array'}), 400
     result = gdrive_briefs.write_account_environments(
         account_name,
-        {'teams': data['teams'], 'environments': data['environments'], 'use_cases': use_cases},
+        {
+            'teams': data['teams'], 'environments': data['environments'], 'use_cases': use_cases,
+            'meetings': meetings, 'es_activities': es_activities,
+        },
         google_token,
     )
     if result is not True:

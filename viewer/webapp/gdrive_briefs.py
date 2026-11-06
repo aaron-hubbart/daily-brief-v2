@@ -632,7 +632,7 @@ def write_account_config(config_data: Dict, refresh_token: str,
         return f'Drive API error: {e}'
 
 
-_EMPTY_ACCOUNT_ENVIRONMENTS: Dict = {'teams': [], 'environments': [], 'use_cases': []}
+_EMPTY_ACCOUNT_ENVIRONMENTS: Dict = {'teams': [], 'environments': [], 'use_cases': [], 'meetings': [], 'es_activities': []}
 
 # Consulting > Customers Shared Drive folder — one JSON file per account
 # lives at <this>/<Letter>/<Account Name>/<Account Name>-environments.json.
