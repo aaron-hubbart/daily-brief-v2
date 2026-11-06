@@ -476,6 +476,16 @@ async function onCustomerChange() {
 }
 
 async function renderPortfolio() {
+  // Reaching the Portfolio table is the only way to leave a dirty
+  // customer/team view without going through onCustomerChange's own
+  // guard (e.g. clicking the "<- Portfolio" link) -- same unsaved-changes
+  // confirmation as switching customers via the dropdown.
+  if (dirty && !confirm('You have unsaved changes for ' + CURRENT + '. Discard them and go to the Portfolio?')) {
+    return;
+  }
+  dirty = false;
+  document.getElementById('save-btn').disabled = true;
+  document.getElementById('save-status').textContent = '';
   VIEW = 'portfolio';
   const content = document.getElementById('content');
   content.innerHTML = '<div class="empty">Loading&hellip;</div>';
@@ -484,7 +494,7 @@ async function renderPortfolio() {
     const body = await r.json();
     if (!r.ok) throw new Error(body.error || r.statusText);
     const rows = body.customers.map(c => `
-      <tr style="cursor:pointer;" onclick="onCustomerChange_fromPortfolio('${escAttr(c.name)}')">
+      <tr style="cursor:pointer;" data-customer-name="${escAttr(c.name)}" onclick="onCustomerChange_fromPortfolio(this.dataset.customerName)">
         <td>${esc(c.name)}</td>
         <td>${c.error ? `<span style="color:var(--bad-t)">${esc(c.error)}</span>` : healthBadgeHtml({level: c.level})}</td>
         <td>${c.team_count}</td>
@@ -645,7 +655,7 @@ function teamCardHtml(team, idx) {
         <label style="font-size:11.5px;font-weight:500;">Open issues
           <input type="number" min="0" style="width:60px;" value="${team.open_issues === null ? '' : team.open_issues}" onchange="updateTeamField(${idx}, 'open_issues', this.value === '' ? null : parseInt(this.value, 10))">
         </label>
-        ${team.exempt ? '' : `<button type="button" class="btn" onclick="renderTeamDetail('${escAttr(team.id)}')">View meetings &amp; health</button>`}
+        ${team.exempt ? '' : `<button type="button" class="btn" data-team-id="${escAttr(team.id)}" onclick="renderTeamDetail(this.dataset.teamId)">View meetings &amp; health</button>`}
         <button class="btn danger" onclick="removeTeam(${idx})">Remove</button>
       </div>
       <div class="team-card-body collapsible-body ${collapsed}">
@@ -898,42 +908,51 @@ function renderTeamDetail(teamId) {
     ? `<ul>${health.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>`
     : '<div class="empty" style="padding:4px 0;">No issues</div>';
 
+  // Interpolating an id into a quoted JS-string argument inside an
+  // onclick/onchange attribute is unsafe: the browser decodes HTML
+  // entities in attribute values *before* compiling the handler as JS, so
+  // escAttr()'s entity-encoding of a quote doesn't protect against a
+  // value that itself contains one (see wireTeamCheckboxes' comment for
+  // the same issue elsewhere in this file). Every id below is instead
+  // passed via a data-* attribute and read back with this.dataset.
   const oneTimeRowsHtml = (STATE.meeting_catalog || []).filter(m => m.category === 'one_time').map(entry => {
     const row = getOrCreateMeetingRow(teamId, entry.id);
+    const ids = `data-team-id="${escAttr(teamId)}" data-meeting-type-id="${escAttr(entry.id)}"`;
     return `
       <div class="field">
         <label>${esc(entry.name)}</label>
-        <select onchange="updateMeetingField('${escAttr(teamId)}', '${escAttr(entry.id)}', 'status', this.value)">
+        <select ${ids} onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'status', this.value)">
           ${['not_scheduled', 'scheduled', 'occurred'].map(v => `<option value="${v}" ${row.status === v ? 'selected' : ''}>${v}</option>`).join('')}
         </select>
-        <label>Scheduled <input type="date" value="${escAttr(row.scheduled_date)}" onchange="updateMeetingField('${escAttr(teamId)}', '${escAttr(entry.id)}', 'scheduled_date', this.value)"></label>
-        <label>Occurred <input type="date" value="${escAttr(row.occurred_date)}" onchange="updateMeetingField('${escAttr(teamId)}', '${escAttr(entry.id)}', 'occurred_date', this.value)"></label>
+        <label>Scheduled <input type="date" ${ids} value="${escAttr(row.scheduled_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'scheduled_date', this.value)"></label>
+        <label>Occurred <input type="date" ${ids} value="${escAttr(row.occurred_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'occurred_date', this.value)"></label>
       </div>`;
   }).join('');
 
   const recurringRowsHtml = (STATE.meeting_catalog || []).filter(m => m.category === 'recurring').map(entry => {
     const row = getOrCreateMeetingRow(teamId, entry.id);
+    const ids = `data-team-id="${escAttr(teamId)}" data-meeting-type-id="${escAttr(entry.id)}"`;
     const inapplicable = (team.inapplicable_meeting_types || []).includes(entry.id);
     const applicableToggle = entry.default_requirement !== 'required'
-      ? `<label>Applicable <input type="checkbox" ${inapplicable ? '' : 'checked'} onchange="toggleMeetingApplicable('${escAttr(teamId)}', '${escAttr(entry.id)}', !this.checked)"></label>`
+      ? `<label>Applicable <input type="checkbox" ${ids} ${inapplicable ? '' : 'checked'} onchange="toggleMeetingApplicable(this.dataset.teamId, this.dataset.meetingTypeId, !this.checked)"></label>`
       : '';
     return `
       <div class="field">
         <label>${esc(entry.name)} <span class="badge">${esc(entry.default_requirement)}</span></label>
         ${applicableToggle}
-        <label>Standing schedule <input type="text" value="${escAttr(row.standing_schedule)}" onchange="updateMeetingField('${escAttr(teamId)}', '${escAttr(entry.id)}', 'standing_schedule', this.value)"></label>
-        <label>Last held <input type="date" value="${escAttr(row.last_held_date)}" onchange="updateMeetingField('${escAttr(teamId)}', '${escAttr(entry.id)}', 'last_held_date', this.value)"></label>
+        <label>Standing schedule <input type="text" ${ids} value="${escAttr(row.standing_schedule)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'standing_schedule', this.value)"></label>
+        <label>Last held <input type="date" ${ids} value="${escAttr(row.last_held_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'last_held_date', this.value)"></label>
       </div>`;
   }).join('');
 
   const activitiesHtml = c.es_activities.filter(a => a.team_id === teamId).map(a => `
-    <div class="field">
-      <input type="text" value="${escAttr(a.label)}" onchange="updateEsActivityField('${escAttr(a.id)}', 'label', this.value)">
-      <select onchange="updateEsActivityField('${escAttr(a.id)}', 'status', this.value)">
+    <div class="field" data-activity-id="${escAttr(a.id)}">
+      <input type="text" value="${escAttr(a.label)}" onchange="updateEsActivityField(this.closest('[data-activity-id]').dataset.activityId, 'label', this.value)">
+      <select onchange="updateEsActivityField(this.closest('[data-activity-id]').dataset.activityId, 'status', this.value)">
         ${['not_done', 'done'].map(v => `<option value="${v}" ${a.status === v ? 'selected' : ''}>${v}</option>`).join('')}
       </select>
-      <label>Last updated <input type="date" value="${escAttr(a.last_updated)}" onchange="updateEsActivityField('${escAttr(a.id)}', 'last_updated', this.value)"></label>
-      <button type="button" class="btn danger" onclick="removeEsActivity('${escAttr(a.id)}')">Remove</button>
+      <label>Last updated <input type="date" value="${escAttr(a.last_updated)}" onchange="updateEsActivityField(this.closest('[data-activity-id]').dataset.activityId, 'last_updated', this.value)"></label>
+      <button type="button" class="btn danger" onclick="removeEsActivity(this.closest('[data-activity-id]').dataset.activityId)">Remove</button>
     </div>`).join('') || '<div class="empty" style="padding:4px 0;">No ES activities yet</div>';
 
   content.innerHTML = `
@@ -961,7 +980,7 @@ function renderTeamDetail(teamId) {
 
     <div class="env-subsection">
       <div class="env-subsection-head">ES Activities
-        <button type="button" class="btn primary" onclick="addEsActivity('${escAttr(teamId)}')">Add activity</button>
+        <button type="button" class="btn primary" data-team-id="${escAttr(teamId)}" onclick="addEsActivity(this.dataset.teamId)">Add activity</button>
       </div>
       <div class="env-subsection-body">${activitiesHtml}</div>
     </div>
@@ -1407,12 +1426,28 @@ async function saveAll() {
     const r = await fetch(`${BASE}api/environments/config/${encodeURIComponent(CURRENT)}`, {
       method: 'PUT', credentials: 'include',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({teams: c.teams, environments: c.environments, use_cases: c.use_cases}),
+      body: JSON.stringify({
+        teams: c.teams, environments: c.environments, use_cases: c.use_cases,
+        meetings: c.meetings, es_activities: c.es_activities,
+      }),
     });
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     dirty = false;
     status.textContent = '';
     showToast(`Saved ${CURRENT} to Drive`, 'ok', 4000);
+    // Health/rollup are computed server-side on GET, not stored — re-fetch
+    // so the badge, rollup strip, and health breakdown reflect what was
+    // just saved instead of the pre-save values still sitting in STATE.
+    const refreshed = await fetch(`${BASE}api/environments/config/${encodeURIComponent(CURRENT)}`, {credentials: 'include'});
+    if (refreshed.ok) {
+      STATE.customers[CURRENT] = await refreshed.json();
+      ensureCustomer(CURRENT);
+      if (VIEW === 'team' && CURRENT_TEAM_ID) {
+        renderTeamDetail(CURRENT_TEAM_ID);
+      } else {
+        renderCustomer();
+      }
+    }
   } catch(e) {
     showToast('Save failed: ' + e.message, 'err', 5000);
     status.textContent = 'Unsaved changes';

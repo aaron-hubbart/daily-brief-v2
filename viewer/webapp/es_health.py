@@ -31,9 +31,21 @@ _LEVEL_RANK = {'Green': 0, 'Yellow': 1, 'Red': 2}
 
 
 def _parse_date(value: Optional[str]) -> Optional[date]:
-    if not value:
+    if not value or not isinstance(value, str):
         return None
-    return date.fromisoformat(value)
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _coerce_int(value) -> Optional[int]:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _is_applicable(entry: Dict, team: Dict) -> bool:
@@ -75,13 +87,19 @@ def compute_team_health(team: Dict, meetings: List[Dict], es_activities: List[Di
         if entry['default_requirement'] != 'required' or not _is_applicable(entry, team):
             continue
         row = meetings_by_type.get(entry['id'])
+        if row and row.get('status') == 'occurred':
+            continue  # this step is done -- the sequence moves on to the next one
+        # Earliest incomplete (not-occurred) required step found. The
+        # sequence "waits" here regardless of whether it's overdue yet --
+        # a future-scheduled step is incomplete but not blamed, and later
+        # steps are never independently counted.
         if _one_time_overdue(entry, row, today):
             overdue_count += 1
             if row and row.get('status') == 'scheduled':
                 reasons.append(f"{entry['name']} is overdue")
             else:
                 reasons.append(f"{entry['name']} has not been scheduled")
-            break  # only the earliest incomplete one-time step counts
+        break
 
     recurring_entries = [e for e in MEETING_CATALOG if e['category'] == 'recurring']
     for entry in recurring_entries:
@@ -102,7 +120,7 @@ def compute_team_health(team: Dict, meetings: List[Dict], es_activities: List[Di
             reasons.append(f"{activity.get('label', 'An ES activity')} hasn't been updated recently")
 
     sentiment = team.get('sentiment') or ''
-    open_issues = team.get('open_issues')
+    open_issues = _coerce_int(team.get('open_issues'))
     if sentiment:
         reasons.append(f"Sentiment: {sentiment}")
     if open_issues is not None and open_issues > OPEN_ISSUES_YELLOW_THRESHOLD:
@@ -128,13 +146,13 @@ def compute_customer_rollup(team_healths: List[Tuple[Dict, Dict]]) -> Dict:
     sentiment_level = ''
     open_issues_total = 0
     for team, health in team_healths:
-        if _LEVEL_RANK[health['level']] > _LEVEL_RANK[level]:
+        if _LEVEL_RANK.get(health['level'], 0) > _LEVEL_RANK.get(level, 0):
             level = health['level']
         overdue_count += health['overdue_count'] + health['stale_count']
         sentiment = team.get('sentiment') or ''
-        if sentiment and (not sentiment_level or _LEVEL_RANK[sentiment] > _LEVEL_RANK[sentiment_level]):
+        if sentiment and (not sentiment_level or _LEVEL_RANK.get(sentiment, 0) > _LEVEL_RANK.get(sentiment_level, 0)):
             sentiment_level = sentiment
-        open_issues_total += team.get('open_issues') or 0
+        open_issues_total += _coerce_int(team.get('open_issues')) or 0
 
     return {
         'level': level, 'team_count': len(team_healths), 'overdue_count': overdue_count,
@@ -148,8 +166,9 @@ def compute_account_health(data: Dict, today: Optional[date] = None) -> Dict:
     non_exempt_results = []
 
     for team in data.get('teams', []):
-        team_meetings = [m for m in meetings if m.get('team_id') == team['id']]
-        team_activities = [a for a in es_activities if a.get('team_id') == team['id']]
+        team_id = team.get('id')
+        team_meetings = [m for m in meetings if m.get('team_id') == team_id]
+        team_activities = [a for a in es_activities if a.get('team_id') == team_id]
         health = compute_team_health(team, team_meetings, team_activities, today)
         team['health'] = health
         if not team.get('exempt'):
@@ -164,11 +183,21 @@ def build_portfolio_rollup(customers: List[Dict], read_fn: Callable[[str], Union
     for customer in customers:
         name, theater = customer['name'], customer.get('theater')
         data = read_fn(name)
+        error = None
+        rollup = None
         if isinstance(data, dict):
-            rollup = compute_account_health(data, today)['rollup']
-            results.append({'name': name, 'theater': theater, 'error': None, **rollup})
+            try:
+                rollup = compute_account_health(data, today)['rollup']
+            except Exception as e:  # noqa: BLE001 -- one customer's malformed/unexpected
+                # data must never take the whole portfolio down; it renders
+                # as an error row instead, same as an unreadable Drive file.
+                error = f'Could not compute health: {e}'
         else:
             error = data if isinstance(data, str) else 'Could not read environments data'
+
+        if rollup is not None:
+            results.append({'name': name, 'theater': theater, 'error': None, **rollup})
+        else:
             results.append({
                 'name': name, 'theater': theater, 'error': error,
                 'level': 'Green', 'team_count': 0, 'overdue_count': 0,

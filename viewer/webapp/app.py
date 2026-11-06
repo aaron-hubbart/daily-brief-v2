@@ -1356,6 +1356,11 @@ def _portfolio_health_cache_set(user_id, payload):
         _portfolio_health_cache[user_id] = (time.monotonic() + PORTFOLIO_HEALTH_CACHE_TTL_SECONDS, payload)
 
 
+def _portfolio_health_cache_evict(user_id):
+    with _portfolio_health_cache_lock:
+        _portfolio_health_cache.pop(user_id, None)
+
+
 @app.route('/environments')
 @login_required
 def environments_page():
@@ -1483,6 +1488,7 @@ def api_environments_account_update(account_name):
     if result is not True:
         status = 404 if 'create the account folder' in result else 500
         return jsonify({'error': result}), status
+    _portfolio_health_cache_evict(request.brief_user['id'])
     return jsonify({'ok': True})
 
 
