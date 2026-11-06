@@ -1,0 +1,76 @@
+{# Partial: renders the morning Day Planning view. Returned by
+   GET /api/day-plan/<date>/morning, injected into day_plan.html's content
+   container by its client JS. Not available yet (the skill hasn't
+   generated this date's morning-plan.json) renders a placeholder instead
+   of the sections below — see the Day Planning design doc §5. #}
+{% if not available %}
+<div class="dp-empty">Not generated yet — run the daily brief skill for this date, or hit Refresh above.</div>
+{% else %}
+
+<div class="dp-stats">
+  <div class="dp-stat"><div class="dp-stat-label">Free Focus Time</div><div class="dp-stat-value">{{ stats.get('free_focus_hours', '—') }}</div></div>
+  <div class="dp-stat"><div class="dp-stat-label">Open Priorities</div><div class="dp-stat-value">{{ stats.get('open_priorities', '—') }}</div></div>
+  <div class="dp-stat"><div class="dp-stat-label">Critical Path Items</div><div class="dp-stat-value">{{ stats.get('critical_path_count', '—') }}</div></div>
+</div>
+
+<div class="ssub">Recommendations</div>
+<div class="dp-callout">
+  {% if recommendations %}
+  <ul class="dp-callout-list">
+    {% for rec in recommendations %}
+    <li><strong>{{ rec.time_range }}</strong> — {{ rec.text }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="dp-empty-inline">No recommendations yet.</div>
+  {% endif %}
+</div>
+
+<div class="ssub">Your Schedule</div>
+<div class="dp-schedule">
+  {% if schedule %}
+  {% for meeting in schedule %}
+  <div class="dp-sched-item">
+    <span class="itime">{{ meeting.time }}</span>
+    <span class="ititle">{{ meeting.title }}</span>
+    {% if meeting.meeting_prep_link %}
+    <a class="lbtn" href="{{ meeting.meeting_prep_link }}" target="_blank">Open prep</a>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="dp-empty-inline">Nothing on your schedule.</div>
+  {% endif %}
+</div>
+
+<div class="ssub">Open Quick Actions</div>
+<div class="dp-qa-columns">
+  {% for category_name, items in quick_actions.items() %}
+  <div class="dp-qa-col">
+    <div class="dp-qa-col-name">{{ category_name }}</div>
+    <ul class="dp-qa-col-list">
+      {% for item in items %}
+      <li>{{ item.text }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  <div class="dp-empty-inline">No open quick actions.</div>
+  {% endfor %}
+</div>
+
+<div class="ssub">Critical Path (Renewals)</div>
+<div class="dp-cp-row">
+  {% for cp in critical_path %}
+  <div class="dp-cp-card">
+    <div class="dp-cp-title">{{ cp.title }}</div>
+    {% if cp.detail %}<div class="dp-cp-detail">{{ cp.detail }}</div>{% endif %}
+    {% if cp.amount %}<div class="dp-cp-amount">{{ cp.amount }}</div>{% endif %}
+    {% if cp.due %}<div class="dp-cp-due">Due {{ cp.due }}</div>{% endif %}
+  </div>
+  {% else %}
+  <div class="dp-empty-inline">Nothing on the critical path.</div>
+  {% endfor %}
+</div>
+
+{% endif %}

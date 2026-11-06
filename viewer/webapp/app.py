@@ -1336,6 +1336,46 @@ def api_key_contacts_update():
     return jsonify({'ok': True, 'key_contacts': key_contacts})
 
 
+# ── Day Planning category settings ───────────────────────────────────
+
+@app.route('/api/settings/day-planning-categories')
+@login_required
+def api_day_planning_categories():
+    """Returns the quick-action categories from config.json that the
+    daily-brief-generation skill sorts Day Planning items into (see the
+    Day Planning design doc §3/§8.1)."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    config = gdrive_briefs.read_config(google_token, folder_id)
+    if config is None:
+        return jsonify({'error': 'Could not read config.json'}), 500
+    return jsonify({'day_planning_categories': config.get('day_planning_categories', [])})
+
+
+@app.route('/api/settings/day-planning-categories', methods=['PUT'])
+@login_required
+def api_day_planning_categories_update():
+    """Saves the day_planning_categories list back to config.json, after
+    validating it (1-3 entries, non-empty name/description, no
+    case-insensitive duplicate names — see
+    gdrive_briefs.validate_day_planning_categories)."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    body = request.get_json(silent=True) or {}
+    cleaned, error = gdrive_briefs.validate_day_planning_categories(body.get('day_planning_categories'))
+    if error is not None:
+        return jsonify({'error': error}), 400
+    result = gdrive_briefs.write_config({'day_planning_categories': cleaned}, google_token, folder_id)
+    if result is not True:
+        msg = result if isinstance(result, str) else 'Failed to write config.json'
+        return jsonify({'error': msg}), 500
+    return jsonify({'ok': True, 'day_planning_categories': cleaned})
+
+
 # ── Environments management ──────────────────────────────────────────
 
 _portfolio_health_cache = {}
@@ -1987,6 +2027,88 @@ def post_item_to_slack(section, item_key):
         logger.warning('post_item_to_slack failed: section=%s item_key=%s error=%s', section, item_key, error)
         return jsonify({'status': 'error', 'error': error}), 502
     return jsonify({'status': 'ok'})
+
+
+# ── Day Planning page ────────────────────────────────────────────────
+
+def _day_plan_payload(sections):
+    """Given gdrive_briefs.read_section's result for a day-plan slug
+    ('morning-plan' or 'evening-wrapup'), returns (available, data).
+    `sections` is None on a Drive error, [] when the skill hasn't
+    generated this date's file yet, or [data] once it has (read_section
+    wraps single-object sections in a list, matching manager-update.json's
+    existing handling). Both None and [] mean "not available" -- the
+    route surfaces a {"available": false} placeholder either way rather
+    than distinguishing a Drive hiccup from "not generated yet" to the
+    client. A non-dict single item (a malformed file, or a {"items": [...]}
+    wrapper that _extract_items unwrapped to its first element) is also
+    "not available" rather than something the caller tries to render."""
+    if not sections or not isinstance(sections[0], dict):
+        return False, None
+    return True, sections[0]
+
+
+def _day_plan_render_kwargs(data, dict_fields=(), list_fields=()):
+    """Fills in a safe empty default for any of `dict_fields`/`list_fields`
+    that's missing or null in `data`, so a partially-generated
+    morning-plan.json/evening-wrapup.json (the skill that writes these is
+    still being built) renders an incomplete page instead of raising
+    UndefinedError when its fragment template accesses a field that was
+    never spread in via **data."""
+    kwargs = {}
+    for name in dict_fields:
+        kwargs[name] = data.get(name) or {}
+    for name in list_fields:
+        kwargs[name] = data.get(name) or []
+    return kwargs
+
+
+@app.route('/day-plan')
+@login_required
+def day_plan_page():
+    return render_template('day_plan.html', user_email=request.brief_user['email'])
+
+
+@app.route('/api/day-plan/<date_str>/morning')
+@login_required
+def api_day_plan_morning(date_str):
+    if not DATE_RE.match(date_str):
+        abort(400)
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    sections = gdrive_briefs.read_section(date_str, 'morning-plan', google_token, folder_id)
+    available, data = _day_plan_payload(sections)
+    if not available:
+        return jsonify({'available': False})
+    kwargs = _day_plan_render_kwargs(
+        data, dict_fields=('stats', 'quick_actions'),
+        list_fields=('recommendations', 'schedule', 'critical_path'),
+    )
+    html = render_template('morning_plan_fragment.html', available=True, **kwargs)
+    return jsonify({'available': True, 'html': html})
+
+
+@app.route('/api/day-plan/<date_str>/evening')
+@login_required
+def api_day_plan_evening(date_str):
+    if not DATE_RE.match(date_str):
+        abort(400)
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    sections = gdrive_briefs.read_section(date_str, 'evening-wrapup', google_token, folder_id)
+    available, data = _day_plan_payload(sections)
+    if not available:
+        return jsonify({'available': False})
+    kwargs = _day_plan_render_kwargs(
+        data, dict_fields=('stats',),
+        list_fields=('completed', 'carried_over', 'key_wins', 'still_blocking', 'tomorrows_focus'),
+    )
+    html = render_template('evening_wrapup_fragment.html', available=True, **kwargs)
+    return jsonify({'available': True, 'html': html})
 
 
 @app.route('/healthz')

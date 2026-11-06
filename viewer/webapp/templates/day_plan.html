@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Brief · Day Plan</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#f5f4f1; --surface:#fff; --surface2:#f0efe9; --border:#e2e0d8; --border-strong:#c8c6bc;
+  --t1:#1a1916; --t2:#5a5850; --t3:#9a9890;
+  --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
+  --good-bg:#eef7ee; --good-t:#2a7a34; --bad-bg:#fef1f0; --bad-t:#b02520;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",monospace; --r:5px;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#18181b; --surface:#1e1e22; --surface2:#26262c; --border:#2c2c32; --border-strong:#3c3c44;
+  --t1:#e6e4de; --t2:#9a9890; --t3:#5a5850;
+  --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
+  --good-bg:#122415; --good-t:#5cc26a; --bad-bg:#280e0e; --bad-t:#e06868;
+}}
+html{font-size:14px;}
+body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5;padding:24px 16px 60px;max-width:760px;margin:0 auto;}
+.head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1.5px solid var(--border-strong);}
+.head h1{font-size:19px;font-weight:600;letter-spacing:-.025em;}
+.head .sub{font-size:12px;color:var(--t3);}
+a.back{font-size:12px;color:var(--accent-t);text-decoration:none;}
+a.back:hover{text-decoration:underline;}
+.empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
+.toggle{display:flex;gap:8px;margin-bottom:16px;}
+.toggle-btn{font-size:12px;font-weight:500;padding:5px 12px;background:var(--surface);color:var(--t2);border:1px solid var(--border-strong);border-radius:var(--r);cursor:pointer;font-family:var(--font);}
+.toggle-btn.active{background:var(--accent-bg);color:var(--accent-t);border-color:var(--accent);}
+.ssub{font-size:10.5px;font-weight:700;color:var(--accent-t);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border);}
+.dp-empty{color:var(--t3);font-size:12.5px;padding:24px 0;text-align:center;}
+.dp-empty-inline{color:var(--t3);font-size:12px;padding:6px 0;}
+.dp-stats{display:flex;gap:10px;margin-bottom:8px;}
+.dp-stat{flex:1;background:var(--surface2);border-radius:var(--r);padding:10px 12px;}
+.dp-stat-label{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);}
+.dp-stat-value{font-size:18px;font-weight:600;color:var(--t1);margin-top:2px;}
+.dp-callout{background:var(--accent-bg);border-radius:var(--r);padding:12px 14px;}
+.dp-callout-list{list-style:none;}
+.dp-callout-list li{padding:3px 0;font-size:12.5px;color:var(--t1);}
+.dp-schedule,.dp-done-list,.dp-carried-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:4px 12px;}
+.dp-sched-item,.dp-done-item,.dp-carried-item{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:.5px solid var(--border);}
+.dp-sched-item:last-child,.dp-done-item:last-child,.dp-carried-item:last-child{border-bottom:none;}
+.dp-done-item,.dp-carried-item{display:block;}
+.itime{font-size:11px;color:var(--t3);font-family:var(--mono);width:60px;flex-shrink:0;}
+.ititle{font-size:13px;font-weight:500;color:var(--t1);}
+.isub{font-size:11.5px;color:var(--t2);margin-top:2px;}
+.lbtn{font-size:10.5px;color:var(--accent-t);text-decoration:none;white-space:nowrap;margin-left:auto;}
+.lbtn:hover{text-decoration:underline;}
+.dp-qa-columns{display:flex;gap:10px;flex-wrap:wrap;}
+.dp-qa-col{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;}
+.dp-qa-col-name{font-size:12px;font-weight:600;margin-bottom:4px;}
+.dp-qa-col-list{list-style:none;font-size:12px;color:var(--t2);}
+.dp-qa-col-list li{padding:2px 0;}
+.dp-cp-row{display:flex;gap:10px;flex-wrap:wrap;}
+.dp-cp-card{flex:1;min-width:150px;background:var(--bad-bg);border-left:3px solid var(--bad-t);border-radius:var(--r);padding:10px 12px;}
+.dp-cp-title{font-size:12.5px;font-weight:600;color:var(--t1);}
+.dp-cp-detail,.dp-cp-amount,.dp-cp-due{font-size:11.5px;color:var(--t2);margin-top:2px;}
+.dp-wins-blocking{display:flex;gap:16px;}
+.dp-wins,.dp-blocking{flex:1;}
+.dp-wins ul,.dp-blocking ul{list-style:none;font-size:12.5px;}
+.dp-wins li,.dp-blocking li{padding:3px 0;}
+</style>
+</head>
+<body>
+
+<div class="head">
+  <div>
+    <a class="back" href="{{ url_for('index') }}">&larr; Back to briefs</a>
+    <h1>Day Plan</h1>
+    <div class="sub">Signed in as {{ user_email }} &middot; Viewing <span id="dp-date-label"></span></div>
+  </div>
+</div>
+
+<div class="toggle">
+  <button type="button" class="toggle-btn" id="toggle-morning" onclick="setView('morning')">Morning</button>
+  <button type="button" class="toggle-btn" id="toggle-evening" onclick="setView('evening')">Evening</button>
+  <a class="toggle-btn" id="dp-refresh-link" href="#" target="_blank">Refresh</a>
+</div>
+
+<div id="day-plan-body"><div class="empty">Loading&hellip;</div></div>
+
+<script>
+const BASE = document.querySelector('base')?.href || '';
+
+function todayLocalIso() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+const params = new URLSearchParams(window.location.search);
+const VIEW_DATE = params.get('date') || todayLocalIso();
+const IS_TODAY = VIEW_DATE === todayLocalIso();
+
+// Default view: today uses the time-of-day split (local hour >= 12 is
+// evening); any other date always defaults to evening, since a past day
+// is presumably over — see the Day Planning design doc's Global
+// Constraints.
+let currentView = (IS_TODAY && new Date().getHours() < 12) ? 'morning' : 'evening';
+
+// Slug each view's Drive file is stored under (see the Day Planning
+// design doc §2) -- used to build the per-view Refresh deep link, same
+// claude:// pattern brief_fragment.html's per-section Refresh links use.
+const VIEW_SLUG = {morning: 'morning-plan', evening: 'evening-wrapup'};
+
+function updateDateAndRefreshLink() {
+  document.getElementById('dp-date-label').textContent = IS_TODAY ? `Today (${VIEW_DATE})` : VIEW_DATE;
+  const query = `/daily-brief Refresh section:${VIEW_SLUG[currentView]} date:${VIEW_DATE}`;
+  document.getElementById('dp-refresh-link').href = `claude://claude.ai/new?q=${encodeURIComponent(query)}`;
+}
+
+function setView(view) {
+  currentView = view;
+  document.getElementById('toggle-morning').classList.toggle('active', view === 'morning');
+  document.getElementById('toggle-evening').classList.toggle('active', view === 'evening');
+  updateDateAndRefreshLink();
+  load();
+}
+
+async function load() {
+  const body = document.getElementById('day-plan-body');
+  body.innerHTML = '<div class="empty">Loading&hellip;</div>';
+  try {
+    const r = await fetch(`${BASE}api/day-plan/${encodeURIComponent(VIEW_DATE)}/${currentView}`, {credentials:'include'});
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    const data = await r.json();
+    body.innerHTML = data.available ? data.html : '<div class="dp-empty">Not generated yet — run the daily brief skill for this date, or hit Refresh above.</div>';
+  } catch(e) {
+    body.innerHTML = `<div class="empty" style="color:var(--bad-t)">Failed to load: ${e.message}</div>`;
+  }
+}
+
+setView(currentView);
+</script>
+</body>
+</html>
