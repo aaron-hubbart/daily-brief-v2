@@ -126,6 +126,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
     <button type="button" class="toolbtn" id="expand-all-btn">Expand all</button>
     <button type="button" class="toolbtn" id="collapse-all-btn">Collapse all</button>
     <a class="toolbtn" href="claude://claude.ai/new?q={{ '/weekly-time-tracking'|urlencode }}" target="_blank">Weekly Time Tracking</a>
+    <a class="toolbtn" href="{{ url_for('day_plan_page', date=brief_date) }}">Day Plan</a>
   </div>
 
   {% macro action_item(item, show_board=true) %}
