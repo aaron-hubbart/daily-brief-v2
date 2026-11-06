@@ -137,6 +137,8 @@ const BASE = document.querySelector('base')?.href || '';
 let STATE = null;
 let CURRENT = null;
 let dirty = false;
+let VIEW = 'portfolio';
+let CURRENT_TEAM_ID = null;
 
 const COMPONENT_OPTIONS = ['Connectors', 'Operate', 'Optimize', 'Tasklist', 'Zeebe'];
 const STANDARD_ENV_NAMES = ['Development', 'DR/Failover', 'Production', 'QA/Test', 'Sandbox', 'Staging'];
@@ -264,7 +266,38 @@ function normalizeTeam(team) {
   team.id = team.id || nextFallbackId('team');
   team.notes = team.notes || '';
   team.members = team.members || [];
+  team.exempt = team.exempt || false;
+  team.sentiment = team.sentiment || '';
+  team.sentiment_updated = team.sentiment_updated || '';
+  team.open_issues = (team.open_issues === undefined) ? null : team.open_issues;
+  team.open_issues_updated = team.open_issues_updated || '';
+  team.inapplicable_meeting_types = team.inapplicable_meeting_types || [];
+  team.onboarding_date = team.onboarding_date || '';
+  team.renewal_date = team.renewal_date || '';
   return team;
+}
+
+function normalizeMeeting(m) {
+  m.id = m.id || nextFallbackId('mtg');
+  m.team_id = m.team_id || '';
+  m.meeting_type_id = m.meeting_type_id || '';
+  m.status = m.status || 'not_scheduled';
+  m.scheduled_date = m.scheduled_date || '';
+  m.occurred_date = m.occurred_date || '';
+  m.last_held_date = m.last_held_date || '';
+  m.standing_schedule = m.standing_schedule || '';
+  m.notes = m.notes || '';
+  return m;
+}
+
+function normalizeEsActivity(a) {
+  a.id = a.id || nextFallbackId('act');
+  a.team_id = a.team_id || '';
+  a.label = a.label || '';
+  a.status = a.status || 'not_done';
+  a.last_updated = a.last_updated || '';
+  a.notes = a.notes || '';
+  return a;
 }
 
 function normalizeEnvironment(env) {
@@ -323,14 +356,16 @@ function normalizeUseCase(uc) {
 
 async function load() {
   try {
-    const [envResp, custResp] = await Promise.all([
+    const [envResp, custResp, catalogResp] = await Promise.all([
       fetch(`${BASE}api/environments/config`, {credentials:'include'}),
       fetch(`${BASE}api/customers/config`, {credentials:'include'}).catch(() => null),
+      fetch(`${BASE}api/environments/meeting-catalog`, {credentials:'include'}).catch(() => null),
     ]);
     if (!envResp.ok) throw new Error((await envResp.json()).error || envResp.statusText);
     STATE = await envResp.json();
     STATE.customers = {};      // per-account data, fetched lazily on selection
     STATE.loadError = {};      // name -> error message, when that account's file couldn't be read
+    STATE.meeting_catalog = (catalogResp && catalogResp.ok) ? (await catalogResp.json()).meeting_catalog : [];
     if (custResp && custResp.ok) {
       const custConfig = await custResp.json();
       MY_CUSTOMER_NORMALIZED = new Set(
@@ -421,10 +456,15 @@ function renderCustomerSelect() {
     `<option value="${escAttr(name)}">${esc(name)}</option>`
   ).join('');
   if (!CURRENT || !names.includes(CURRENT)) CURRENT = names[0];
-  selectCustomer(CURRENT);
+  if (VIEW === 'portfolio') {
+    renderPortfolio();
+  } else {
+    selectCustomer(CURRENT);
+  }
 }
 
 async function onCustomerChange() {
+  VIEW = 'customer';
   const select = document.getElementById('customer-select');
   const next = select.value;
   if (dirty && !confirm('You have unsaved changes for ' + CURRENT + '. Discard them and switch customer?')) {
@@ -433,6 +473,49 @@ async function onCustomerChange() {
   }
   dirty = false;
   await selectCustomer(next);
+}
+
+async function renderPortfolio() {
+  // Reaching the Portfolio table is the only way to leave a dirty
+  // customer/team view without going through onCustomerChange's own
+  // guard (e.g. clicking the "<- Portfolio" link) -- same unsaved-changes
+  // confirmation as switching customers via the dropdown.
+  if (dirty && !confirm('You have unsaved changes for ' + CURRENT + '. Discard them and go to the Portfolio?')) {
+    return;
+  }
+  dirty = false;
+  document.getElementById('save-btn').disabled = true;
+  document.getElementById('save-status').textContent = '';
+  VIEW = 'portfolio';
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="empty">Loading&hellip;</div>';
+  try {
+    const r = await fetch(`${BASE}api/environments/portfolio-health`, {credentials:'include'});
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.error || r.statusText);
+    const rows = body.customers.map(c => `
+      <tr style="cursor:pointer;" data-customer-name="${escAttr(c.name)}" onclick="onCustomerChange_fromPortfolio(this.dataset.customerName)">
+        <td>${esc(c.name)}</td>
+        <td>${c.error ? `<span style="color:var(--bad-t)">${esc(c.error)}</span>` : healthBadgeHtml({level: c.level})}</td>
+        <td>${c.team_count}</td>
+        <td>${c.overdue_count} overdue</td>
+        <td>${esc(c.sentiment_level || '—')}</td>
+        <td>${c.open_issues_total}</td>
+      </tr>`).join('');
+    content.innerHTML = `
+      <table class="portfolio-table">
+        <thead><tr><th>Customer</th><th>Health</th><th>Teams</th><th>Meetings</th><th>Sentiment</th><th>Open issues</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch(e) {
+    content.innerHTML = `<div class="empty" style="color:var(--bad-t)">Failed to load portfolio: ${esc(e.message)}</div>`;
+  }
+}
+
+function onCustomerChange_fromPortfolio(name) {
+  VIEW = 'customer';
+  document.getElementById('customer-select').value = name;
+  selectCustomer(name);
 }
 
 async function selectCustomer(name) {
@@ -474,12 +557,26 @@ function openDiscoverySkill() {
 
 function ensureCustomer(name) {
   if (!STATE.customers[name]) {
-    STATE.customers[name] = {teams: [], environments: [], use_cases: []};
+    STATE.customers[name] = {teams: [], environments: [], use_cases: [], meetings: [], es_activities: []};
   }
   const c = STATE.customers[name];
   c.teams = (c.teams || []).map(normalizeTeam);
   c.environments = (c.environments || []).map(normalizeEnvironment);
   c.use_cases = (c.use_cases || []).map(normalizeUseCase);
+  c.meetings = (c.meetings || []).map(normalizeMeeting);
+  c.es_activities = (c.es_activities || []).map(normalizeEsActivity);
+}
+
+function rollupStripHtml(c) {
+  const r = c.rollup || {level: 'Green', team_count: 0, overdue_count: 0, sentiment_level: '', open_issues_total: 0};
+  return `
+    <div class="rollup-strip" style="display:flex;gap:16px;margin-bottom:12px;">
+      <div>Health: ${healthBadgeHtml({level: r.level})}</div>
+      <div>${r.team_count} team${r.team_count === 1 ? '' : 's'}</div>
+      <div>${r.overdue_count} overdue</div>
+      <div>Sentiment: ${esc(r.sentiment_level || '—')}</div>
+      <div>Open issues: ${r.open_issues_total}</div>
+    </div>`;
 }
 
 function renderCustomer() {
@@ -488,6 +585,8 @@ function renderCustomer() {
   const c = STATE.customers[CURRENT];
   const content = document.getElementById('content');
   content.innerHTML = `
+    <a href="#" onclick="renderPortfolio(); return false;">&larr; Portfolio</a>
+    ${rollupStripHtml(c)}
     <div class="panel">
       <div class="panel-head"><span>Teams</span></div>
       <div class="panel-body" id="teams-body">${teamCardsHtml(c)}</div>
@@ -525,6 +624,13 @@ function wireTeamCheckboxes() {
   });
 }
 
+const HEALTH_COLORS = {Green: '#2e7d32', Yellow: '#f9a825', Red: '#c62828', Exempt: '#888'};
+function healthBadgeHtml(health) {
+  if (!health) return '';
+  const color = HEALTH_COLORS[health.level] || '#888';
+  return `<span class="health-badge" style="color:${color};font-weight:700;">${esc(health.level)}</span>`;
+}
+
 function teamCardsHtml(c) {
   const cards = c.teams.map((t, i) => teamCardHtml(t, i)).join('') ||
     '<div class="empty" style="padding:8px 0;">No teams yet</div>';
@@ -533,14 +639,27 @@ function teamCardsHtml(c) {
 
 function teamCardHtml(team, idx) {
   const collapsed = isExpanded(team.id) ? '' : 'collapsed';
+  const exemptNote = team.exempt ? '<div class="empty" style="padding:4px 0;">Exempt — membership only, not tracked for meetings/health</div>' : '';
   return `
     <div class="team-card">
       <div class="team-card-head">
         ${caretHtml(team.id)}
         <input type="text" value="${escAttr(team.name)}" onchange="updateTeamField(${idx}, 'name', this.value)">
+        ${healthBadgeHtml(team.health)}
+        <label style="font-size:11.5px;font-weight:500;"><input type="checkbox" ${team.exempt ? 'checked' : ''} onchange="updateTeamField(${idx}, 'exempt', this.checked)"> Exempt</label>
+        <label style="font-size:11.5px;font-weight:500;">Sentiment
+          <select onchange="updateTeamField(${idx}, 'sentiment', this.value)">
+            ${['', 'Green', 'Yellow', 'Red'].map(v => `<option value="${v}" ${team.sentiment === v ? 'selected' : ''}>${v || '—'}</option>`).join('')}
+          </select>
+        </label>
+        <label style="font-size:11.5px;font-weight:500;">Open issues
+          <input type="number" min="0" style="width:60px;" value="${team.open_issues === null ? '' : team.open_issues}" onchange="updateTeamField(${idx}, 'open_issues', this.value === '' ? null : parseInt(this.value, 10))">
+        </label>
+        ${team.exempt ? '' : `<button type="button" class="btn" data-team-id="${escAttr(team.id)}" onclick="renderTeamDetail(this.dataset.teamId)">View meetings &amp; health</button>`}
         <button class="btn danger" onclick="removeTeam(${idx})">Remove</button>
       </div>
       <div class="team-card-body collapsible-body ${collapsed}">
+        ${exemptNote}
         <div class="field"><label>Notes</label><textarea onchange="updateTeamField(${idx}, 'notes', this.value)">${esc(team.notes || '')}</textarea></div>
         <div class="field">
           <label>Members</label>
@@ -727,6 +846,145 @@ function removeTeam(idx) {
   });
   markDirty();
   renderCustomer();
+}
+
+function getOrCreateMeetingRow(teamId, meetingTypeId) {
+  const c = STATE.customers[CURRENT];
+  let row = c.meetings.find(m => m.team_id === teamId && m.meeting_type_id === meetingTypeId);
+  if (!row) {
+    row = normalizeMeeting({team_id: teamId, meeting_type_id: meetingTypeId});
+    c.meetings.push(row);
+  }
+  return row;
+}
+
+function updateMeetingField(teamId, meetingTypeId, field, value) {
+  const row = getOrCreateMeetingRow(teamId, meetingTypeId);
+  row[field] = value;
+  markDirty();
+  renderTeamDetail(teamId);
+}
+
+function toggleMeetingApplicable(teamId, meetingTypeId, inapplicable) {
+  const team = STATE.customers[CURRENT].teams.find(t => t.id === teamId);
+  const set = new Set(team.inapplicable_meeting_types);
+  if (inapplicable) set.add(meetingTypeId); else set.delete(meetingTypeId);
+  team.inapplicable_meeting_types = Array.from(set);
+  markDirty();
+  renderTeamDetail(teamId);
+}
+
+function addEsActivity(teamId) {
+  const activity = normalizeEsActivity({team_id: teamId, label: 'New activity'});
+  STATE.customers[CURRENT].es_activities.push(activity);
+  markDirty();
+  renderTeamDetail(teamId);
+}
+
+function updateEsActivityField(activityId, field, value) {
+  const activity = STATE.customers[CURRENT].es_activities.find(a => a.id === activityId);
+  activity[field] = value;
+  markDirty();
+  renderTeamDetail(CURRENT_TEAM_ID);
+}
+
+function removeEsActivity(activityId) {
+  const c = STATE.customers[CURRENT];
+  c.es_activities = c.es_activities.filter(a => a.id !== activityId);
+  markDirty();
+  renderTeamDetail(CURRENT_TEAM_ID);
+}
+
+function renderTeamDetail(teamId) {
+  VIEW = 'team';
+  CURRENT_TEAM_ID = teamId;
+  const c = STATE.customers[CURRENT];
+  const idx = c.teams.findIndex(t => t.id === teamId);
+  const team = c.teams[idx];
+  const content = document.getElementById('content');
+
+  const health = team.health || {level: 'Green', reasons: []};
+  const reasonsHtml = health.reasons.length
+    ? `<ul>${health.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>`
+    : '<div class="empty" style="padding:4px 0;">No issues</div>';
+
+  // Interpolating an id into a quoted JS-string argument inside an
+  // onclick/onchange attribute is unsafe: the browser decodes HTML
+  // entities in attribute values *before* compiling the handler as JS, so
+  // escAttr()'s entity-encoding of a quote doesn't protect against a
+  // value that itself contains one (see wireTeamCheckboxes' comment for
+  // the same issue elsewhere in this file). Every id below is instead
+  // passed via a data-* attribute and read back with this.dataset.
+  const oneTimeRowsHtml = (STATE.meeting_catalog || []).filter(m => m.category === 'one_time').map(entry => {
+    const row = getOrCreateMeetingRow(teamId, entry.id);
+    const ids = `data-team-id="${escAttr(teamId)}" data-meeting-type-id="${escAttr(entry.id)}"`;
+    return `
+      <div class="field">
+        <label>${esc(entry.name)}</label>
+        <select ${ids} onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'status', this.value)">
+          ${['not_scheduled', 'scheduled', 'occurred'].map(v => `<option value="${v}" ${row.status === v ? 'selected' : ''}>${v}</option>`).join('')}
+        </select>
+        <label>Scheduled <input type="date" ${ids} value="${escAttr(row.scheduled_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'scheduled_date', this.value)"></label>
+        <label>Occurred <input type="date" ${ids} value="${escAttr(row.occurred_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'occurred_date', this.value)"></label>
+      </div>`;
+  }).join('');
+
+  const recurringRowsHtml = (STATE.meeting_catalog || []).filter(m => m.category === 'recurring').map(entry => {
+    const row = getOrCreateMeetingRow(teamId, entry.id);
+    const ids = `data-team-id="${escAttr(teamId)}" data-meeting-type-id="${escAttr(entry.id)}"`;
+    const inapplicable = (team.inapplicable_meeting_types || []).includes(entry.id);
+    const applicableToggle = entry.default_requirement !== 'required'
+      ? `<label>Applicable <input type="checkbox" ${ids} ${inapplicable ? '' : 'checked'} onchange="toggleMeetingApplicable(this.dataset.teamId, this.dataset.meetingTypeId, !this.checked)"></label>`
+      : '';
+    return `
+      <div class="field">
+        <label>${esc(entry.name)} <span class="badge">${esc(entry.default_requirement)}</span></label>
+        ${applicableToggle}
+        <label>Standing schedule <input type="text" ${ids} value="${escAttr(row.standing_schedule)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'standing_schedule', this.value)"></label>
+        <label>Last held <input type="date" ${ids} value="${escAttr(row.last_held_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'last_held_date', this.value)"></label>
+      </div>`;
+  }).join('');
+
+  const activitiesHtml = c.es_activities.filter(a => a.team_id === teamId).map(a => `
+    <div class="field" data-activity-id="${escAttr(a.id)}">
+      <input type="text" value="${escAttr(a.label)}" onchange="updateEsActivityField(this.closest('[data-activity-id]').dataset.activityId, 'label', this.value)">
+      <select onchange="updateEsActivityField(this.closest('[data-activity-id]').dataset.activityId, 'status', this.value)">
+        ${['not_done', 'done'].map(v => `<option value="${v}" ${a.status === v ? 'selected' : ''}>${v}</option>`).join('')}
+      </select>
+      <label>Last updated <input type="date" value="${escAttr(a.last_updated)}" onchange="updateEsActivityField(this.closest('[data-activity-id]').dataset.activityId, 'last_updated', this.value)"></label>
+      <button type="button" class="btn danger" onclick="removeEsActivity(this.closest('[data-activity-id]').dataset.activityId)">Remove</button>
+    </div>`).join('') || '<div class="empty" style="padding:4px 0;">No ES activities yet</div>';
+
+  content.innerHTML = `
+    <a href="#" onclick="renderPortfolio(); return false;">&larr; Portfolio</a>
+    &middot;
+    <a href="#" onclick="VIEW='customer'; renderCustomer(); return false;">&larr; ${esc(CURRENT)}</a>
+    <h2>${esc(team.name)}</h2>
+    <div class="field"><label>Onboarding date</label><input type="date" value="${escAttr(team.onboarding_date)}" onchange="updateTeamField(${idx}, 'onboarding_date', this.value)"></div>
+    <div class="field"><label>Renewal date</label><input type="date" value="${escAttr(team.renewal_date)}" onchange="updateTeamField(${idx}, 'renewal_date', this.value)"></div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">Health: ${esc(health.level)}</div>
+      <div class="env-subsection-body">${reasonsHtml}</div>
+    </div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">Key Meetings &mdash; One-time (ES101 Onboarding)</div>
+      <div class="env-subsection-body">${oneTimeRowsHtml}</div>
+    </div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">Key Meetings &mdash; Recurring</div>
+      <div class="env-subsection-body">${recurringRowsHtml}</div>
+    </div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">ES Activities
+        <button type="button" class="btn primary" data-team-id="${escAttr(teamId)}" onclick="addEsActivity(this.dataset.teamId)">Add activity</button>
+      </div>
+      <div class="env-subsection-body">${activitiesHtml}</div>
+    </div>
+  `;
 }
 
 function environmentsHtml(c) {
@@ -1168,12 +1426,28 @@ async function saveAll() {
     const r = await fetch(`${BASE}api/environments/config/${encodeURIComponent(CURRENT)}`, {
       method: 'PUT', credentials: 'include',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({teams: c.teams, environments: c.environments, use_cases: c.use_cases}),
+      body: JSON.stringify({
+        teams: c.teams, environments: c.environments, use_cases: c.use_cases,
+        meetings: c.meetings, es_activities: c.es_activities,
+      }),
     });
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     dirty = false;
     status.textContent = '';
     showToast(`Saved ${CURRENT} to Drive`, 'ok', 4000);
+    // Health/rollup are computed server-side on GET, not stored — re-fetch
+    // so the badge, rollup strip, and health breakdown reflect what was
+    // just saved instead of the pre-save values still sitting in STATE.
+    const refreshed = await fetch(`${BASE}api/environments/config/${encodeURIComponent(CURRENT)}`, {credentials: 'include'});
+    if (refreshed.ok) {
+      STATE.customers[CURRENT] = await refreshed.json();
+      ensureCustomer(CURRENT);
+      if (VIEW === 'team' && CURRENT_TEAM_ID) {
+        renderTeamDetail(CURRENT_TEAM_ID);
+      } else {
+        renderCustomer();
+      }
+    }
   } catch(e) {
     showToast('Save failed: ' + e.message, 'err', 5000);
     status.textContent = 'Unsaved changes';

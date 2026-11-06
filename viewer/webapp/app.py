@@ -37,6 +37,7 @@ import logging
 import os
 import re
 import secrets
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -52,6 +53,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 import asana_discovery
 import db
+import es_health
 import gdrive_briefs
 from action_items import group_action_items, task_intelligence_deep_links
 
@@ -1336,15 +1338,36 @@ def api_key_contacts_update():
 
 # ── Environments management ──────────────────────────────────────────
 
+_portfolio_health_cache = {}
+_portfolio_health_cache_lock = threading.Lock()
+PORTFOLIO_HEALTH_CACHE_TTL_SECONDS = 180  # short — this fans out to N Drive reads per request
+
+
+def _portfolio_health_cache_get(user_id):
+    with _portfolio_health_cache_lock:
+        entry = _portfolio_health_cache.get(user_id)
+        if entry and entry[0] > time.monotonic():
+            return entry[1]
+        return None
+
+
+def _portfolio_health_cache_set(user_id, payload):
+    with _portfolio_health_cache_lock:
+        _portfolio_health_cache[user_id] = (time.monotonic() + PORTFOLIO_HEALTH_CACHE_TTL_SECONDS, payload)
+
+
+def _portfolio_health_cache_evict(user_id):
+    with _portfolio_health_cache_lock:
+        _portfolio_health_cache.pop(user_id, None)
+
+
 @app.route('/environments')
 @login_required
 def environments_page():
     return render_template('environments.html', user_email=request.brief_user['email'])
 
 
-@app.route('/api/environments/config')
-@login_required
-def api_environments_config():
+def _load_in_scope_customers(request):
     """Returns the current in-scope customer list (name + Asana Theater).
     Each customer's own teams/environments data is fetched lazily via GET
     /api/environments/config/<account_name> once selected — it lives in a
@@ -1352,36 +1375,75 @@ def api_environments_config():
     The Environments portfolio is authoritative for scope — every project
     in it is a customer, full stop, with no cross-check against
     account-config.json (a customer list scoped to the signed-in user's
-    own accounts, not the shared portfolio this tab tracks)."""
+    own accounts, not the shared portfolio this tab tracks). Shared by
+    api_environments_config and api_environments_portfolio_health."""
     google_token = db.get_google_refresh_token(request.brief_user['id'])
     folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
     pat = gdrive_briefs.get_asana_pat_from_config(google_token, folder_id) if google_token else db.get_asana_pat(request.brief_user['id'])
     if not pat:
-        return jsonify({'in_scope_customers': None, 'needs_pat': True})
+        return {'in_scope_customers': None, 'needs_pat': True}
 
     try:
         portfolio_items = asana_discovery.get_portfolio_project_names(
             _asana_api_get, pat, ENVIRONMENTS_PORTFOLIO_GID,
         )
     except (urllib.error.URLError, json.JSONDecodeError) as e:
-        return jsonify({
+        return {
             'in_scope_customers': None,
             'error': f'Could not load customer list from Asana: {e}',
-        })
+        }
 
     in_scope_customers = [
         {'name': p['name'], 'theater': p['theater']} for p in portfolio_items
     ]
 
-    return jsonify({'in_scope_customers': in_scope_customers})
+    return {'in_scope_customers': in_scope_customers}
+
+
+@app.route('/api/environments/config')
+@login_required
+def api_environments_config():
+    return jsonify(_load_in_scope_customers(request))
+
+
+@app.route('/api/environments/portfolio-health')
+@login_required
+def api_environments_portfolio_health():
+    """Rolls up every in-scope customer's health for the Portfolio view.
+    Fans out to one Drive read per customer, unlike every other route in
+    this module — short TTL cache above, not the "no caching" precedent
+    the single-file routes follow."""
+    cached = _portfolio_health_cache_get(request.brief_user['id'])
+    if cached is not None:
+        return jsonify(cached)
+
+    scope = _load_in_scope_customers(request)
+    if scope.get('in_scope_customers') is None:
+        return jsonify({'customers': []})  # needs_pat / error — Portfolio view just shows empty, same as today's customer dropdown
+
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    read_fn = (lambda name: gdrive_briefs.read_account_environments(google_token, name)) if google_token else (lambda name: None)
+    customers = es_health.build_portfolio_rollup(scope['in_scope_customers'], read_fn)
+
+    payload = {'customers': customers}
+    _portfolio_health_cache_set(request.brief_user['id'], payload)
+    return jsonify(payload)
+
+
+@app.route('/api/environments/meeting-catalog')
+@login_required
+def api_environments_meeting_catalog():
+    """Static catalog of ES playbook meeting types — see es_health.py."""
+    return jsonify({'meeting_catalog': es_health.MEETING_CATALOG})
 
 
 @app.route('/api/environments/config/<account_name>')
 @login_required
 def api_environments_account(account_name):
-    """Returns one account's {teams, environments, use_cases} data, read from
-    <Account Name>-environments.json in that account's folder under the
-    Consulting > Customers Shared Drive."""
+    """Returns one account's {teams, environments, use_cases, meetings,
+    es_activities} data, read from <Account Name>-environments.json in that
+    account's folder under the Consulting > Customers Shared Drive, annotated
+    with each team's computed health and the customer-level rollup."""
     google_token = db.get_google_refresh_token(request.brief_user['id'])
     if not google_token:
         return jsonify({'error': 'Google Drive not connected'}), 400
@@ -1390,6 +1452,7 @@ def api_environments_account(account_name):
         return jsonify({'error': 'Could not read environments data from Drive'}), 500
     if isinstance(result, str):
         return jsonify({'error': result}), 404
+    result = es_health.compute_account_health(result)
     return jsonify(result)
 
 
@@ -1408,14 +1471,24 @@ def api_environments_account_update(account_name):
     use_cases = data.get('use_cases', [])
     if not isinstance(use_cases, list):
         return jsonify({'error': 'Invalid payload — use_cases must be an array'}), 400
+    meetings = data.get('meetings', [])
+    if not isinstance(meetings, list):
+        return jsonify({'error': 'Invalid payload — meetings must be an array'}), 400
+    es_activities = data.get('es_activities', [])
+    if not isinstance(es_activities, list):
+        return jsonify({'error': 'Invalid payload — es_activities must be an array'}), 400
     result = gdrive_briefs.write_account_environments(
         account_name,
-        {'teams': data['teams'], 'environments': data['environments'], 'use_cases': use_cases},
+        {
+            'teams': data['teams'], 'environments': data['environments'], 'use_cases': use_cases,
+            'meetings': meetings, 'es_activities': es_activities,
+        },
         google_token,
     )
     if result is not True:
         status = 404 if 'create the account folder' in result else 500
         return jsonify({'error': result}), status
+    _portfolio_health_cache_evict(request.brief_user['id'])
     return jsonify({'ok': True})
 
 
