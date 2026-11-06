@@ -517,12 +517,25 @@ function ensureCustomer(name) {
   c.es_activities = (c.es_activities || []).map(normalizeEsActivity);
 }
 
+function rollupStripHtml(c) {
+  const r = c.rollup || {level: 'Green', team_count: 0, overdue_count: 0, sentiment_level: '', open_issues_total: 0};
+  return `
+    <div class="rollup-strip" style="display:flex;gap:16px;margin-bottom:12px;">
+      <div>Health: ${healthBadgeHtml({level: r.level})}</div>
+      <div>${r.team_count} team${r.team_count === 1 ? '' : 's'}</div>
+      <div>${r.overdue_count} overdue</div>
+      <div>Sentiment: ${esc(r.sentiment_level || '—')}</div>
+      <div>Open issues: ${r.open_issues_total}</div>
+    </div>`;
+}
+
 function renderCustomer() {
   loadExpandedIds(CURRENT);
   addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
   const c = STATE.customers[CURRENT];
   const content = document.getElementById('content');
   content.innerHTML = `
+    ${rollupStripHtml(c)}
     <div class="panel">
       <div class="panel-head"><span>Teams</span></div>
       <div class="panel-body" id="teams-body">${teamCardsHtml(c)}</div>
@@ -560,6 +573,13 @@ function wireTeamCheckboxes() {
   });
 }
 
+const HEALTH_COLORS = {Green: '#2e7d32', Yellow: '#f9a825', Red: '#c62828', Exempt: '#888'};
+function healthBadgeHtml(health) {
+  if (!health) return '';
+  const color = HEALTH_COLORS[health.level] || '#888';
+  return `<span class="health-badge" style="color:${color};font-weight:700;">${esc(health.level)}</span>`;
+}
+
 function teamCardsHtml(c) {
   const cards = c.teams.map((t, i) => teamCardHtml(t, i)).join('') ||
     '<div class="empty" style="padding:8px 0;">No teams yet</div>';
@@ -568,14 +588,26 @@ function teamCardsHtml(c) {
 
 function teamCardHtml(team, idx) {
   const collapsed = isExpanded(team.id) ? '' : 'collapsed';
+  const exemptNote = team.exempt ? '<div class="empty" style="padding:4px 0;">Exempt — membership only, not tracked for meetings/health</div>' : '';
   return `
     <div class="team-card">
       <div class="team-card-head">
         ${caretHtml(team.id)}
         <input type="text" value="${escAttr(team.name)}" onchange="updateTeamField(${idx}, 'name', this.value)">
+        ${healthBadgeHtml(team.health)}
+        <label style="font-size:11.5px;font-weight:500;"><input type="checkbox" ${team.exempt ? 'checked' : ''} onchange="updateTeamField(${idx}, 'exempt', this.checked)"> Exempt</label>
+        <label style="font-size:11.5px;font-weight:500;">Sentiment
+          <select onchange="updateTeamField(${idx}, 'sentiment', this.value)">
+            ${['', 'Green', 'Yellow', 'Red'].map(v => `<option value="${v}" ${team.sentiment === v ? 'selected' : ''}>${v || '—'}</option>`).join('')}
+          </select>
+        </label>
+        <label style="font-size:11.5px;font-weight:500;">Open issues
+          <input type="number" min="0" style="width:60px;" value="${team.open_issues === null ? '' : team.open_issues}" onchange="updateTeamField(${idx}, 'open_issues', this.value === '' ? null : parseInt(this.value, 10))">
+        </label>
         <button class="btn danger" onclick="removeTeam(${idx})">Remove</button>
       </div>
       <div class="team-card-body collapsible-body ${collapsed}">
+        ${exemptNote}
         <div class="field"><label>Notes</label><textarea onchange="updateTeamField(${idx}, 'notes', this.value)">${esc(team.notes || '')}</textarea></div>
         <div class="field">
           <label>Members</label>
