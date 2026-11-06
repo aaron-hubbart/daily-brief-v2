@@ -475,6 +475,41 @@ def clamp_max_briefs_to_load(value) -> int:
     return max(MIN_MAX_BRIEFS_TO_LOAD, min(MAX_MAX_BRIEFS_TO_LOAD, value))
 
 
+MAX_DAY_PLANNING_CATEGORIES = 3
+
+
+def validate_day_planning_categories(categories) -> Tuple[Optional[List[Dict]], Optional[str]]:
+    """Validates a day_planning_categories payload before it's written to
+    config.json. Returns (cleaned_categories, None) on success, or
+    (None, error_message) on failure. Enforces: 1-MAX_DAY_PLANNING_CATEGORIES
+    entries, each with a non-empty, trimmed `name` and `description`, and no
+    two names equal case-insensitively once trimmed — the skill keys
+    quick_actions by category name (see the Day Planning design doc §8.1),
+    so a collision would silently drop a category's items with no error
+    anywhere."""
+    if not isinstance(categories, list) or not categories:
+        return None, 'day_planning_categories must be a non-empty array'
+    if len(categories) > MAX_DAY_PLANNING_CATEGORIES:
+        return None, f'day_planning_categories supports at most {MAX_DAY_PLANNING_CATEGORIES} categories'
+
+    cleaned = []
+    seen_lower = set()
+    for entry in categories:
+        if not isinstance(entry, dict):
+            return None, 'Each category must be an object with name and description'
+        name = str(entry.get('name', '')).strip()
+        description = str(entry.get('description', '')).strip()
+        if not name or not description:
+            return None, 'Each category needs a non-empty name and description'
+        name_lower = name.lower()
+        if name_lower in seen_lower:
+            return None, f'Duplicate category name: {name}'
+        seen_lower.add(name_lower)
+        cleaned.append({'name': name, 'description': description})
+
+    return cleaned, None
+
+
 def list_available_briefs(refresh_token: str, folder_id: Optional[str] = None,
                            max_briefs: int = DEFAULT_MAX_BRIEFS_TO_LOAD) -> List[str]:
     """List the most recent available brief dates from Google Drive in
