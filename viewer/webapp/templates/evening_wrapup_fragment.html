@@ -1,0 +1,77 @@
+{# Partial: renders the evening Day Planning view. Returned by
+   GET /api/day-plan/<date>/evening, injected into day_plan.html's content
+   container by its client JS. Not available yet (the skill hasn't
+   generated this date's evening-wrapup.json) renders a placeholder
+   instead of the sections below — see the Day Planning design doc §5. #}
+{% if not available %}
+<div class="dp-empty">Not generated yet — run the daily brief skill for this date, or hit Refresh above.</div>
+{% else %}
+
+<div class="dp-stats">
+  <div class="dp-stat"><div class="dp-stat-label">Meetings</div><div class="dp-stat-value">{{ stats.get('meetings', '—') }}</div></div>
+  <div class="dp-stat"><div class="dp-stat-label">Completed</div><div class="dp-stat-value">{{ stats.get('completed', '—') }}</div></div>
+  <div class="dp-stat"><div class="dp-stat-label">Carried Over</div><div class="dp-stat-value">{{ stats.get('carried_over', '—') }}</div></div>
+  <div class="dp-stat"><div class="dp-stat-label">Day Score</div><div class="dp-stat-value">{{ stats.get('day_score', '—') }}/10</div></div>
+</div>
+
+<div class="ssub">What Got Done Today</div>
+<div class="dp-done-list">
+  {% for entry in completed %}
+  <div class="dp-done-item">
+    <div class="ititle">{{ entry.title }}</div>
+    {% if entry.detail %}<div class="isub">{{ entry.detail }}</div>{% endif %}
+  </div>
+  {% else %}
+  <div class="dp-empty-inline">Nothing completed today.</div>
+  {% endfor %}
+</div>
+
+<div class="ssub">Carried Over to Tomorrow</div>
+<div class="dp-carried-list">
+  {% for entry in carried_over %}
+  <div class="dp-carried-item">
+    <div class="ititle">{{ entry.title }}</div>
+    {% if entry.detail %}<div class="isub">{{ entry.detail }}</div>{% endif %}
+  </div>
+  {% else %}
+  <div class="dp-empty-inline">Nothing carried over.</div>
+  {% endfor %}
+</div>
+
+<div class="dp-wins-blocking">
+  <div class="dp-wins">
+    <div class="ssub">Key Wins</div>
+    <ul>
+      {% for win in key_wins %}
+      <li>{{ win }}</li>
+      {% else %}
+      <li class="dp-empty-inline">No key wins recorded.</li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="dp-blocking">
+    <div class="ssub">Still Blocking</div>
+    <ul>
+      {% for entry in still_blocking %}
+      <li>{{ entry.title }}{% if entry.detail %} — {{ entry.detail }}{% endif %}</li>
+      {% else %}
+      <li class="dp-empty-inline">Nothing still blocking.</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+<div class="ssub">Tomorrow's Focus</div>
+<div class="dp-callout">
+  {% if tomorrows_focus %}
+  <ul class="dp-callout-list">
+    {% for item in tomorrows_focus %}
+    <li><strong>{{ item.time_range }}</strong> — {{ item.text }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="dp-empty-inline">No focus items for tomorrow yet.</div>
+  {% endif %}
+</div>
+
+{% endif %}
