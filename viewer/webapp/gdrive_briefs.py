@@ -61,6 +61,8 @@ _FILE_TO_SECTION = {
     'action-items.json': 'action-items',
     'fyi.json': 'fyi',
     'manager-update.json': 'manager-update',
+    'morning-plan.json': 'morning-plan',
+    'evening-wrapup.json': 'evening-wrapup',
 }
 
 # ── Credential and folder caching ────────────────────────────────────────
