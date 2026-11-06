@@ -1334,6 +1334,46 @@ def api_key_contacts_update():
     return jsonify({'ok': True, 'key_contacts': key_contacts})
 
 
+# ── Day Planning category settings ───────────────────────────────────
+
+@app.route('/api/settings/day-planning-categories')
+@login_required
+def api_day_planning_categories():
+    """Returns the quick-action categories from config.json that the
+    daily-brief-generation skill sorts Day Planning items into (see the
+    Day Planning design doc §3/§8.1)."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    config = gdrive_briefs.read_config(google_token, folder_id)
+    if config is None:
+        return jsonify({'error': 'Could not read config.json'}), 500
+    return jsonify({'day_planning_categories': config.get('day_planning_categories', [])})
+
+
+@app.route('/api/settings/day-planning-categories', methods=['PUT'])
+@login_required
+def api_day_planning_categories_update():
+    """Saves the day_planning_categories list back to config.json, after
+    validating it (1-3 entries, non-empty name/description, no
+    case-insensitive duplicate names — see
+    gdrive_briefs.validate_day_planning_categories)."""
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    body = request.get_json(silent=True) or {}
+    cleaned, error = gdrive_briefs.validate_day_planning_categories(body.get('day_planning_categories'))
+    if error is not None:
+        return jsonify({'error': error}), 400
+    result = gdrive_briefs.write_config({'day_planning_categories': cleaned}, google_token, folder_id)
+    if result is not True:
+        msg = result if isinstance(result, str) else 'Failed to write config.json'
+        return jsonify({'error': msg}), 500
+    return jsonify({'ok': True, 'day_planning_categories': cleaned})
+
+
 # ── Environments management ──────────────────────────────────────────
 
 @app.route('/environments')
