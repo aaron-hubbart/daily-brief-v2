@@ -264,7 +264,38 @@ function normalizeTeam(team) {
   team.id = team.id || nextFallbackId('team');
   team.notes = team.notes || '';
   team.members = team.members || [];
+  team.exempt = team.exempt || false;
+  team.sentiment = team.sentiment || '';
+  team.sentiment_updated = team.sentiment_updated || '';
+  team.open_issues = (team.open_issues === undefined) ? null : team.open_issues;
+  team.open_issues_updated = team.open_issues_updated || '';
+  team.inapplicable_meeting_types = team.inapplicable_meeting_types || [];
+  team.onboarding_date = team.onboarding_date || '';
+  team.renewal_date = team.renewal_date || '';
   return team;
+}
+
+function normalizeMeeting(m) {
+  m.id = m.id || nextFallbackId('mtg');
+  m.team_id = m.team_id || '';
+  m.meeting_type_id = m.meeting_type_id || '';
+  m.status = m.status || 'not_scheduled';
+  m.scheduled_date = m.scheduled_date || '';
+  m.occurred_date = m.occurred_date || '';
+  m.last_held_date = m.last_held_date || '';
+  m.standing_schedule = m.standing_schedule || '';
+  m.notes = m.notes || '';
+  return m;
+}
+
+function normalizeEsActivity(a) {
+  a.id = a.id || nextFallbackId('act');
+  a.team_id = a.team_id || '';
+  a.label = a.label || '';
+  a.status = a.status || 'not_done';
+  a.last_updated = a.last_updated || '';
+  a.notes = a.notes || '';
+  return a;
 }
 
 function normalizeEnvironment(env) {
@@ -323,14 +354,16 @@ function normalizeUseCase(uc) {
 
 async function load() {
   try {
-    const [envResp, custResp] = await Promise.all([
+    const [envResp, custResp, catalogResp] = await Promise.all([
       fetch(`${BASE}api/environments/config`, {credentials:'include'}),
       fetch(`${BASE}api/customers/config`, {credentials:'include'}).catch(() => null),
+      fetch(`${BASE}api/environments/meeting-catalog`, {credentials:'include'}).catch(() => null),
     ]);
     if (!envResp.ok) throw new Error((await envResp.json()).error || envResp.statusText);
     STATE = await envResp.json();
     STATE.customers = {};      // per-account data, fetched lazily on selection
     STATE.loadError = {};      // name -> error message, when that account's file couldn't be read
+    STATE.meeting_catalog = (catalogResp && catalogResp.ok) ? (await catalogResp.json()).meeting_catalog : [];
     if (custResp && custResp.ok) {
       const custConfig = await custResp.json();
       MY_CUSTOMER_NORMALIZED = new Set(
@@ -474,12 +507,14 @@ function openDiscoverySkill() {
 
 function ensureCustomer(name) {
   if (!STATE.customers[name]) {
-    STATE.customers[name] = {teams: [], environments: [], use_cases: []};
+    STATE.customers[name] = {teams: [], environments: [], use_cases: [], meetings: [], es_activities: []};
   }
   const c = STATE.customers[name];
   c.teams = (c.teams || []).map(normalizeTeam);
   c.environments = (c.environments || []).map(normalizeEnvironment);
   c.use_cases = (c.use_cases || []).map(normalizeUseCase);
+  c.meetings = (c.meetings || []).map(normalizeMeeting);
+  c.es_activities = (c.es_activities || []).map(normalizeEsActivity);
 }
 
 function renderCustomer() {
