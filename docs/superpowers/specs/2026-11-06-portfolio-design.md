@@ -106,14 +106,16 @@ to avoid colliding with it.
 
   **Pinned Drive contract** (confirmed with the parallel work, not a
   guess): a new file `portfolio-summary.json` in `/briefs/{brief_date}/`,
-  a bare object:
+  a bare object matching this skill's own established item shape
+  (`item_type`, not `type`; no file-level `generated_at` — every other
+  item file omits it too, since it's cache-internal or DB-assigned at
+  ingestion):
   ```json
   {
-    "type": "card",
+    "item_type": "card",
     "section": "portfolio-summary",
     "item_key": "portfolio-summary-callout",
-    "content": { "findings": ["One plain sentence per finding, no numbering or markdown.", "..."] },
-    "generated_at": "2026-11-06T13:05:00Z"
+    "content": { "findings": ["One plain sentence per finding, no numbering or markdown.", "..."] }
   }
   ```
   `findings` holds 3-5 plain-text sentences; this page adds the numbered-list
