@@ -127,36 +127,17 @@ to avoid colliding with it.
   it. Treat "file not found" and "found but `findings` is empty" the same
   way: hide the callout, since the anti-goals above rule out guessing at
   which case it is.
-- `claude://` refresh deep links follow the pattern used elsewhere for
-  natural-language-invoked skills (e.g. the Day Plan page's own Refresh
-  link, on the as-yet-unmerged `worktree-day-planning-webapp` branch —
-  see "Branch sequencing" below): `account-context` is invoked by natural
-  language, not a slash command, so the link must read
+- `claude://` refresh deep links follow the pattern already established by
+  the Day Plan page's own Refresh link (`day_plan.html`'s
+  `dp-refresh-link`, now merged to `main` via PR #90): `account-context` is
+  invoked by natural language, not a slash command, so the link must read
   `claude://claude.ai/new?q=` + URL-encoded `refresh the context for
-  {Account Name}`. This pattern needs no file from that branch to exist —
-  it's a plain `encodeURIComponent` + anchor href, reproducible standalone.
+  {Account Name}`.
 
-### Branch sequencing (open — needs Aaron's call before implementation starts)
-
-This design doc's worktree (`worktree-my-customers`) was cut from `main`,
-which does **not** yet have `worktree-day-planning-webapp`'s changes
-(PR #90, open, unmerged as of this writing) — `day_plan.html` and its
-toolbar link don't exist on `main`. The CSS theme variables this doc asks
-the builder to reuse *are* already on `main`'s `brief_fragment.html`, so
-that part is unaffected; only the Day Plan page itself, its toolbar
-button, and `test_toolbar_day_plan_link.py` are missing here.
-
-Three ways to proceed; this doc doesn't pick one:
-1. Build Portfolio off `main` as-is, adding its own toolbar link
-   independent of Day Plan's (two separate toolbar buttons land
-   separately, in whatever order each PR merges).
-2. Branch Portfolio from `worktree-day-planning-webapp` instead of `main`,
-   inheriting its unreviewed/unmerged changes.
-3. Wait for PR #90 to merge, then rebase/recreate this worktree off the
-   updated `main`.
-
-Resolve this before executing the plan — it changes both the branch point
-and what "mirror the toolbar link pattern" concretely means.
+**Branch sequencing (resolved):** this worktree was rebased onto `main`
+after PR #90 (Day Planning) merged, so `day_plan.html`, its toolbar link,
+and `test_toolbar_day_plan_link.py` are all present here now — mirror them
+directly rather than reproducing the pattern from scratch.
 
 ## The design, as decided
 
