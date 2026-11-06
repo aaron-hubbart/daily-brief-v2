@@ -137,6 +137,8 @@ const BASE = document.querySelector('base')?.href || '';
 let STATE = null;
 let CURRENT = null;
 let dirty = false;
+let VIEW = 'customer';
+let CURRENT_TEAM_ID = null;
 
 const COMPONENT_OPTIONS = ['Connectors', 'Operate', 'Optimize', 'Tasklist', 'Zeebe'];
 const STANDARD_ENV_NAMES = ['Development', 'DR/Failover', 'Production', 'QA/Test', 'Sandbox', 'Staging'];
@@ -604,6 +606,7 @@ function teamCardHtml(team, idx) {
         <label style="font-size:11.5px;font-weight:500;">Open issues
           <input type="number" min="0" style="width:60px;" value="${team.open_issues === null ? '' : team.open_issues}" onchange="updateTeamField(${idx}, 'open_issues', this.value === '' ? null : parseInt(this.value, 10))">
         </label>
+        ${team.exempt ? '' : `<button type="button" class="btn" onclick="renderTeamDetail('${escAttr(team.id)}')">View meetings &amp; health</button>`}
         <button class="btn danger" onclick="removeTeam(${idx})">Remove</button>
       </div>
       <div class="team-card-body collapsible-body ${collapsed}">
@@ -794,6 +797,134 @@ function removeTeam(idx) {
   });
   markDirty();
   renderCustomer();
+}
+
+function getOrCreateMeetingRow(teamId, meetingTypeId) {
+  const c = STATE.customers[CURRENT];
+  let row = c.meetings.find(m => m.team_id === teamId && m.meeting_type_id === meetingTypeId);
+  if (!row) {
+    row = normalizeMeeting({team_id: teamId, meeting_type_id: meetingTypeId});
+    c.meetings.push(row);
+  }
+  return row;
+}
+
+function updateMeetingField(teamId, meetingTypeId, field, value) {
+  const row = getOrCreateMeetingRow(teamId, meetingTypeId);
+  row[field] = value;
+  markDirty();
+  renderTeamDetail(teamId);
+}
+
+function toggleMeetingApplicable(teamId, meetingTypeId, inapplicable) {
+  const team = STATE.customers[CURRENT].teams.find(t => t.id === teamId);
+  const set = new Set(team.inapplicable_meeting_types);
+  if (inapplicable) set.add(meetingTypeId); else set.delete(meetingTypeId);
+  team.inapplicable_meeting_types = Array.from(set);
+  markDirty();
+  renderTeamDetail(teamId);
+}
+
+function addEsActivity(teamId) {
+  const activity = normalizeEsActivity({team_id: teamId, label: 'New activity'});
+  STATE.customers[CURRENT].es_activities.push(activity);
+  markDirty();
+  renderTeamDetail(teamId);
+}
+
+function updateEsActivityField(activityId, field, value) {
+  const activity = STATE.customers[CURRENT].es_activities.find(a => a.id === activityId);
+  activity[field] = value;
+  markDirty();
+  renderTeamDetail(CURRENT_TEAM_ID);
+}
+
+function removeEsActivity(activityId) {
+  const c = STATE.customers[CURRENT];
+  c.es_activities = c.es_activities.filter(a => a.id !== activityId);
+  markDirty();
+  renderTeamDetail(CURRENT_TEAM_ID);
+}
+
+function renderTeamDetail(teamId) {
+  VIEW = 'team';
+  CURRENT_TEAM_ID = teamId;
+  const c = STATE.customers[CURRENT];
+  const idx = c.teams.findIndex(t => t.id === teamId);
+  const team = c.teams[idx];
+  const content = document.getElementById('content');
+
+  const health = team.health || {level: 'Green', reasons: []};
+  const reasonsHtml = health.reasons.length
+    ? `<ul>${health.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>`
+    : '<div class="empty" style="padding:4px 0;">No issues</div>';
+
+  const oneTimeRowsHtml = (STATE.meeting_catalog || []).filter(m => m.category === 'one_time').map(entry => {
+    const row = getOrCreateMeetingRow(teamId, entry.id);
+    return `
+      <div class="field">
+        <label>${esc(entry.name)}</label>
+        <select onchange="updateMeetingField('${escAttr(teamId)}', '${escAttr(entry.id)}', 'status', this.value)">
+          ${['not_scheduled', 'scheduled', 'occurred'].map(v => `<option value="${v}" ${row.status === v ? 'selected' : ''}>${v}</option>`).join('')}
+        </select>
+        <label>Scheduled <input type="date" value="${escAttr(row.scheduled_date)}" onchange="updateMeetingField('${escAttr(teamId)}', '${escAttr(entry.id)}', 'scheduled_date', this.value)"></label>
+        <label>Occurred <input type="date" value="${escAttr(row.occurred_date)}" onchange="updateMeetingField('${escAttr(teamId)}', '${escAttr(entry.id)}', 'occurred_date', this.value)"></label>
+      </div>`;
+  }).join('');
+
+  const recurringRowsHtml = (STATE.meeting_catalog || []).filter(m => m.category === 'recurring').map(entry => {
+    const row = getOrCreateMeetingRow(teamId, entry.id);
+    const inapplicable = (team.inapplicable_meeting_types || []).includes(entry.id);
+    const applicableToggle = entry.default_requirement !== 'required'
+      ? `<label>Applicable <input type="checkbox" ${inapplicable ? '' : 'checked'} onchange="toggleMeetingApplicable('${escAttr(teamId)}', '${escAttr(entry.id)}', !this.checked)"></label>`
+      : '';
+    return `
+      <div class="field">
+        <label>${esc(entry.name)} <span class="badge">${esc(entry.default_requirement)}</span></label>
+        ${applicableToggle}
+        <label>Standing schedule <input type="text" value="${escAttr(row.standing_schedule)}" onchange="updateMeetingField('${escAttr(teamId)}', '${escAttr(entry.id)}', 'standing_schedule', this.value)"></label>
+        <label>Last held <input type="date" value="${escAttr(row.last_held_date)}" onchange="updateMeetingField('${escAttr(teamId)}', '${escAttr(entry.id)}', 'last_held_date', this.value)"></label>
+      </div>`;
+  }).join('');
+
+  const activitiesHtml = c.es_activities.filter(a => a.team_id === teamId).map(a => `
+    <div class="field">
+      <input type="text" value="${escAttr(a.label)}" onchange="updateEsActivityField('${escAttr(a.id)}', 'label', this.value)">
+      <select onchange="updateEsActivityField('${escAttr(a.id)}', 'status', this.value)">
+        ${['not_done', 'done'].map(v => `<option value="${v}" ${a.status === v ? 'selected' : ''}>${v}</option>`).join('')}
+      </select>
+      <label>Last updated <input type="date" value="${escAttr(a.last_updated)}" onchange="updateEsActivityField('${escAttr(a.id)}', 'last_updated', this.value)"></label>
+      <button type="button" class="btn danger" onclick="removeEsActivity('${escAttr(a.id)}')">Remove</button>
+    </div>`).join('') || '<div class="empty" style="padding:4px 0;">No ES activities yet</div>';
+
+  content.innerHTML = `
+    <a href="#" onclick="VIEW='customer'; renderCustomer(); return false;">&larr; ${esc(CURRENT)}</a>
+    <h2>${esc(team.name)}</h2>
+    <div class="field"><label>Onboarding date</label><input type="date" value="${escAttr(team.onboarding_date)}" onchange="updateTeamField(${idx}, 'onboarding_date', this.value)"></div>
+    <div class="field"><label>Renewal date</label><input type="date" value="${escAttr(team.renewal_date)}" onchange="updateTeamField(${idx}, 'renewal_date', this.value)"></div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">Health: ${esc(health.level)}</div>
+      <div class="env-subsection-body">${reasonsHtml}</div>
+    </div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">Key Meetings &mdash; One-time (ES101 Onboarding)</div>
+      <div class="env-subsection-body">${oneTimeRowsHtml}</div>
+    </div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">Key Meetings &mdash; Recurring</div>
+      <div class="env-subsection-body">${recurringRowsHtml}</div>
+    </div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">ES Activities
+        <button type="button" class="btn primary" onclick="addEsActivity('${escAttr(teamId)}')">Add activity</button>
+      </div>
+      <div class="env-subsection-body">${activitiesHtml}</div>
+    </div>
+  `;
 }
 
 function environmentsHtml(c) {
