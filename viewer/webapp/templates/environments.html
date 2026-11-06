@@ -137,7 +137,7 @@ const BASE = document.querySelector('base')?.href || '';
 let STATE = null;
 let CURRENT = null;
 let dirty = false;
-let VIEW = 'customer';
+let VIEW = 'portfolio';
 let CURRENT_TEAM_ID = null;
 
 const COMPONENT_OPTIONS = ['Connectors', 'Operate', 'Optimize', 'Tasklist', 'Zeebe'];
@@ -456,10 +456,15 @@ function renderCustomerSelect() {
     `<option value="${escAttr(name)}">${esc(name)}</option>`
   ).join('');
   if (!CURRENT || !names.includes(CURRENT)) CURRENT = names[0];
-  selectCustomer(CURRENT);
+  if (VIEW === 'portfolio') {
+    renderPortfolio();
+  } else {
+    selectCustomer(CURRENT);
+  }
 }
 
 async function onCustomerChange() {
+  VIEW = 'customer';
   const select = document.getElementById('customer-select');
   const next = select.value;
   if (dirty && !confirm('You have unsaved changes for ' + CURRENT + '. Discard them and switch customer?')) {
@@ -468,6 +473,39 @@ async function onCustomerChange() {
   }
   dirty = false;
   await selectCustomer(next);
+}
+
+async function renderPortfolio() {
+  VIEW = 'portfolio';
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="empty">Loading&hellip;</div>';
+  try {
+    const r = await fetch(`${BASE}api/environments/portfolio-health`, {credentials:'include'});
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.error || r.statusText);
+    const rows = body.customers.map(c => `
+      <tr style="cursor:pointer;" onclick="onCustomerChange_fromPortfolio('${escAttr(c.name)}')">
+        <td>${esc(c.name)}</td>
+        <td>${c.error ? `<span style="color:var(--bad-t)">${esc(c.error)}</span>` : healthBadgeHtml({level: c.level})}</td>
+        <td>${c.team_count}</td>
+        <td>${c.overdue_count} overdue</td>
+        <td>${esc(c.sentiment_level || '—')}</td>
+        <td>${c.open_issues_total}</td>
+      </tr>`).join('');
+    content.innerHTML = `
+      <table class="portfolio-table">
+        <thead><tr><th>Customer</th><th>Health</th><th>Teams</th><th>Meetings</th><th>Sentiment</th><th>Open issues</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch(e) {
+    content.innerHTML = `<div class="empty" style="color:var(--bad-t)">Failed to load portfolio: ${esc(e.message)}</div>`;
+  }
+}
+
+function onCustomerChange_fromPortfolio(name) {
+  VIEW = 'customer';
+  document.getElementById('customer-select').value = name;
+  selectCustomer(name);
 }
 
 async function selectCustomer(name) {
@@ -537,6 +575,7 @@ function renderCustomer() {
   const c = STATE.customers[CURRENT];
   const content = document.getElementById('content');
   content.innerHTML = `
+    <a href="#" onclick="renderPortfolio(); return false;">&larr; Portfolio</a>
     ${rollupStripHtml(c)}
     <div class="panel">
       <div class="panel-head"><span>Teams</span></div>
@@ -898,6 +937,8 @@ function renderTeamDetail(teamId) {
     </div>`).join('') || '<div class="empty" style="padding:4px 0;">No ES activities yet</div>';
 
   content.innerHTML = `
+    <a href="#" onclick="renderPortfolio(); return false;">&larr; Portfolio</a>
+    &middot;
     <a href="#" onclick="VIEW='customer'; renderCustomer(); return false;">&larr; ${esc(CURRENT)}</a>
     <h2>${esc(team.name)}</h2>
     <div class="field"><label>Onboarding date</label><input type="date" value="${escAttr(team.onboarding_date)}" onchange="updateTeamField(${idx}, 'onboarding_date', this.value)"></div>
