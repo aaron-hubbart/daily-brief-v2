@@ -1956,6 +1956,59 @@ def post_item_to_slack(section, item_key):
     return jsonify({'status': 'ok'})
 
 
+# ── Day Planning page ────────────────────────────────────────────────
+
+def _day_plan_payload(sections):
+    """Given gdrive_briefs.read_section's result for a day-plan slug
+    ('morning-plan' or 'evening-wrapup'), returns (available, data).
+    `sections` is None on a Drive error, [] when the skill hasn't
+    generated this date's file yet, or [data] once it has (read_section
+    wraps single-object sections in a list, matching manager-update.json's
+    existing handling). Both None and [] mean "not available" -- the
+    route surfaces a {"available": false} placeholder either way rather
+    than distinguishing a Drive hiccup from "not generated yet" to the
+    client."""
+    if not sections:
+        return False, None
+    return True, sections[0]
+
+
+@app.route('/day-plan')
+@login_required
+def day_plan_page():
+    return render_template('day_plan.html', user_email=request.brief_user['email'])
+
+
+@app.route('/api/day-plan/<date_str>/morning')
+@login_required
+def api_day_plan_morning(date_str):
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    sections = gdrive_briefs.read_section(date_str, 'morning-plan', google_token, folder_id)
+    available, data = _day_plan_payload(sections)
+    if not available:
+        return jsonify({'available': False})
+    html = render_template('morning_plan_fragment.html', available=True, **data)
+    return jsonify({'available': True, 'html': html})
+
+
+@app.route('/api/day-plan/<date_str>/evening')
+@login_required
+def api_day_plan_evening(date_str):
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+    sections = gdrive_briefs.read_section(date_str, 'evening-wrapup', google_token, folder_id)
+    available, data = _day_plan_payload(sections)
+    if not available:
+        return jsonify({'available': False})
+    html = render_template('evening_wrapup_fragment.html', available=True, **data)
+    return jsonify({'available': True, 'html': html})
+
+
 @app.route('/healthz')
 def healthz():
     # Unauthenticated on purpose — process-liveness only, deliberately does
