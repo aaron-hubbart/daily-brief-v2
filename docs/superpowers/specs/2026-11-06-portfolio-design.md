@@ -1,4 +1,4 @@
-# Portfolio Page Design
+# Account Health Page Design
 
 ## Intent and why
 
@@ -7,17 +7,27 @@ book at a glance. The existing viewer is account-at-a-time (Customer Updates
 cards, the Day Plan page) or task-at-a-time (Asana Overdue/Due lists). There
 is no daily "which of my accounts need attention right now" view.
 
-This feature adds **Portfolio**: a new page, scoped to Aaron's own accounts,
-that he opens daily to (a) check overall account health across his book and
-(b) decide which account(s) to focus on today. It is a triage tool, not a
-QBR deck — density and honesty about data quality matter more than polish.
+This feature adds **Account Health**: a new page, scoped to Aaron's own
+accounts, that he opens daily to (a) check overall account health across his
+book and (b) decide which account(s) to focus on today. It is a triage
+tool, not a QBR deck — density and honesty about data quality matter more
+than polish.
 
-**Naming note:** this is *not* the existing "My Customers" toggle on the
-Environments tab (`viewer/webapp/templates/environments.html`), which
-filters the org-wide environments/customer list down to Aaron's accounts by
-fuzzy name match. That feature is unrelated (infrastructure/environments
-data) and keeps its name. This new page is called **Portfolio** specifically
-to avoid colliding with it.
+**Naming note:** this page was named "Portfolio" during design, but that
+collides with two unrelated existing uses of the word in this app and was
+renamed before implementation:
+- The "My Customers" toggle on the Environments tab
+  (`viewer/webapp/templates/environments.html`), which filters the org-wide
+  environments/customer list down to Aaron's accounts by fuzzy name match.
+- The Environments tab's own internal "Portfolio" view (`VIEW = 'portfolio'`
+  in `environments.html`, backed by `/api/environments/portfolio-health`) —
+  an ES/infrastructure health rollup across *every* in-scope Asana customer,
+  a different data domain (teams/environments/ES activities) from this
+  page's ARR/renewal/CSM/health triage.
+
+Both features are unrelated and keep their existing names/routes/JSON
+section slugs unchanged. Only this new page's user-facing name and route
+changed — see Constraints for what did not change.
 
 ## Goals
 
@@ -49,7 +59,7 @@ to avoid colliding with it.
   ships with best-effort parsing of the existing prose/table Doc content.
 - No changes to the Environments tab's "My Customers" toggle.
 - Not a replacement for Customer Updates or Day Plan — those stay as they
-  are; Portfolio is a new, additional view.
+  are; Account Health is a new, additional view.
 
 ## Anti-goals
 
@@ -119,7 +129,12 @@ to avoid colliding with it.
   }
   ```
   `findings` holds 3-5 plain-text sentences; this page adds the numbered-list
-  markup itself. This webapp must add a `portfolio-summary` entry to
+  markup itself. **Builder's call:** the JSON filename, `section` slug, and
+  `item_key` all keep the literal string `portfolio-summary` unchanged by
+  the page's rename to Account Health — that contract is already shipped in
+  `camunda/actora` PR #228, and renaming it would mean reopening already-
+  merged work in the other repo for a purely internal identifier with no
+  user-facing effect. This webapp must add a `portfolio-summary` entry to
   `gdrive_briefs.py`'s `_FILE_TO_SECTION` map (currently lines 58-64; only
   `today.json`, `meetings.json`, `action-items.json`, `fyi.json`, and
   `manager-update.json` are registered) — without it, `read_section()` will
@@ -143,7 +158,7 @@ directly rather than reproducing the pattern from scratch.
 
 ### Page structure
 
-1. **Header** — title "Portfolio", subtitle with signed-in email and
+1. **Header** — title "Account Health", subtitle with signed-in email and
    account count. A back link to the main briefs list, matching the
    existing page header pattern.
 2. **Stat tiles row** (4 tiles, each clickable — opens the triage panel,
@@ -256,7 +271,7 @@ for the first time.
   construction (title search + `supportsAllDrives`), following the
   conventions already established in `gdrive_briefs.py` and
   `day_plan.html`'s route in `app.py`.
-- Toolbar entry point: add a link to Portfolio in `brief_fragment.html`'s
+- Toolbar entry point: add a link to Account Health in `brief_fragment.html`'s
   toolbar, matching the Day Plan link added previously (see
   `test_toolbar_day_plan_link.py` for the existing pattern to mirror).
 - ARR-subtotal formatting for group headers and the Combined ARR stat tile
@@ -264,9 +279,10 @@ for the first time.
   here beyond matching the mockup's style (e.g. "$256K", "~$3.47M").
 - Caching/performance: whether Context Doc lookups are cached per-request,
   per-session, or not at all for this first version. No daily cache
-  contract was specified for Portfolio the way `daily-brief-generation`
-  caches Customer Updates — Portfolio can do a live Drive read per page
-  load for now; only optimize if page-load latency becomes a real problem.
+  contract was specified for Account Health the way `daily-brief-generation`
+  caches Customer Updates — Account Health can do a live Drive read per
+  page load for now; only optimize if page-load latency becomes a real
+  problem.
 - Mockups referenced above are UI/interaction ground truth; they were
   built and approved interactively during design at
   `.superpowers/brainstorm/` in the `day-planning-webapp` worktree
