@@ -63,6 +63,7 @@ _FILE_TO_SECTION = {
     'manager-update.json': 'manager-update',
     'morning-plan.json': 'morning-plan',
     'evening-wrapup.json': 'evening-wrapup',
+    'portfolio-summary.json': 'portfolio-summary',
 }
 
 # ── Credential and folder caching ────────────────────────────────────────
@@ -814,6 +815,71 @@ def _find_account_folder(drive, account_name: str) -> Optional[Tuple[str, str]]:
     with _cache_lock:
         _account_folder_cache[cache_key] = (resolved, now + _FOLDER_TTL)
     return resolved
+
+
+def find_account_context_doc(drive, account_name: str) -> Optional[Dict]:
+    """Resolve an account's Context Doc (the Google Doc titled "{Account}
+    Context" in that account's folder under Consulting > Customers — see
+    docs/superpowers/specs/2026-11-06-portfolio-design.md). Reuses
+    _find_account_folder rather than re-deriving the account's folder a
+    second way. None if the account folder or the Doc inside it can't be
+    resolved."""
+    match = _find_account_folder(drive, account_name)
+    if not match:
+        return None
+    account_folder_id, matched_name = match
+
+    query = (
+        f"parents='{account_folder_id}' and trashed=false "
+        f"and mimeType='application/vnd.google-apps.document'"
+    )
+    candidates = _list_all_files_in_shared_drive(
+        drive, query, fields='files(id,name,modifiedTime,webViewLink)')
+
+    expected = f'{matched_name} Context'
+    doc = next((f for f in candidates if f['name'].strip() == expected), None)
+    if not doc:
+        lowered = expected.lower()
+        doc = next((f for f in candidates if f['name'].strip().lower() == lowered), None)
+    if not doc:
+        # last resort: any Doc in the folder whose normalized name contains
+        # both the normalized account name and "context"
+        norm_account = _normalize_account_name(account_name)
+        doc = next((f for f in candidates
+                    if norm_account in _normalize_account_name(f['name'])
+                    and 'context' in f['name'].lower()), None)
+    if not doc:
+        return None
+
+    return {'doc_id': doc['id'], 'doc_url': doc.get('webViewLink'), 'modified_time': doc.get('modifiedTime')}
+
+
+def read_doc_text(drive, doc_id: str) -> str:
+    """Export a Google Doc's content as plain text."""
+    content = drive.files().export(fileId=doc_id, mimeType='text/plain').execute()
+    return content.decode('utf-8') if isinstance(content, bytes) else content
+
+
+def read_account_context_doc(refresh_token: str, account_name: str) -> Union[Dict, str, None]:
+    """Resolve and read an account's Context Doc. Three-outcome contract
+    (matches read_account_environments): a dict {'text', 'doc_url',
+    'modified_time'} on success; the string 'not_found' when no Context
+    Doc can be resolved for this account; None only on an actual
+    Drive/auth failure."""
+    if not refresh_token:
+        return None
+    try:
+        drive = _get_drive_service(refresh_token)
+        if not drive:
+            return None
+        found = find_account_context_doc(drive, account_name)
+        if not found:
+            return 'not_found'
+        text = read_doc_text(drive, found['doc_id'])
+        return {'text': text, 'doc_url': found['doc_url'], 'modified_time': found['modified_time']}
+    except Exception as e:
+        logger.error('read_account_context_doc: %s: %s', account_name, e, exc_info=True)
+        return None
 
 
 def _account_not_found_error(account_name: str) -> str:
