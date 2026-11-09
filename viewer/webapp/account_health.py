@@ -8,6 +8,7 @@ the design doc is unit-testable without mocking Drive. See
 docs/superpowers/specs/2026-11-06-portfolio-design.md.
 """
 import re
+from datetime import date, datetime
 from typing import Dict, List, Optional, Tuple
 
 HEALTH_GROUPS = ('needs_attention', 'watch', 'healthy', 'no_health_data')
@@ -61,6 +62,22 @@ _OWNER_TABLE_ROW_RE = {
 }
 
 _TIER_CONTEXT_RE = re.compile(r'(?:Edition|Tier|Plan)\s*:\s*(.+)', re.IGNORECASE)
+
+NEXT_STEP_FALLBACK = "Review this account's Context Doc for next steps"
+
+_RISK_HEADING_RE = re.compile(
+    r'(?:Top open risks|Open Risks\s*&\s*Issues|Blockers\s*/\s*Risks|Risks\s*/\s*Blockers)\s*:?\s*\n'
+    r'((?:[ \t]*[-*].*(?:\n|$))+)',
+    re.IGNORECASE,
+)
+_RISK_SOURCE_TAG_RE = re.compile(r'\s*\[([^\]]+)\]\s*$')
+
+_NEXT_STEP_RE = re.compile(
+    r'(?:recommendation|next step|decide)\w*\s*:\s*(.+?)(?:\n|$)',
+    re.IGNORECASE,
+)
+
+_SWEPT_RE = re.compile(r'Last swept\s*:\s*(\d{4}-\d{2}-\d{2})', re.IGNORECASE)
 
 
 def classify_health(text: str) -> Tuple[str, List[str]]:
@@ -171,3 +188,69 @@ def parse_commercial_tier(text: str) -> Optional[str]:
     if not match:
         return None
     return match.group(1).strip().rstrip('.')
+
+
+def parse_risks(text: str) -> List[Dict]:
+    """Read the bullet list under a risks/issues heading; strip a trailing
+    [...] tag off each bullet into source_tag."""
+    match = _RISK_HEADING_RE.search(text)
+    if not match:
+        return []
+
+    risks = []
+    for line in match.group(1).splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        bullet = re.sub(r'^[-*]\s*', '', line)
+        tag_match = _RISK_SOURCE_TAG_RE.search(bullet)
+        if tag_match:
+            source_tag = tag_match.group(1)
+            bullet = bullet[:tag_match.start()].strip()
+        else:
+            source_tag = None
+        risks.append({'text': bullet, 'source_tag': source_tag})
+    return risks
+
+
+def parse_next_step(text: str) -> str:
+    """First sentence following recommendation/next-step/decide wording;
+    the fixed fallback string if nothing matches."""
+    match = _NEXT_STEP_RE.search(text)
+    if not match:
+        return NEXT_STEP_FALLBACK
+    return match.group(1).strip()
+
+
+def compute_swept_days_ago(text: str, modified_time: Optional[str], today: date) -> Optional[int]:
+    """Days between `today` and the doc's own "Last swept: YYYY-MM-DD"
+    line, falling back to the Drive file's modified_time (RFC3339) when
+    that line isn't present. None if neither is available."""
+    match = _SWEPT_RE.search(text)
+    if match:
+        swept_date = datetime.strptime(match.group(1), '%Y-%m-%d').date()
+        return (today - swept_date).days
+
+    if modified_time:
+        swept_date = datetime.strptime(modified_time[:10], '%Y-%m-%d').date()
+        return (today - swept_date).days
+
+    return None
+
+
+def format_days_ago(days: Optional[int]) -> str:
+    if days is None:
+        return 'swept date unknown'
+    if days == 0:
+        return 'swept today'
+    return f'swept {days}d ago'
+
+
+def format_arr_abbreviated(value: Optional[float]) -> str:
+    if value is None:
+        return '—'
+    if value >= 1_000_000:
+        return f'${value / 1_000_000:.2f}M'
+    if value >= 1_000:
+        return f'${int(round(value / 1_000))}K'
+    return f'${value:.0f}'
