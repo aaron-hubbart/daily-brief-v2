@@ -9,7 +9,7 @@ docs/superpowers/specs/2026-11-06-portfolio-design.md.
 """
 import re
 from datetime import date, datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 HEALTH_GROUPS = ('needs_attention', 'watch', 'healthy', 'no_health_data')
 HEALTH_GROUP_LABELS = {
@@ -143,19 +143,23 @@ def parse_arr(text: str) -> Dict:
 
 
 def parse_renewal(text: str) -> Optional[str]:
-    """Find a date near "renewal" wording; normalize to YYYY-MM-DD."""
-    if not _RENEWAL_CONTEXT_RE.search(text):
-        return None
+    """Find a date on the same line as "renewal" wording; normalize to
+    YYYY-MM-DD. Searching per-line (not the whole doc) keeps this from
+    picking up an unrelated date elsewhere in the doc (e.g. "Last swept")
+    once "renewal" appears anywhere at all."""
+    for line in text.splitlines():
+        if not _RENEWAL_CONTEXT_RE.search(line):
+            continue
 
-    iso_match = _ISO_DATE_RE.search(text)
-    if iso_match:
-        return iso_match.group(1)
+        iso_match = _ISO_DATE_RE.search(line)
+        if iso_match:
+            return iso_match.group(1)
 
-    month_match = _MONTH_DATE_RE.search(text)
-    if month_match:
-        month_name, day, year = month_match.groups()
-        month_num = _MONTH_NUM[month_name.lower()]
-        return f'{int(year):04d}-{month_num:02d}-{int(day):02d}'
+        month_match = _MONTH_DATE_RE.search(line)
+        if month_match:
+            month_name, day, year = month_match.groups()
+            month_num = _MONTH_NUM[month_name.lower()]
+            return f'{int(year):04d}-{month_num:02d}-{int(day):02d}'
 
     return None
 
@@ -254,3 +258,108 @@ def format_arr_abbreviated(value: Optional[float]) -> str:
     if value >= 1_000:
         return f'${int(round(value / 1_000))}K'
     return f'${value:.0f}'
+
+
+STALE_THRESHOLD_DAYS = 30
+
+_EMPTY_ARR = {'raw': None, 'value': None, 'disputed': False, 'note': None}
+
+
+def build_account_entry(
+    account_name: str,
+    tier: str,
+    doc_result: Union[Dict, str, None],
+    current_user_name: Optional[str],
+    today: date,
+) -> Dict:
+    """Assemble one account's uniform card dict. doc_result is a dict on
+    success, 'not_found' or None (treated identically) otherwise -- every
+    account renders a full card either way, per the spec's anti-goal
+    against silently dropping accounts."""
+    refresh_query = f'refresh the context for {account_name}'
+
+    if not isinstance(doc_result, dict):
+        return {
+            'account_name': account_name,
+            'tier': tier,
+            'health_group': 'no_health_data',
+            'health_signals': [],
+            'commercial_tier': None,
+            'swept_label': format_days_ago(None),
+            'swept_days': None,
+            'arr': dict(_EMPTY_ARR),
+            'renewal': None,
+            'csm': None,
+            'ae': None,
+            'tam': None,
+            'risks': [],
+            'next_step': NEXT_STEP_FALLBACK,
+            'doc_url': None,
+            'refresh_query': refresh_query,
+            'no_doc': True,
+        }
+
+    text = doc_result['text']
+    health_group, health_signals = classify_health(text)
+    owners = parse_owners(text, current_user_name)
+    swept_days = compute_swept_days_ago(text, doc_result.get('modified_time'), today)
+
+    return {
+        'account_name': account_name,
+        'tier': tier,
+        'health_group': health_group,
+        'health_signals': health_signals,
+        'commercial_tier': parse_commercial_tier(text),
+        'swept_label': format_days_ago(swept_days),
+        'swept_days': swept_days,
+        'arr': parse_arr(text),
+        'renewal': parse_renewal(text),
+        'csm': owners['csm'],
+        'ae': owners['ae'],
+        'tam': owners['tam'],
+        'risks': parse_risks(text),
+        'next_step': parse_next_step(text),
+        'doc_url': doc_result.get('doc_url'),
+        'refresh_query': refresh_query,
+        'no_doc': False,
+    }
+
+
+def build_page_model(
+    accounts_config: List[Dict],
+    doc_fetcher: Callable[[str], Union[Dict, str, None]],
+    current_user_name: Optional[str],
+    today: date,
+) -> Dict:
+    """Resolve every account-config entry into a card, bucket into the
+    fixed-order health groups with ARR subtotals, and compute the stat
+    tiles. Every entry renders somewhere -- never silently dropped."""
+    entries = []
+    for acct in accounts_config:
+        name = acct.get('account_name') or acct.get('name') or 'Unknown'
+        tier = acct.get('tier', 'primary')
+        doc_result = doc_fetcher(name)
+        entries.append(build_account_entry(name, tier, doc_result, current_user_name, today))
+
+    groups = []
+    for key in HEALTH_GROUPS:
+        group_entries = [e for e in entries if e['health_group'] == key]
+        subtotal = sum(e['arr']['value'] for e in group_entries if e['arr']['value'] is not None)
+        groups.append({
+            'key': key,
+            'label': HEALTH_GROUP_LABELS[key],
+            'count': len(group_entries),
+            'arr_subtotal_raw': format_arr_abbreviated(subtotal) if group_entries else format_arr_abbreviated(None),
+            'accounts': group_entries,
+        })
+
+    combined_arr = sum(e['arr']['value'] for e in entries if e['arr']['value'] is not None)
+    stat_tiles = {
+        'accounts_count': len(entries),
+        'combined_arr_raw': format_arr_abbreviated(combined_arr if entries else None),
+        'combined_arr_disputed_count': sum(1 for e in entries if e['arr']['disputed']),
+        'needs_attention_count': sum(1 for e in entries if e['health_group'] == 'needs_attention'),
+        'stale_count': sum(1 for e in entries if e['swept_days'] is not None and e['swept_days'] > STALE_THRESHOLD_DAYS),
+    }
+
+    return {'groups': groups, 'stat_tiles': stat_tiles}
