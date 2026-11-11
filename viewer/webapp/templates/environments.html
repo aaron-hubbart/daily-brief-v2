@@ -61,8 +61,17 @@ tr:last-child td{border-bottom:none;}
 .env-card-head{padding:8px 12px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:600;}
 .env-card-body{padding:10px 12px;}
 .env-subsection{border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden;}
-.env-subsection-head{padding:6px 10px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);}
+.env-subsection-head{padding:6px 10px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
 .env-subsection-body{padding:10px;}
+.meeting-row{display:flex;flex-wrap:wrap;align-items:center;column-gap:18px;row-gap:6px;padding:8px 0;border-bottom:.5px solid var(--border);}
+.meeting-row:last-child{border-bottom:none;}
+.meeting-row .mtg-name{flex:1 1 170px;font-weight:500;font-size:12.5px;}
+.meeting-row .mtg-field{display:flex;align-items:center;gap:6px;flex:0 0 auto;}
+.meeting-row .mtg-field>span{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);white-space:nowrap;}
+.meeting-row select{width:auto;min-width:112px;}
+.meeting-row input[type="date"]{width:auto;}
+.meeting-row input[type="text"]{width:auto;min-width:150px;}
+.badge{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--t3);background:var(--surface2);border:1px solid var(--border-strong);border-radius:99px;padding:1px 7px;margin-left:8px;}
 .env-group{border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
 .group-head{padding:8px 12px;background:var(--surface2);display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);}
 .group-body{padding:10px 12px;}
@@ -921,31 +930,31 @@ function renderTeamDetail(teamId) {
     const row = getOrCreateMeetingRow(teamId, entry.id);
     const ids = `data-team-id="${escAttr(teamId)}" data-meeting-type-id="${escAttr(entry.id)}"`;
     return `
-      <div class="field">
-        <label>${esc(entry.name)}</label>
-        <select ${ids} onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'status', this.value)">
+      <div class="meeting-row">
+        <div class="mtg-name">${esc(entry.name)}</div>
+        <div class="mtg-field"><span>Status</span><select ${ids} onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'status', this.value)">
           ${['not_scheduled', 'scheduled', 'occurred'].map(v => `<option value="${v}" ${row.status === v ? 'selected' : ''}>${v}</option>`).join('')}
-        </select>
-        <label>Scheduled <input type="date" ${ids} value="${escAttr(row.scheduled_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'scheduled_date', this.value)"></label>
-        <label>Occurred <input type="date" ${ids} value="${escAttr(row.occurred_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'occurred_date', this.value)"></label>
+        </select></div>
+        <div class="mtg-field"><span>Scheduled</span><input type="date" ${ids} value="${escAttr(row.scheduled_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'scheduled_date', this.value)"></div>
+        <div class="mtg-field"><span>Occurred</span><input type="date" ${ids} value="${escAttr(row.occurred_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'occurred_date', this.value)"></div>
       </div>`;
-  }).join('');
+  }).join('') || '<div class="empty" style="padding:4px 0;">No one-time meetings defined</div>';
 
   const recurringRowsHtml = (STATE.meeting_catalog || []).filter(m => m.category === 'recurring').map(entry => {
     const row = getOrCreateMeetingRow(teamId, entry.id);
     const ids = `data-team-id="${escAttr(teamId)}" data-meeting-type-id="${escAttr(entry.id)}"`;
     const inapplicable = (team.inapplicable_meeting_types || []).includes(entry.id);
-    const applicableToggle = entry.default_requirement !== 'required'
-      ? `<label>Applicable <input type="checkbox" ${ids} ${inapplicable ? '' : 'checked'} onchange="toggleMeetingApplicable(this.dataset.teamId, this.dataset.meetingTypeId, !this.checked)"></label>`
+    const applicableField = entry.default_requirement !== 'required'
+      ? `<div class="mtg-field"><span>Applicable</span><input type="checkbox" ${ids} ${inapplicable ? '' : 'checked'} onchange="toggleMeetingApplicable(this.dataset.teamId, this.dataset.meetingTypeId, !this.checked)"></div>`
       : '';
     return `
-      <div class="field">
-        <label>${esc(entry.name)} <span class="badge">${esc(entry.default_requirement)}</span></label>
-        ${applicableToggle}
-        <label>Standing schedule <input type="text" ${ids} value="${escAttr(row.standing_schedule)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'standing_schedule', this.value)"></label>
-        <label>Last held <input type="date" ${ids} value="${escAttr(row.last_held_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'last_held_date', this.value)"></label>
+      <div class="meeting-row">
+        <div class="mtg-name">${esc(entry.name)}<span class="badge">${esc(entry.default_requirement)}</span></div>
+        ${applicableField}
+        <div class="mtg-field"><span>Standing schedule</span><input type="text" ${ids} value="${escAttr(row.standing_schedule)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'standing_schedule', this.value)"></div>
+        <div class="mtg-field"><span>Last held</span><input type="date" ${ids} value="${escAttr(row.last_held_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'last_held_date', this.value)"></div>
       </div>`;
-  }).join('');
+  }).join('') || '<div class="empty" style="padding:4px 0;">No recurring meetings defined</div>';
 
   const activitiesHtml = c.es_activities.filter(a => a.team_id === teamId).map(a => `
     <div class="field" data-activity-id="${escAttr(a.id)}">
