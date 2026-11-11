@@ -58,6 +58,7 @@
       <span class="acct-card-meta">{{ item.get('content', {}).get('last_posted_label', 'No previous update found') }}</span>
     </summary>
     <div class="acct-card-body">
+      <div class="update-preview">{{ item.get('content', {}).get('textarea', '')|format_status_buckets }}</div>
       <textarea class="update-textarea">{{ item.get('content', {}).get('textarea', '') }}</textarea>
       <div class="update-row" data-item-key="{{ item.item_key }}" data-section="{{ section_slug }}">
         <input class="channel-input" type="text" value="{{ item.get('content', {}).get('channel_id', '') }}" readonly>
