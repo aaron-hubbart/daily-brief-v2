@@ -8,7 +8,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
   --bg:#f5f4f1; --surface:#fff; --surface2:#f0efe9; --border:#e2e0d8; --border-strong:#c8c6bc;
-  --t1:#1a1916; --t2:#5a5850; --t3:#9a9890;
+  --t1:#1a1916; --t2:#5a5850; --t3:#726f65;
   --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
   --good-bg:#eef7ee; --good-t:#2a7a34; --bad-bg:#fef1f0; --bad-t:#b02520;
   --warn-bg:#fdf5e6; --warn-t:#7a5000;
@@ -17,7 +17,7 @@
 }
 @media(prefers-color-scheme:dark){:root{
   --bg:#18181b; --surface:#1e1e22; --surface2:#26262c; --border:#2c2c32; --border-strong:#3c3c44;
-  --t1:#e6e4de; --t2:#9a9890; --t3:#5a5850;
+  --t1:#e6e4de; --t2:#9a9890; --t3:#8a867b;
   --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
   --good-bg:#122415; --good-t:#5cc26a; --bad-bg:#280e0e; --bad-t:#e06868;
   --warn-bg:#28200a; --warn-t:#e8a020;
@@ -56,14 +56,14 @@ a.back:hover{text-decoration:underline;}
 .badge-needs_attention{background:var(--bad-bg);color:var(--bad-t);}
 .badge-watch{background:var(--warn-bg);color:var(--warn-t);}
 .badge-healthy{background:var(--good-bg);color:var(--good-t);}
-.badge-no_health_data{background:var(--surface2);color:var(--t3);}
-.pill{font-size:10.5px;color:var(--t3);background:var(--surface2);padding:2px 7px;border-radius:999px;}
-.swept-pill{font-size:10.5px;color:var(--t3);margin-left:auto;}
+.badge-no_health_data{background:var(--surface2);color:var(--t2);border:1px solid var(--border-strong);}
+.pill{font-size:10.5px;color:var(--t2);background:var(--surface2);padding:2px 7px;border-radius:999px;}
+.swept-pill{font-size:10.5px;color:var(--t2);margin-left:auto;}
 
 .field-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px;margin-bottom:8px;}
 .field-label{font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);}
 .field-value{font-size:12.5px;color:var(--t1);margin-top:1px;}
-.field-value.placeholder{color:var(--t3);font-style:italic;}
+.field-value.placeholder{color:var(--t2);font-style:italic;}
 .field-note{font-size:11px;color:var(--bad-t);margin-top:2px;}
 
 .risks{margin-bottom:8px;}

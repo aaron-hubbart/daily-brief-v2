@@ -78,6 +78,7 @@ _OWNER_TABLE_ROW_RE = {
 _TIER_CONTEXT_RE = re.compile(r'(?:Edition|Tier|Plan)\s*:\s*(.+)', re.IGNORECASE)
 
 NEXT_STEP_FALLBACK = "Review this account's Context Doc for next steps"
+NEXT_STEP_NO_DOC = "No Context Doc found yet — use “Refresh research” below to generate one"
 
 _RISK_HEADING_RE = re.compile(
     r'(?:Top open risks|Open Risks\s*&\s*Issues|Blockers\s*/\s*Risks|Risks\s*/\s*Blockers)\s*:?\s*\n'
@@ -87,7 +88,17 @@ _RISK_HEADING_RE = re.compile(
 _RISK_SOURCE_TAG_RE = re.compile(r'\s*\[([^\]]+)\]\s*$')
 
 _NEXT_STEP_RE = re.compile(
-    r'(?:recommendation|next step|decide)\w*\s*:\s*(.+?)(?:\n|$)',
+    r'(?:recommendation|next step|decide)\w*\s*:[ \t]*(.+?)(?:\n|$)',
+    re.IGNORECASE,
+)
+# Docs that give the next step as its own heading followed by a bullet list
+# (the same convention already used for the Risks section) rather than an
+# inline "label: sentence" -- match that shape too and take the first
+# bullet, so a doc doesn't have to use the exact inline phrasing to surface
+# a real next step instead of the generic fallback.
+_NEXT_STEP_HEADING_RE = re.compile(
+    r'(?:Next Steps?|Recommendations?)\s*:?\s*\n'
+    r'[ \t]*[-*]\s*(.+?)(?:\n|$)',
     re.IGNORECASE,
 )
 
@@ -253,12 +264,16 @@ def parse_risks(text: str) -> List[Dict]:
 
 
 def parse_next_step(text: str) -> str:
-    """First sentence following recommendation/next-step/decide wording;
-    the fixed fallback string if nothing matches."""
+    """First sentence following recommendation/next-step/decide wording, or
+    (failing that) the first bullet under a "Next Steps"/"Recommendation"
+    heading; the fixed fallback string if neither shape matches."""
     match = _NEXT_STEP_RE.search(text)
-    if not match:
-        return NEXT_STEP_FALLBACK
-    return match.group(1).strip()
+    if match:
+        return match.group(1).strip()
+    heading_match = _NEXT_STEP_HEADING_RE.search(text)
+    if heading_match:
+        return heading_match.group(1).strip()
+    return NEXT_STEP_FALLBACK
 
 
 def compute_swept_days_ago(text: str, modified_time: Optional[str], today: date) -> Optional[int]:
@@ -337,7 +352,7 @@ def build_account_entry(
             'ae': None,
             'tam': None,
             'risks': [],
-            'next_step': NEXT_STEP_FALLBACK,
+            'next_step': NEXT_STEP_NO_DOC,
             'doc_url': None,
             'refresh_query': refresh_query,
             'no_doc': True,

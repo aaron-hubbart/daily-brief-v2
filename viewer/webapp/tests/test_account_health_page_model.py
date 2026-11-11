@@ -11,7 +11,7 @@ def test_build_account_entry_no_doc_found():
     assert entry['renewal'] is None
     assert entry['csm'] is None and entry['ae'] is None and entry['tam'] is None
     assert entry['risks'] == []
-    assert entry['next_step'] == "Review this account's Context Doc for next steps"
+    assert entry['next_step'] == "No Context Doc found yet — use “Refresh research” below to generate one"
     assert entry['doc_url'] is None
     assert entry['refresh_query'] == 'refresh the context for Acme Corp'
 
