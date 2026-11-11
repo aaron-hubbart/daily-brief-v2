@@ -157,6 +157,11 @@ def test_parse_next_step_fallback():
     assert parse_next_step("No recommendation language in this doc.") == "Review this account's Context Doc for next steps"
 
 
+def test_parse_next_step_heading_with_bullets():
+    text = "Next Steps:\n- Schedule an exec QBR before renewal\n- Confirm budget owner"
+    assert parse_next_step(text) == 'Schedule an exec QBR before renewal'
+
+
 def test_compute_swept_days_ago_from_doc_line():
     from datetime import date
     assert compute_swept_days_ago("Last swept: 2026-11-01", modified_time=None, today=date(2026, 11, 9)) == 8
