@@ -47,21 +47,33 @@ def _resolve_link_url(url):
     return url
 
 
+def _bucket_header_text(line):
+    stripped = line.strip()
+    if len(stripped) > 2 and stripped.startswith('*') and stripped.endswith('*'):
+        return stripped[1:-1]
+    return stripped
+
+
 def _format_status_buckets(text):
     if not text:
         return text
     lines = [line.strip() for line in text.splitlines()]
-    header_positions = [i for i, line in enumerate(lines) if line in STATUS_BUCKET_HEADERS]
+    header_positions = [i for i, line in enumerate(lines) if _bucket_header_text(line) in STATUS_BUCKET_HEADERS]
     if (
         len(header_positions) < len(STATUS_BUCKET_HEADERS)
-        or [lines[i] for i in header_positions[:3]] != list(STATUS_BUCKET_HEADERS)
+        or [_bucket_header_text(lines[i]) for i in header_positions[:3]] != list(STATUS_BUCKET_HEADERS)
     ):
         return _autolink_jira(text)
 
     header_positions = header_positions[:3]
     html = []
+    preamble = [line for line in lines[:header_positions[0]] if line]
+    if preamble:
+        html.append('<div class="status-bucket-preamble">')
+        html.extend(f'<div>{_autolink_jira(line)}</div>' for line in preamble)
+        html.append('</div>')
     for idx, pos in enumerate(header_positions):
-        header = lines[pos]
+        header = _bucket_header_text(lines[pos])
         end = header_positions[idx + 1] if idx + 1 < len(header_positions) else len(lines)
         bullets = [
             STATUS_BUCKET_BULLET_RE.sub('', line)

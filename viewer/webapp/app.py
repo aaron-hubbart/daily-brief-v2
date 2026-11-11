@@ -585,33 +585,53 @@ STATUS_BUCKET_CSS_CLASS = {
 STATUS_BUCKET_BULLET_RE = re.compile(r'^[-•]\s*')
 
 
+def _bucket_header_text(line):
+    """Strip Slack mrkdwn bold markers (e.g. '*Updates/FYI*') so a header
+    line matches STATUS_BUCKET_HEADERS whether it's the recap's plain-text
+    header or the customer/manager-update generator's Slack-formatted one."""
+    stripped = line.strip()
+    if len(stripped) > 2 and stripped.startswith('*') and stripped.endswith('*'):
+        return stripped[1:-1]
+    return stripped
+
+
 @app.template_filter('format_status_buckets')
 def format_status_buckets(text):
     """Jinja2 filter for the daily-brief-generation skill's fixed three-bucket
-    status text (subtitle on account-recap items): a 'Updates/FYI' header
-    line, then 'Pending Action Items', then 'Blockers/Risks', each followed
-    by '-'/'•' bullet lines (a literal 'None' line when empty). Renders
-    each bucket as its own labeled block with a real <ul><li> list instead of
-    letting the newlines collapse into one paragraph.
+    status text: a 'Updates/FYI' header line, then 'Pending Action Items',
+    then 'Blockers/Risks', each followed by '-'/'•' bullet lines (a literal
+    'None' line when empty). Renders each bucket as its own labeled block
+    with a real <ul><li> list instead of letting the newlines collapse into
+    one paragraph. Headers may be plain text (account-recap subtitles) or
+    Slack mrkdwn bold (customer/manager-update textareas, e.g. '*Updates/FYI*');
+    any text before the first header -- the customer-update textarea's
+    '[TAM-UPDATE] #claude-brief-skill' header and '*Account -- TAM Update*'
+    date-range line -- is kept but left raw (autolinked, not bucketed),
+    since it isn't part of the fixed three-bucket shape.
 
     Falls back to the plain autolink_jira rendering used before this format
-    existed when the text doesn't start with all three headers in order --
+    existed when the text doesn't contain all three headers in order --
     this filter also replaces autolink_jira on other sections' single-line
     subtitles (yesterday's meetings, today), which should render unchanged."""
     if not text:
         return text
     lines = [line.strip() for line in text.splitlines()]
-    header_positions = [i for i, line in enumerate(lines) if line in STATUS_BUCKET_HEADERS]
+    header_positions = [i for i, line in enumerate(lines) if _bucket_header_text(line) in STATUS_BUCKET_HEADERS]
     if (
         len(header_positions) < len(STATUS_BUCKET_HEADERS)
-        or [lines[i] for i in header_positions[:3]] != list(STATUS_BUCKET_HEADERS)
+        or [_bucket_header_text(lines[i]) for i in header_positions[:3]] != list(STATUS_BUCKET_HEADERS)
     ):
         return autolink_jira(text)
 
     header_positions = header_positions[:3]
     html = []
+    preamble = [line for line in lines[:header_positions[0]] if line]
+    if preamble:
+        html.append('<div class="status-bucket-preamble">')
+        html.extend(f'<div>{autolink_jira(line)}</div>' for line in preamble)
+        html.append('</div>')
     for idx, pos in enumerate(header_positions):
-        header = lines[pos]
+        header = _bucket_header_text(lines[pos])
         end = header_positions[idx + 1] if idx + 1 < len(header_positions) else len(lines)
         bullets = [
             STATUS_BUCKET_BULLET_RE.sub('', line)
