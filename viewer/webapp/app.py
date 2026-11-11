@@ -51,6 +51,7 @@ from flask import Flask, Response, abort, jsonify, redirect, render_template, re
 from markupsafe import Markup, escape
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+import account_health
 import asana_discovery
 import db
 import es_health
@@ -2109,6 +2110,45 @@ def api_day_plan_evening(date_str):
     )
     html = render_template('evening_wrapup_fragment.html', available=True, **kwargs)
     return jsonify({'available': True, 'html': html})
+
+
+@app.route('/account-health')
+@login_required
+def account_health_page():
+    return render_template('account_health.html', user_email=request.brief_user['email'])
+
+
+@app.route('/api/account-health/<date_str>')
+@login_required
+def api_account_health(date_str):
+    if not DATE_RE.match(date_str):
+        abort(400)
+    google_token = db.get_google_refresh_token(request.brief_user['id'])
+    folder_id = db.get_google_drive_folder_id(request.brief_user['id'])
+    if not google_token:
+        return jsonify({'error': 'Google Drive not connected'}), 400
+
+    config = gdrive_briefs.read_account_config(google_token, folder_id)
+    if config is None:
+        return jsonify({'error': 'Could not read account-config.json'}), 500
+
+    def doc_fetcher(name):
+        return gdrive_briefs.read_account_context_doc(google_token, name)
+
+    model = account_health.build_page_model(
+        config.get('accounts', []), doc_fetcher,
+        current_user_name=request.brief_user.get('name'),
+        today=date.today(),
+    )
+
+    callout_items = gdrive_briefs.read_section(date_str, 'portfolio-summary', google_token, folder_id)
+    findings = account_health.extract_callout_findings(callout_items)
+
+    return jsonify({
+        'groups': model['groups'],
+        'stat_tiles': model['stat_tiles'],
+        'callout': {'findings': findings} if findings else None,
+    })
 
 
 @app.route('/healthz')
