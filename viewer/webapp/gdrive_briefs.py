@@ -35,6 +35,7 @@ import os
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, List, Tuple, Union
 
 try:
@@ -73,6 +74,12 @@ _cache_lock = threading.Lock()
 # {refresh_token: (drive_service, expiry_monotonic)}
 _drive_cache: Dict[str, Tuple] = {}
 _DRIVE_TTL = 45 * 60  # 45 minutes (Google access tokens last 60 min)
+
+# {refresh_token: (credentials, expiry_monotonic)} -- kept alongside
+# _drive_cache so read_account_context_docs can build one Drive service per
+# worker thread (httplib2 HTTP transports aren't safe to share across
+# threads) without paying for a second OAuth refresh round trip.
+_credentials_cache: Dict[str, Tuple] = {}
 
 # {cache_key: (folder_id, expiry_monotonic)}
 _folder_cache: Dict[str, Tuple] = {}
@@ -116,10 +123,32 @@ def _get_drive_service(refresh_token: str):
 
         with _cache_lock:
             _drive_cache[cache_key] = (drive, now + _DRIVE_TTL)
+            _credentials_cache[cache_key] = (credentials, now + _DRIVE_TTL)
         return drive
     except Exception as e:
         logger.error(f'_get_drive_service: Failed to build Drive service: {e}', exc_info=True)
         return None
+
+
+def _get_drive_credentials(refresh_token: str):
+    """Cached, already-refreshed Credentials for this refresh token, for
+    building a fresh per-thread Drive service in
+    read_account_context_docs. Piggybacks on _get_drive_service for the
+    actual OAuth refresh so there's still only one refresh per cache
+    window, not one per worker thread."""
+    if not refresh_token:
+        return None
+    now = time.monotonic()
+    cache_key = refresh_token[-16:]
+    with _cache_lock:
+        cached = _credentials_cache.get(cache_key)
+        if cached and cached[1] > now:
+            return cached[0]
+    if not _get_drive_service(refresh_token):
+        return None
+    with _cache_lock:
+        cached = _credentials_cache.get(cache_key)
+        return cached[0] if cached else None
 
 
 def _find_folder_cached(drive, parent_id: str, name: str) -> Optional[str]:
@@ -854,10 +883,30 @@ def find_account_context_doc(drive, account_name: str) -> Optional[Dict]:
     return {'doc_id': doc['id'], 'doc_url': doc.get('webViewLink'), 'modified_time': doc.get('modifiedTime')}
 
 
+# {doc_id: (text, expiry_monotonic)}
+_doc_text_cache: Dict[str, Tuple] = {}
+_DOC_TEXT_TTL = 20 * 60  # 20 minutes -- an edit to a Context Doc shows up
+                          # on the next Account Health reload after at
+                          # most this long a wait.
+
+
 def read_doc_text(drive, doc_id: str) -> str:
-    """Export a Google Doc's content as plain text."""
+    """Export a Google Doc's content as plain text, cached briefly -- the
+    Account Health page re-reads every account's Context Doc on every
+    load, so without this a page reload re-downloads content that hasn't
+    changed since the last one."""
+    now = time.monotonic()
+    with _cache_lock:
+        cached = _doc_text_cache.get(doc_id)
+        if cached and cached[1] > now:
+            return cached[0]
+
     content = drive.files().export(fileId=doc_id, mimeType='text/plain').execute()
-    return content.decode('utf-8') if isinstance(content, bytes) else content
+    text = content.decode('utf-8') if isinstance(content, bytes) else content
+
+    with _cache_lock:
+        _doc_text_cache[doc_id] = (text, now + _DOC_TEXT_TTL)
+    return text
 
 
 def read_account_context_doc(refresh_token: str, account_name: str) -> Union[Dict, str, None]:
@@ -880,6 +929,53 @@ def read_account_context_doc(refresh_token: str, account_name: str) -> Union[Dic
     except Exception as e:
         logger.error('read_account_context_doc: %s: %s', account_name, e, exc_info=True)
         return None
+
+
+_CONTEXT_DOC_FETCH_WORKERS = 8
+
+
+def read_account_context_docs(
+    refresh_token: str, account_names: List[str], max_workers: int = _CONTEXT_DOC_FETCH_WORKERS,
+) -> Dict[str, Union[Dict, str, None]]:
+    """Like read_account_context_doc, but for many accounts at once.
+
+    The Account Health page's load time is dominated by N accounts times
+    several sequential Drive round trips each (folder lookup, doc lookup,
+    doc export) -- fetching them one at a time in a loop means the whole
+    page waits on N times that latency. This fans the per-account fetches
+    out across a thread pool instead, since they're independent and
+    I/O-bound (waiting on the Drive API, not CPU). Folder/doc-listing
+    lookups still share the process-wide caches above (_folder_cache,
+    _account_folder_cache), which are already lock-protected, so
+    concurrent accounts in the same letter folder benefit from each
+    other's lookups rather than racing.
+
+    Each worker builds its own Drive service from the shared cached
+    credentials rather than reusing _get_drive_service's cached Resource:
+    the googleapiclient Resource's underlying httplib2 HTTP transport is
+    not safe to use from more than one thread at a time, and sharing it
+    here would risk corrupted/misrouted requests, not just a crash."""
+    if not refresh_token or not account_names:
+        return {}
+
+    credentials = _get_drive_credentials(refresh_token)
+    if not credentials:
+        return {name: None for name in account_names}
+
+    def fetch(name: str) -> Tuple[str, Union[Dict, str, None]]:
+        try:
+            drive = build('drive', 'v3', credentials=credentials)
+            found = find_account_context_doc(drive, name)
+            if not found:
+                return name, 'not_found'
+            text = read_doc_text(drive, found['doc_id'])
+            return name, {'text': text, 'doc_url': found['doc_url'], 'modified_time': found['modified_time']}
+        except Exception as e:
+            logger.error('read_account_context_docs: %s: %s', name, e, exc_info=True)
+            return name, None
+
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(account_names))) as pool:
+        return dict(pool.map(fetch, account_names))
 
 
 def _account_not_found_error(account_name: str) -> str:

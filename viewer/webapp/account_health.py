@@ -406,6 +406,13 @@ def extract_callout_findings(callout_items: Optional[List]) -> Optional[List[str
     return findings
 
 
+def resolve_account_name(acct: Dict) -> str:
+    """The account-config entry's display name, with the same fallback
+    app.py uses to prefetch Context Docs for build_page_model's
+    doc_fetcher -- kept as one function so the two can't drift apart."""
+    return acct.get('account_name') or acct.get('name') or 'Unknown'
+
+
 def build_page_model(
     accounts_config: List[Dict],
     doc_fetcher: Callable[[str], Union[Dict, str, None]],
@@ -417,7 +424,7 @@ def build_page_model(
     tiles. Every entry renders somewhere -- never silently dropped."""
     entries = []
     for acct in accounts_config:
-        name = acct.get('account_name') or acct.get('name') or 'Unknown'
+        name = resolve_account_name(acct)
         tier = acct.get('tier', 'primary')
         doc_result = doc_fetcher(name)
         try:

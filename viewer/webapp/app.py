@@ -2152,8 +2152,15 @@ def api_account_health(date_str):
     if config is None:
         return jsonify({'error': 'Could not read account-config.json'}), 500
 
+    # Fetch every account's Context Doc concurrently up front instead of
+    # one at a time inside build_page_model's loop -- with dozens of
+    # accounts each needing several sequential Drive round trips, that
+    # loop was the page's dominant cost.
+    account_names = [account_health.resolve_account_name(acct) for acct in config.get('accounts', [])]
+    prefetched_docs = gdrive_briefs.read_account_context_docs(google_token, account_names)
+
     def doc_fetcher(name):
-        return gdrive_briefs.read_account_context_doc(google_token, name)
+        return prefetched_docs.get(name)
 
     model = account_health.build_page_model(
         config.get('accounts', []), doc_fetcher,
