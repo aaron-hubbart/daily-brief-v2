@@ -183,16 +183,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 .tab-panel.active{display:block;}
 
 /* ── Customers tab (migrated from templates/customers.html) ── */
-#tab-customers{font-size:14px;}
+/* Day Planning reuses the same cust-* classes (its panel was migrated */
+/* from the same markup), so every selector here also matches #tab-day-planning. */
+#tab-customers,#tab-day-planning{font-size:14px;}
 #tab-customers .cust-internal-gid{font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
 #tab-customers .cust-internal-gid label{font-weight:500;font-size:12px;color:var(--t2);}
-#tab-customers .cust-panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);overflow:hidden;}
-#tab-customers .cust-panel-head{padding:10px 14px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
-#tab-customers .cust-panel-body{padding:12px 14px;}
-#tab-customers table{width:100%;border-collapse:collapse;font-size:12.5px;}
-#tab-customers th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
-#tab-customers td{padding:7px 8px;border-bottom:.5px solid var(--border);vertical-align:middle;}
-#tab-customers tr:last-child td{border-bottom:none;}
+#tab-customers .cust-panel,#tab-day-planning .cust-panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);overflow:hidden;}
+#tab-customers .cust-panel-head,#tab-day-planning .cust-panel-head{padding:10px 14px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
+#tab-customers .cust-panel-body,#tab-day-planning .cust-panel-body{padding:12px 14px;}
+#tab-customers table,#tab-day-planning table{width:100%;border-collapse:collapse;font-size:12.5px;}
+#tab-customers th,#tab-day-planning th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
+#tab-customers td,#tab-day-planning td{padding:7px 8px;border-bottom:.5px solid var(--border);vertical-align:middle;}
+#tab-customers tr:last-child td,#tab-day-planning tr:last-child td{border-bottom:none;}
 #tab-customers tr.editing td{background:var(--accent-bg);}
 #tab-customers .cust-acct-name{font-weight:500;}
 #tab-customers .cust-mono{font-family:var(--mono);font-size:11px;color:var(--t3);}
@@ -201,22 +203,22 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 #tab-customers .cust-pill.primary{background:var(--accent-bg);color:var(--accent-t);}
 #tab-customers .cust-pill.secondary{background:var(--surface2);color:var(--t2);}
 #tab-customers .cust-day-tag{font-size:11px;color:var(--t2);}
-#tab-customers select,#tab-customers input[type="text"]{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+#tab-customers select,#tab-customers input[type="text"],#tab-day-planning select,#tab-day-planning input[type="text"]{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
 #tab-customers select{cursor:pointer;}
-#tab-customers .cust-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
-#tab-customers .cust-btn:hover{filter:brightness(.95);}
-#tab-customers .cust-btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
-#tab-customers .cust-btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
-#tab-customers .cust-btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
-#tab-customers .cust-btn:disabled{opacity:.4;cursor:default;}
-#tab-customers .cust-actions{display:flex;gap:6px;}
-#tab-customers .cust-msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
-#tab-customers .cust-msg.ok{color:var(--good-t);}
-#tab-customers .cust-msg.err{color:var(--bad-t);}
-#tab-customers .cust-empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
+#tab-customers .cust-btn,#tab-day-planning .cust-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+#tab-customers .cust-btn:hover,#tab-day-planning .cust-btn:hover{filter:brightness(.95);}
+#tab-customers .cust-btn.primary,#tab-day-planning .cust-btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
+#tab-customers .cust-btn.danger,#tab-day-planning .cust-btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
+#tab-customers .cust-btn.save,#tab-day-planning .cust-btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
+#tab-customers .cust-btn:disabled,#tab-day-planning .cust-btn:disabled{opacity:.4;cursor:default;}
+#tab-customers .cust-actions,#tab-day-planning .cust-actions{display:flex;gap:6px;}
+#tab-customers .cust-msg,#tab-day-planning .cust-msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
+#tab-customers .cust-msg.ok,#tab-day-planning .cust-msg.ok{color:var(--good-t);}
+#tab-customers .cust-msg.err,#tab-day-planning .cust-msg.err{color:var(--bad-t);}
+#tab-customers .cust-empty,#tab-day-planning .cust-empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
 #tab-customers .cust-section-head td{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t2);background:var(--surface2);padding:8px 8px;border-bottom:1px solid var(--border-strong);}
-#tab-customers .cust-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
-#tab-customers .cust-add-row input{flex:1;min-width:120px;}
+#tab-customers .cust-add-row,#tab-day-planning .cust-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+#tab-customers .cust-add-row input,#tab-day-planning .cust-add-row input{flex:1;min-width:120px;}
 #cust-toast-container{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;}
 .cust-toast{padding:10px 20px;border-radius:var(--r);font-size:13px;font-weight:500;pointer-events:auto;opacity:0;transform:translateY(-12px);animation:cust-toast-in .25s ease forwards;}
 .cust-toast.ok{background:var(--good-bg);color:var(--good-t);border:1px solid var(--good-t);}
@@ -2182,6 +2184,11 @@ async function saveKeyContacts() {
 }
 
 const DAY_PLANNING_CATEGORIES_MAX = 3;
+const DAY_PLANNING_CATEGORIES_DEFAULT = [
+  {name: 'Account Follow-Ups', description: 'Tasks tied to a specific customer account that need follow-up.'},
+  {name: 'Internal / Strategic', description: 'Internal meetings, planning, and work not tied to a specific account.'},
+  {name: 'Personal / Admin', description: 'Administrative tasks, scheduling, and other personal to-dos.'}
+];
 let DAY_PLANNING_CATEGORIES = [];
 let dpcDirty = false;
 
@@ -2191,6 +2198,13 @@ async function loadDayPlanningCategories() {
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     const data = await r.json();
     DAY_PLANNING_CATEGORIES = data.day_planning_categories || [];
+    if (!DAY_PLANNING_CATEGORIES.length) {
+      DAY_PLANNING_CATEGORIES = DAY_PLANNING_CATEGORIES_DEFAULT.map(c => ({...c}));
+      renderDayPlanningCategories();
+      markDayPlanningCategoriesDirty();
+      document.getElementById('dpc-msg').textContent = 'Suggested defaults — edit as needed, then Save to Drive.';
+      return;
+    }
     renderDayPlanningCategories();
   } catch(e) {
     document.getElementById('dpc-body').innerHTML =
