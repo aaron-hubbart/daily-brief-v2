@@ -29,10 +29,26 @@ def test_classify_health_no_signal_is_no_health_data():
 
 
 def test_classify_health_worse_of_two_scores():
-    # Two scores disagree -> group by the worse (Yellow beats Green), both signals kept
-    group, signals = classify_health("C8: Green, Overall health: Yellow")
+    # Spec's own literal example (docs/.../2026-11-06-portfolio-design.md):
+    # two scores disagree -> group by the worse (Yellow beats Green), both
+    # signals kept. Neither "C8:" nor "Overall:" contains the word
+    # "health" -- the real pattern this must handle.
+    group, signals = classify_health("C8: Green, Overall: Yellow")
     assert group == 'watch'
     assert set(signals) == {'Green', 'Yellow'}
+
+
+def test_classify_health_ignores_unrelated_health_mention():
+    # "health check" on "Red Hat" must not false-positive as a Red health
+    # signal -- common phrasing in Camunda TAM docs, unrelated to account
+    # health.
+    assert classify_health("Platform health check on Red Hat OpenShift") == ('no_health_data', [])
+
+
+def test_classify_health_dedupes_repeated_signal():
+    group, signals = classify_health("Health: Yellow\nGainsight health score: Yellow")
+    assert group == 'watch'
+    assert signals == ['Yellow']
 
 
 def test_parse_arr_plain_figure():
@@ -48,6 +64,30 @@ def test_parse_arr_disputed_figure_flagged():
 
 def test_parse_arr_not_found():
     assert parse_arr("No commercial figures in this section.") == {'raw': None, 'value': None, 'disputed': False, 'note': None}
+
+
+def test_parse_arr_ignores_unrelated_dollar_figure_elsewhere_in_doc():
+    # A $ figure on an earlier, unrelated line must not win over the real
+    # ARR line later in the doc.
+    r = parse_arr("PS deal $40K signed.\nCurrent ARR: $310K")
+    assert r['raw'] == '$310K'
+    assert r['value'] == 310_000.0
+
+
+def test_parse_arr_amount_not_inflated_by_trailing_word():
+    # "$1,200 monthly" must not read the leading "m" of "monthly" as an
+    # M-for-million suffix (which would inflate $1,200 into $1.2B).
+    r = parse_arr("ARR runs $1,200 monthly per the latest sync.")
+    assert r['raw'] == '$1,200'
+    assert r['value'] == 1200.0
+
+
+def test_parse_arr_dispute_words_scoped_to_arr_line():
+    # A dispute word elsewhere in the doc, unrelated to ARR, must not
+    # falsely flag the ARR figure as disputed.
+    r = parse_arr("Scheduling conflict with the QBR.\nCurrent ARR: $500,000.")
+    assert r['disputed'] is False
+    assert r['note'] is None
 
 
 def test_parse_renewal_found():
@@ -74,6 +114,14 @@ def test_parse_owners_missing_role_is_none():
 
 def test_parse_owners_you_match_is_case_insensitive():
     assert parse_owners("TAM: aaron hubbart", current_user_name='Aaron Hubbart')['tam'] == 'You'
+
+
+def test_parse_owners_you_match_on_first_name_only():
+    assert parse_owners("TAM: Aaron", current_user_name='Aaron Hubbart')['tam'] == 'You'
+
+
+def test_parse_owners_you_match_strips_trailing_parenthetical():
+    assert parse_owners("TAM: Aaron Hubbart (Camunda)", current_user_name='Aaron Hubbart')['tam'] == 'You'
 
 
 def test_parse_commercial_tier_found():
@@ -122,6 +170,20 @@ def test_compute_swept_days_ago_falls_back_to_modified_time():
 def test_compute_swept_days_ago_unknown():
     from datetime import date
     assert compute_swept_days_ago("Nothing here.", modified_time=None, today=date(2026, 11, 9)) is None
+
+
+def test_compute_swept_days_ago_malformed_doc_date_does_not_crash():
+    from datetime import date
+    # Falls back to modified_time when the doc's own date is unparseable,
+    # rather than raising.
+    assert compute_swept_days_ago(
+        "Last swept: 2026-02-30", modified_time="2026-11-05T00:00:00.000Z", today=date(2026, 11, 9),
+    ) == 4
+
+
+def test_compute_swept_days_ago_malformed_modified_time_does_not_crash():
+    from datetime import date
+    assert compute_swept_days_ago("No sweep line here.", modified_time="not-a-date", today=date(2026, 11, 9)) is None
 
 
 def test_format_days_ago_variants():

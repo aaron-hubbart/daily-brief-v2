@@ -1,6 +1,6 @@
 from datetime import date
 
-from account_health import build_account_entry, build_page_model
+from account_health import build_account_entry, build_page_model, extract_callout_findings
 
 
 def test_build_account_entry_no_doc_found():
@@ -48,6 +48,19 @@ def test_build_account_entry_found_doc():
     assert entry['tam'] == 'You'
     assert entry['doc_url'] == 'https://docs.google.com/x'
     assert entry['swept_label'] == 'swept 8d ago'
+    assert entry['health_disagree'] is False  # single signal (Yellow) -- no disagreement
+
+
+def test_build_account_entry_health_disagree_flag_set_when_signals_differ():
+    doc_result = {'text': 'C8: Green, Overall: Yellow', 'doc_url': 'u', 'modified_time': None}
+    entry = build_account_entry('Acme Corp', 'primary', doc_result, current_user_name=None, today=date(2026, 11, 9))
+    assert entry['health_disagree'] is True
+    assert set(entry['health_signals']) == {'Green', 'Yellow'}
+
+
+def test_build_account_entry_no_doc_found_health_disagree_is_false():
+    entry = build_account_entry('Acme Corp', 'primary', 'not_found', current_user_name=None, today=date(2026, 11, 9))
+    assert entry['health_disagree'] is False
 
 
 def _fetcher(docs):
@@ -107,3 +120,62 @@ def test_build_page_model_missing_account_name_key_does_not_crash():
     accounts_config = [{'name': 'Legacy Co', 'tier': 'primary'}]
     model = build_page_model(accounts_config, _fetcher({}), current_user_name=None, today=date(2026, 11, 9))
     assert model['groups'][-1]['accounts'][0]['account_name'] == 'Legacy Co'
+
+
+def test_build_page_model_one_bad_account_does_not_crash_the_rest(monkeypatch):
+    # A single account whose doc blows up some parser (any exception, not
+    # just the already-fixed date one) must not take down the whole page --
+    # it falls back to a no-doc-style card, and every other account still
+    # renders normally.
+    import account_health
+
+    real_build_entry = account_health.build_account_entry
+
+    def flaky_build_entry(account_name, tier, doc_result, current_user_name, today):
+        # Only raise when actually asked to parse real doc text -- the
+        # fallback call (doc_result='not_found') must succeed, same as it
+        # would for a real parsing bug that's triggered by specific
+        # malformed content, not by the account name itself.
+        if account_name == 'Bad Co' and isinstance(doc_result, dict):
+            raise ValueError('boom')
+        return real_build_entry(account_name, tier, doc_result, current_user_name, today)
+
+    monkeypatch.setattr(account_health, 'build_account_entry', flaky_build_entry)
+
+    accounts_config = [{'account_name': 'Bad Co'}, {'account_name': 'Good Co'}]
+    docs = {
+        'Bad Co': {'text': 'Whatever triggers the bug.', 'doc_url': 'u', 'modified_time': None},
+        'Good Co': {'text': 'Health: Green\nCurrent ARR: $100,000.', 'doc_url': 'u', 'modified_time': None},
+    }
+    model = build_page_model(accounts_config, _fetcher(docs), current_user_name=None, today=date(2026, 11, 9))
+
+    assert model['stat_tiles']['accounts_count'] == 2
+    names = [a['account_name'] for g in model['groups'] for a in g['accounts']]
+    assert set(names) == {'Bad Co', 'Good Co'}
+    bad_entry = next(a for g in model['groups'] for a in g['accounts'] if a['account_name'] == 'Bad Co')
+    assert bad_entry['no_doc'] is True
+
+
+def test_extract_callout_findings_missing_section():
+    assert extract_callout_findings(None) is None
+    assert extract_callout_findings([]) is None
+
+
+def test_extract_callout_findings_item_not_a_dict():
+    assert extract_callout_findings(['just a string']) is None
+
+
+def test_extract_callout_findings_content_not_a_dict():
+    assert extract_callout_findings([{'item_type': 'card', 'content': None}]) is None
+    assert extract_callout_findings([{'item_type': 'card', 'content': 'oops'}]) is None
+
+
+def test_extract_callout_findings_findings_missing_or_empty():
+    assert extract_callout_findings([{'content': {}}]) is None
+    assert extract_callout_findings([{'content': {'findings': []}}]) is None
+    assert extract_callout_findings([{'content': {'findings': 'not a list'}}]) is None
+
+
+def test_extract_callout_findings_populated():
+    items = [{'content': {'findings': ['Finding one.', 'Finding two.']}}]
+    assert extract_callout_findings(items) == ['Finding one.', 'Finding two.']

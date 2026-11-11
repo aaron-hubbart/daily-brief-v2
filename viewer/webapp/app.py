@@ -2142,11 +2142,7 @@ def api_account_health(date_str):
     )
 
     callout_items = gdrive_briefs.read_section(date_str, 'portfolio-summary', google_token, folder_id)
-    findings = None
-    if callout_items and isinstance(callout_items[0], dict):
-        candidate = callout_items[0].get('content', {}).get('findings')
-        if candidate:
-            findings = candidate
+    findings = account_health.extract_callout_findings(callout_items)
 
     return jsonify({
         'groups': model['groups'],

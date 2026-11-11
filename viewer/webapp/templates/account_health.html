@@ -174,7 +174,7 @@ function renderCard(account) {
       <div class="field-grid">
         <div><div class="field-label">ARR</div>${fieldValue(arrDisplay, placeholder)}${arr.disputed && arr.note ? `<div class="field-note">${esc(arr.note)}</div>` : ''}</div>
         <div><div class="field-label">Renewal</div>${fieldValue(account.renewal, placeholder)}</div>
-        <div><div class="field-label">Health</div>${fieldValue((account.health_signals || []).join(', ') || null, placeholder)}</div>
+        <div><div class="field-label">Health</div>${fieldValue((account.health_signals || []).join(', ') || null, placeholder)}${account.health_disagree ? '<div class="field-note">Scores disagree</div>' : ''}</div>
         <div><div class="field-label">CSM</div>${fieldValue(account.csm, placeholder)}</div>
         <div><div class="field-label">AE</div>${fieldValue(account.ae, placeholder)}</div>
         <div><div class="field-label">TAM</div>${fieldValue(account.tam, placeholder)}</div>
@@ -299,7 +299,11 @@ async function load() {
   body.innerHTML = '<div class="empty">Loading&hellip;</div>';
   try {
     const r = await fetch(`${BASE}api/account-health/${todayLocalIso()}`, {credentials: 'include'});
-    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    if (!r.ok) {
+      let message = r.statusText;
+      try { message = (await r.json()).error || message; } catch (_) { /* non-JSON error body (e.g. a login redirect) */ }
+      throw new Error(message);
+    }
     const data = await r.json();
     PAGE_DATA = data;
     document.getElementById('ah-count').textContent = `${data.stat_tiles.accounts_count} account(s)`;

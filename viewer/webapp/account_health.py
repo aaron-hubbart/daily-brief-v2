@@ -7,9 +7,12 @@ callable) and turns it into the page's data model, so every rule from
 the design doc is unit-testable without mocking Drive. See
 docs/superpowers/specs/2026-11-06-portfolio-design.md.
 """
+import logging
 import re
 from datetime import date, datetime
 from typing import Callable, Dict, List, Optional, Tuple, Union
+
+logger = logging.getLogger(__name__)
 
 HEALTH_GROUPS = ('needs_attention', 'watch', 'healthy', 'no_health_data')
 HEALTH_GROUP_LABELS = {
@@ -29,16 +32,27 @@ _COLOR_GROUP_RANK = {
     'green': ('healthy', 1),
     'lime green': ('healthy', 1),
 }
-# Longest names first so "Lime Green" matches before bare "Green".
-_COLOR_RE = re.compile(
-    r'\b(' + '|'.join(sorted(_COLOR_GROUP_RANK, key=len, reverse=True)) + r')\b',
+_COLOR_WORDS = sorted(_COLOR_GROUP_RANK, key=len, reverse=True)
+# A health-score label ("Health:", "Gainsight health score:", bare
+# "Overall:", or a short score code like "C8:") immediately followed by a
+# color. Requiring the colon right after the label is what keeps this from
+# false-positiving on prose like "Platform health check on Red Hat" (no
+# colon right after "health") while still matching the spec's own
+# multi-score example "C8: Green, Overall: Yellow" (neither "C8:" nor
+# "Overall:" contains the word "health" at all).
+_HEALTH_SIGNAL_RE = re.compile(
+    r'\b(?:(?:overall\s+)?(?:gainsight\s+)?health(?:\s+score)?|overall|C\d+)\s*:\s*'
+    r'(' + '|'.join(_COLOR_WORDS) + r')\b',
     re.IGNORECASE,
 )
-_HEALTH_CONTEXT_RE = re.compile(r'health|gainsight', re.IGNORECASE)
 
 _ARR_DISPUTE_WORDS = ('conflict', 'disagree', 'unreconciled', 'disputed', 'does not reconcile')
 _ARR_CONTEXT_RE = re.compile(r'\b(ARR|commercial|annual recurring)\b', re.IGNORECASE)
-_DOLLAR_RE = re.compile(r'\$\s?([\d,]+(?:\.\d+)?)\s?([KM])?', re.IGNORECASE)
+# \b after the optional K/M suffix keeps "$1,200 monthly" from reading the
+# leading "m" of "monthly" as an M-for-million suffix (which would inflate
+# $1,200 into $1.2B) -- "m" immediately followed by "onthly" has no word
+# boundary, so the suffix group fails to match there and backtracks to None.
+_DOLLAR_RE = re.compile(r'\$\s?([\d,]+(?:\.\d+)?)\s?([KM])?\b', re.IGNORECASE)
 
 _RENEWAL_CONTEXT_RE = re.compile(r'renewal', re.IGNORECASE)
 _ISO_DATE_RE = re.compile(r'\b(\d{4}-\d{2}-\d{2})\b')
@@ -81,21 +95,22 @@ _SWEPT_RE = re.compile(r'Last swept\s*:\s*(\d{4}-\d{2}-\d{2})', re.IGNORECASE)
 
 
 def classify_health(text: str) -> Tuple[str, List[str]]:
-    """Find color words near "health"/"Gainsight" and map to one of the
-    four groups, using the worst (highest-rank) color when more than one
-    is found. No match anywhere -> ('no_health_data', [])."""
+    """Find a health-score label ("Health:", "Gainsight health score:",
+    "Overall:", "C8:") immediately followed by a color, and map to one of
+    the four groups, using the worst (highest-rank) color when more than
+    one is found. Distinct signals only (a doc repeating the same color
+    twice isn't a second signal). No match anywhere -> ('no_health_data', [])."""
     signals: List[str] = []
     best_rank = -1
     best_group = 'no_health_data'
     for line in text.splitlines():
-        if not _HEALTH_CONTEXT_RE.search(line):
-            continue
-        for match in _COLOR_RE.finditer(line):
+        for match in _HEALTH_SIGNAL_RE.finditer(line):
             word = match.group(1)
             group, rank = _COLOR_GROUP_RANK[word.lower()]
             # Preserve the doc's own casing/spelling (e.g. "Lime Green").
             canonical = word if word[0].isupper() else word.title()
-            signals.append(canonical)
+            if canonical not in signals:
+                signals.append(canonical)
             if rank > best_rank:
                 best_rank = rank
                 best_group = group
@@ -113,33 +128,36 @@ def _parse_dollar_value(raw_digits: str, suffix: Optional[str]) -> float:
 
 
 def parse_arr(text: str) -> Dict:
-    """Find a dollar figure near ARR/commercial wording; flag disputed when
-    conflict language appears anywhere in the surrounding text."""
-    if not _ARR_CONTEXT_RE.search(text):
-        return {'raw': None, 'value': None, 'disputed': False, 'note': None}
+    """Find a dollar figure on a line that also mentions ARR/commercial
+    wording; flag disputed when conflict language appears on that same
+    line. Scoping both the figure and the dispute check to the ARR line
+    (not the whole doc) keeps an unrelated $ figure elsewhere, or
+    unrelated conflict language elsewhere, from being misattributed to
+    ARR."""
+    for line in text.splitlines():
+        if not _ARR_CONTEXT_RE.search(line):
+            continue
 
-    match = _DOLLAR_RE.search(text)
-    if not match:
-        return {'raw': None, 'value': None, 'disputed': False, 'note': None}
+        match = _DOLLAR_RE.search(line)
+        if not match:
+            continue
 
-    digits, suffix = match.group(1), match.group(2)
-    raw = f"${digits}{suffix.upper() if suffix else ''}"
-    value = _parse_dollar_value(digits, suffix)
+        digits, suffix = match.group(1), match.group(2)
+        raw = f"${digits}{suffix.upper() if suffix else ''}"
+        value = _parse_dollar_value(digits, suffix)
 
-    disputed = False
-    note = None
-    lowered = text.lower()
-    for word in _ARR_DISPUTE_WORDS:
-        if word in lowered:
-            disputed = True
-            # Surface the sentence containing the dispute language as the note.
-            for sentence in re.split(r'(?<=[.!?])\s+', text.strip()):
-                if word in sentence.lower():
-                    note = sentence.strip()
-                    break
-            break
+        disputed = False
+        note = None
+        lowered = line.lower()
+        for word in _ARR_DISPUTE_WORDS:
+            if word in lowered:
+                disputed = True
+                note = line.strip()
+                break
 
-    return {'raw': raw, 'value': value, 'disputed': disputed, 'note': note}
+        return {'raw': raw, 'value': value, 'disputed': disputed, 'note': note}
+
+    return {'raw': None, 'value': None, 'disputed': False, 'note': None}
 
 
 def parse_renewal(text: str) -> Optional[str]:
@@ -164,10 +182,27 @@ def parse_renewal(text: str) -> Optional[str]:
     return None
 
 
+_TRAILING_PAREN_RE = re.compile(r'\s*\([^)]*\)\s*$')
+
+
+def _is_current_user(name: str, current_user_name: Optional[str]) -> bool:
+    """A case-insensitive full-name match, or a match against just the
+    user's first name (docs sometimes name a TAM by first name only),
+    ignoring a trailing parenthetical like "(Camunda)"."""
+    if not name or not current_user_name:
+        return False
+    cleaned = _TRAILING_PAREN_RE.sub('', name).strip().lower()
+    user_lower = current_user_name.strip().lower()
+    if cleaned == user_lower:
+        return True
+    user_first_name = user_lower.split()[0] if user_lower.split() else user_lower
+    return cleaned == user_first_name
+
+
 def parse_owners(text: str, current_user_name: Optional[str]) -> Dict[str, Optional[str]]:
     """Match an inline "Role: Name" label or a "Role, Name" table row for
-    each of CSM/AE/TAM; substitute "You" for a case-insensitive match
-    against current_user_name."""
+    each of CSM/AE/TAM; substitute "You" for a match against
+    current_user_name (full name or first name only)."""
     result: Dict[str, Optional[str]] = {}
     for role in _OWNER_ROLES:
         name = None
@@ -179,7 +214,7 @@ def parse_owners(text: str, current_user_name: Optional[str]) -> Dict[str, Optio
             if table_match:
                 name = table_match.group(1).strip()
 
-        if name and current_user_name and name.lower() == current_user_name.lower():
+        if _is_current_user(name, current_user_name):
             name = 'You'
         result[role] = name
     return result
@@ -229,15 +264,23 @@ def parse_next_step(text: str) -> str:
 def compute_swept_days_ago(text: str, modified_time: Optional[str], today: date) -> Optional[int]:
     """Days between `today` and the doc's own "Last swept: YYYY-MM-DD"
     line, falling back to the Drive file's modified_time (RFC3339) when
-    that line isn't present. None if neither is available."""
+    that line isn't present or isn't a real date. None if neither is
+    available/parseable -- a malformed date (human typo, e.g. "2026-02-30")
+    must degrade to "unknown", never raise and take down the whole page."""
     match = _SWEPT_RE.search(text)
     if match:
-        swept_date = datetime.strptime(match.group(1), '%Y-%m-%d').date()
-        return (today - swept_date).days
+        try:
+            swept_date = datetime.strptime(match.group(1), '%Y-%m-%d').date()
+            return (today - swept_date).days
+        except ValueError:
+            logger.warning('compute_swept_days_ago: malformed "Last swept" date %r', match.group(1))
 
     if modified_time:
-        swept_date = datetime.strptime(modified_time[:10], '%Y-%m-%d').date()
-        return (today - swept_date).days
+        try:
+            swept_date = datetime.strptime(modified_time[:10], '%Y-%m-%d').date()
+            return (today - swept_date).days
+        except ValueError:
+            logger.warning('compute_swept_days_ago: malformed modified_time %r', modified_time)
 
     return None
 
@@ -284,6 +327,7 @@ def build_account_entry(
             'tier': tier,
             'health_group': 'no_health_data',
             'health_signals': [],
+            'health_disagree': False,
             'commercial_tier': None,
             'swept_label': format_days_ago(None),
             'swept_days': None,
@@ -309,6 +353,7 @@ def build_account_entry(
         'tier': tier,
         'health_group': health_group,
         'health_signals': health_signals,
+        'health_disagree': len(health_signals) > 1,
         'commercial_tier': parse_commercial_tier(text),
         'swept_label': format_days_ago(swept_days),
         'swept_days': swept_days,
@@ -325,6 +370,27 @@ def build_account_entry(
     }
 
 
+def extract_callout_findings(callout_items: Optional[List]) -> Optional[List[str]]:
+    """Defensively pull the findings list out of what
+    gdrive_briefs.read_section('portfolio-summary', ...) returns. A
+    malformed or half-written portfolio-summary.json (wrong type for
+    content, a non-list findings, missing section entirely) must degrade
+    to "no callout today", never raise -- one bad file in another repo's
+    pipeline must not blank the whole Account Health page."""
+    if not callout_items:
+        return None
+    first = callout_items[0]
+    if not isinstance(first, dict):
+        return None
+    content = first.get('content')
+    if not isinstance(content, dict):
+        return None
+    findings = content.get('findings')
+    if not isinstance(findings, list) or not findings:
+        return None
+    return findings
+
+
 def build_page_model(
     accounts_config: List[Dict],
     doc_fetcher: Callable[[str], Union[Dict, str, None]],
@@ -339,7 +405,16 @@ def build_page_model(
         name = acct.get('account_name') or acct.get('name') or 'Unknown'
         tier = acct.get('tier', 'primary')
         doc_result = doc_fetcher(name)
-        entries.append(build_account_entry(name, tier, doc_result, current_user_name, today))
+        try:
+            entry = build_account_entry(name, tier, doc_result, current_user_name, today)
+        except Exception:
+            # A parsing bug on one account's doc must never take the whole
+            # page down -- fall back to the same placeholder card a
+            # genuinely-missing doc gets, per the spec's anti-goal against
+            # silently dropping an account.
+            logger.warning('build_page_model: build_account_entry raised for %r -- falling back to placeholder', name, exc_info=True)
+            entry = build_account_entry(name, tier, 'not_found', current_user_name, today)
+        entries.append(entry)
 
     groups = []
     for key in HEALTH_GROUPS:
