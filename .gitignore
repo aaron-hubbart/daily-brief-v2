@@ -12,3 +12,6 @@ node_modules/
 .claude-flow/
 .swarm/
 ruvector.db
+
+# Brainstorming session mockups (not project source)
+.superpowers/
