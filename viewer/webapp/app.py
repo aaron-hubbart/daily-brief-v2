@@ -2205,4 +2205,6 @@ def readyz():
 if __name__ == '__main__':
     # Local dev only. In production this runs under gunicorn behind nginx —
     # see DEPLOYMENT.md and gunicorn.conf.py.
-    app.run(host='127.0.0.1', port=int(os.environ.get('PORT', 8000)), debug=False)
+    # threaded=True so a parallel section fetch can't block the next request
+    # (matches gunicorn's gthread workers — see gunicorn.conf.py).
+    app.run(host='127.0.0.1', port=int(os.environ.get('PORT', 8000)), debug=False, threaded=True)
