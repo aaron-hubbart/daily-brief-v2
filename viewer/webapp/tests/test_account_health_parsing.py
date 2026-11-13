@@ -5,7 +5,8 @@ from account_health import (
     parse_owners,
     parse_commercial_tier,
     parse_risks,
-    parse_next_step,
+    parse_action_items,
+    extract_recap_action_items,
     compute_swept_days_ago,
     format_days_ago,
     format_arr_abbreviated,
@@ -148,18 +149,85 @@ def test_parse_risks_no_section_is_empty_list():
     assert parse_risks("Nothing relevant here.") == []
 
 
-def test_parse_next_step_found():
+def test_parse_action_items_inline_recommendation():
     text = "Recommendation: Schedule an exec QBR before renewal."
-    assert parse_next_step(text) == 'Schedule an exec QBR before renewal.'
+    assert parse_action_items(text) == [
+        {'text': 'Schedule an exec QBR before renewal.', 'asana_url': None, 'source': 'context_doc'},
+    ]
 
 
-def test_parse_next_step_fallback():
-    assert parse_next_step("No recommendation language in this doc.") == "Review this account's Context Doc for next steps"
+def test_parse_action_items_none_found_is_empty_list():
+    # No generic "go review the doc" fallback -- an empty list is a valid
+    # outcome the card renders as its own placeholder.
+    assert parse_action_items("No recommendation language in this doc.") == []
 
 
-def test_parse_next_step_heading_with_bullets():
+def test_parse_action_items_heading_with_bullets():
     text = "Next Steps:\n- Schedule an exec QBR before renewal\n- Confirm budget owner"
-    assert parse_next_step(text) == 'Schedule an exec QBR before renewal'
+    assert parse_action_items(text) == [
+        {'text': 'Schedule an exec QBR before renewal', 'asana_url': None, 'source': 'context_doc'},
+        {'text': 'Confirm budget owner', 'asana_url': None, 'source': 'context_doc'},
+    ]
+
+
+def test_parse_action_items_caps_at_five():
+    text = "Action Items:\n" + "\n".join(f"- Item {i}" for i in range(1, 8))
+    items = parse_action_items(text)
+    assert len(items) == 5
+    assert [i['text'] for i in items] == ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5']
+
+
+def test_parse_action_items_asana_gid_tag_becomes_deep_link():
+    text = "Next Steps:\n- Confirm budget owner [Asana: 1211234567890]"
+    assert parse_action_items(text) == [
+        {'text': 'Confirm budget owner', 'asana_url': 'https://app.asana.com/0/0/1211234567890/f', 'source': 'context_doc'},
+    ]
+
+
+def test_parse_action_items_asana_url_tag_used_as_is():
+    text = "Next Steps:\n- Confirm budget owner [Asana: https://app.asana.com/0/123/456/f]"
+    assert parse_action_items(text) == [
+        {'text': 'Confirm budget owner', 'asana_url': 'https://app.asana.com/0/123/456/f', 'source': 'context_doc'},
+    ]
+
+
+def test_parse_action_items_inline_asana_url_without_tag():
+    text = "Next Steps:\n- Confirm budget owner, see https://app.asana.com/0/123/456/f"
+    items = parse_action_items(text)
+    assert items == [
+        {'text': 'Confirm budget owner, see https://app.asana.com/0/123/456/f',
+         'asana_url': 'https://app.asana.com/0/123/456/f', 'source': 'context_doc'},
+    ]
+
+
+def test_parse_action_items_non_asana_tag_is_not_a_link():
+    text = "Next Steps:\n- Confirm budget owner [Gainsight via Glean, 2026-10-01]"
+    assert parse_action_items(text) == [
+        {'text': 'Confirm budget owner [Gainsight via Glean, 2026-10-01]', 'asana_url': None, 'source': 'context_doc'},
+    ]
+
+
+def test_extract_recap_action_items_maps_title_to_action_items():
+    items = [{'title': 'Acme Corp', 'content': {'action_items': ['Follow up on PO', 'Send revised SOW']}}]
+    assert extract_recap_action_items(items) == {'Acme Corp': ['Follow up on PO', 'Send revised SOW']}
+
+
+def test_extract_recap_action_items_skips_malformed_entries():
+    items = [
+        'not a dict',
+        {'title': None, 'content': {'action_items': ['x']}},
+        {'title': 'No Content'},
+        {'title': 'Bad Content', 'content': 'oops'},
+        {'title': 'Bad Items', 'content': {'action_items': 'not a list'}},
+        {'title': 'Empty Items', 'content': {'action_items': ['', '   ']}},
+        {'title': 'Good Co', 'content': {'action_items': ['Real item']}},
+    ]
+    assert extract_recap_action_items(items) == {'Good Co': ['Real item']}
+
+
+def test_extract_recap_action_items_empty_or_none_input():
+    assert extract_recap_action_items(None) == {}
+    assert extract_recap_action_items([]) == {}
 
 
 def test_compute_swept_days_ago_from_doc_line():

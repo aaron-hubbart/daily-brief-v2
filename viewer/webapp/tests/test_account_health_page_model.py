@@ -11,7 +11,7 @@ def test_build_account_entry_no_doc_found():
     assert entry['renewal'] is None
     assert entry['csm'] is None and entry['ae'] is None and entry['tam'] is None
     assert entry['risks'] == []
-    assert entry['next_step'] == "No Context Doc found yet — use “Refresh research” below to generate one"
+    assert entry['action_items'] == []
     assert entry['doc_url'] is None
     assert entry['refresh_query'] == 'refresh the context for Acme Corp'
 
@@ -49,6 +49,46 @@ def test_build_account_entry_found_doc():
     assert entry['doc_url'] == 'https://docs.google.com/x'
     assert entry['swept_label'] == 'swept 8d ago'
     assert entry['health_disagree'] is False  # single signal (Yellow) -- no disagreement
+    assert entry['action_items'] == [
+        {'text': 'Schedule an exec QBR before renewal.', 'asana_url': None, 'source': 'context_doc'},
+    ]
+
+
+def test_build_account_entry_recap_action_items_take_precedence_over_context_doc():
+    # Today's brief (email/Slack/Zoom/Glean/Asana) wins even when the
+    # Context Doc also has a parseable next step -- the doc is slow-moving
+    # standing context, not where current next steps should come from.
+    doc_result = {'text': SAMPLE_DOC, 'doc_url': 'u', 'modified_time': None}
+    entry = build_account_entry(
+        'Acme Corp', 'primary', doc_result, current_user_name=None, today=date(2026, 11, 9),
+        recap_action_items=['Follow up on renewed PO', 'Send revised SOW'],
+    )
+    assert entry['action_items'] == [
+        {'text': 'Follow up on renewed PO', 'asana_url': None, 'source': 'brief'},
+        {'text': 'Send revised SOW', 'asana_url': None, 'source': 'brief'},
+    ]
+
+
+def test_build_account_entry_falls_back_to_context_doc_when_no_recap_items():
+    doc_result = {'text': SAMPLE_DOC, 'doc_url': 'u', 'modified_time': None}
+    entry = build_account_entry(
+        'Acme Corp', 'primary', doc_result, current_user_name=None, today=date(2026, 11, 9),
+        recap_action_items=None,
+    )
+    assert entry['action_items'] == [
+        {'text': 'Schedule an exec QBR before renewal.', 'asana_url': None, 'source': 'context_doc'},
+    ]
+
+
+def test_build_account_entry_recap_action_items_used_even_with_no_doc():
+    entry = build_account_entry(
+        'Acme Corp', 'primary', 'not_found', current_user_name=None, today=date(2026, 11, 9),
+        recap_action_items=['Confirm budget owner'],
+    )
+    assert entry['no_doc'] is True
+    assert entry['action_items'] == [
+        {'text': 'Confirm budget owner', 'asana_url': None, 'source': 'brief'},
+    ]
 
 
 def test_build_account_entry_health_disagree_flag_set_when_signals_differ():
@@ -65,6 +105,22 @@ def test_build_account_entry_no_doc_found_health_disagree_is_false():
 
 def _fetcher(docs):
     return lambda name: docs.get(name, 'not_found')
+
+
+def test_build_page_model_threads_recap_action_items_by_name():
+    accounts_config = [{'account_name': 'A'}, {'account_name': 'B'}]
+    docs = {
+        'A': {'text': 'Health: Green', 'doc_url': 'u', 'modified_time': None},
+        'B': {'text': 'Health: Green', 'doc_url': 'u', 'modified_time': None},
+    }
+    recap_map = {'A': ['Do the A thing']}
+    model = build_page_model(
+        accounts_config, _fetcher(docs), current_user_name=None, today=date(2026, 11, 9),
+        recap_action_items_by_name=recap_map,
+    )
+    entries = {e['account_name']: e for g in model['groups'] for e in g['accounts']}
+    assert entries['A']['action_items'] == [{'text': 'Do the A thing', 'asana_url': None, 'source': 'brief'}]
+    assert entries['B']['action_items'] == []
 
 
 def test_build_page_model_groups_in_fixed_order_with_subtotals():
@@ -131,14 +187,14 @@ def test_build_page_model_one_bad_account_does_not_crash_the_rest(monkeypatch):
 
     real_build_entry = account_health.build_account_entry
 
-    def flaky_build_entry(account_name, tier, doc_result, current_user_name, today):
+    def flaky_build_entry(account_name, tier, doc_result, current_user_name, today, recap_action_items=None):
         # Only raise when actually asked to parse real doc text -- the
         # fallback call (doc_result='not_found') must succeed, same as it
         # would for a real parsing bug that's triggered by specific
         # malformed content, not by the account name itself.
         if account_name == 'Bad Co' and isinstance(doc_result, dict):
             raise ValueError('boom')
-        return real_build_entry(account_name, tier, doc_result, current_user_name, today)
+        return real_build_entry(account_name, tier, doc_result, current_user_name, today, recap_action_items)
 
     monkeypatch.setattr(account_health, 'build_account_entry', flaky_build_entry)
 

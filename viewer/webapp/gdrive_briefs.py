@@ -795,18 +795,50 @@ def _normalize_account_name(name: str) -> str:
     return normalized
 
 
+def _bigrams(s: str) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for i in range(len(s) - 1):
+        bg = s[i:i + 2]
+        counts[bg] = counts.get(bg, 0) + 1
+    return counts
+
+
+def _bigram_similarity(a: str, b: str) -> float:
+    """Dice's coefficient over character bigrams -- a cheap,
+    dependency-free string-similarity score in [0, 1]. Python port of
+    environments.html's client-side bigramSimilarity, used there for the
+    same underlying problem: two independently-maintained name lists
+    (there, Environments-portfolio project names vs account-config.json;
+    here, this Shared Drive's human-curated folder names vs
+    account-config.json) drift apart in ways punctuation/legal-suffix
+    normalization alone doesn't bridge (e.g. "JPMorgan Chase & Co." vs a
+    Drive folder actually named "JPMorgan Chase & Co")."""
+    if not a or not b:
+        return 0.0
+    bigrams_a, bigrams_b = _bigrams(a), _bigrams(b)
+    overlap = sum(min(count, bigrams_b.get(bg, 0)) for bg, count in bigrams_a.items())
+    total = sum(bigrams_a.values()) + sum(bigrams_b.values())
+    return (2 * overlap) / total if total else 0.0
+
+
+_ACCOUNT_FOLDER_FUZZY_THRESHOLD = 0.72
+
+
 def _find_account_folder(drive, account_name: str) -> Optional[Tuple[str, str]]:
     """Resolve an account name to its (folder_id, exact_drive_name) under
     Consulting/Customers/<Letter>/<Account Name>. Matching is done in
     Python (not baked into the Drive query string) so names with quotes
-    or other special characters can't break the query. Three tiers, each
+    or other special characters can't break the query. Four tiers, each
     tried only if the previous one found nothing: exact, case-insensitive,
-    then a punctuation/legal-suffix-normalized match (only when it
-    resolves to exactly one candidate, so it never guesses between two
-    similarly-named accounts). Returns None if the letter folder doesn't
-    exist or no candidate matches on any tier — this Shared Drive is
-    human-curated, so a missing account folder is a lookup failure, not
-    something this app creates on your behalf."""
+    a punctuation/legal-suffix-normalized match, then a bigram-similarity
+    fuzzy match (same technique and threshold as environments.html's
+    isMyCustomer) -- the first three only fire when they resolve to
+    exactly one candidate, and the fuzzy tier only fires when its best
+    match clears the threshold and strictly beats the runner-up, so this
+    never guesses between two similarly-named accounts. Returns None if
+    the letter folder doesn't exist or no candidate matches on any tier —
+    this Shared Drive is human-curated, so a missing account folder is a
+    lookup failure, not something this app creates on your behalf."""
     now = time.monotonic()
     cache_key = account_name.strip().lower()
     with _cache_lock:
@@ -832,12 +864,25 @@ def _find_account_folder(drive, account_name: str) -> Optional[Tuple[str, str]]:
     if not match:
         lowered = name.lower()
         match = next((f for f in candidates if f['name'].strip().lower() == lowered), None)
+    normalized = _normalize_account_name(name)
     if not match:
-        normalized = _normalize_account_name(name)
         norm_matches = [f for f in candidates if _normalize_account_name(f['name']) == normalized]
         if len(norm_matches) == 1:
             match = norm_matches[0]
+    if not match and candidates:
+        scored = sorted(
+            ((f, _bigram_similarity(normalized, _normalize_account_name(f['name']))) for f in candidates),
+            key=lambda pair: pair[1], reverse=True,
+        )
+        best_f, best_score = scored[0]
+        runner_up_score = scored[1][1] if len(scored) > 1 else 0.0
+        if best_score >= _ACCOUNT_FOLDER_FUZZY_THRESHOLD and best_score > runner_up_score:
+            match = best_f
     if not match:
+        logger.info(
+            'account folder lookup: no match for %r among %r in letter folder %r',
+            account_name, [f['name'] for f in candidates], letter,
+        )
         return None
 
     resolved = (match['id'], match['name'].strip())

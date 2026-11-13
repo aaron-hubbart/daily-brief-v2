@@ -72,8 +72,13 @@ a.back:hover{text-decoration:underline;}
 .risks li{font-size:12px;color:var(--t1);padding:2px 0;}
 .risk-tag{color:var(--t3);font-size:10.5px;}
 
-.next-step{font-size:12.5px;color:var(--t1);background:var(--surface2);border-radius:var(--r);padding:7px 10px;margin-bottom:8px;}
-.next-step strong{font-weight:600;color:var(--t2);font-size:10px;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:2px;}
+.action-items{font-size:12.5px;color:var(--t1);background:var(--surface2);border-radius:var(--r);padding:7px 10px;margin-bottom:8px;}
+.action-items-label{font-weight:600;color:var(--t2);font-size:10px;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:3px;}
+.action-items.placeholder{color:var(--t2);font-style:italic;}
+.action-items ul{list-style:none;}
+.action-items li{padding:2px 0;}
+.action-items a.asana-link{margin-left:6px;font-size:10.5px;color:var(--accent-t);text-decoration:none;white-space:nowrap;}
+.action-items a.asana-link:hover{text-decoration:underline;}
 
 .card-footer{display:flex;gap:14px;}
 .card-footer a{font-size:11px;color:var(--accent-t);text-decoration:none;}
@@ -149,6 +154,20 @@ function fieldValue(value, placeholderText) {
   return `<div class="field-value">${esc(value)}</div>`;
 }
 
+function actionItemsListHtml(items, placeholderText) {
+  if (!items || !items.length) {
+    return `<div class="action-items placeholder"><span class="action-items-label">Action items</span>${esc(placeholderText)}</div>`;
+  }
+  return `<div class="action-items"><span class="action-items-label">Action items</span><ul>${items.map(item =>
+    `<li>${esc(item.text)}${item.source === 'context_doc' ? ' <span class="risk-tag">[Context Doc]</span>' : ''}${item.asana_url ? ` <a class="asana-link" href="${esc(item.asana_url)}" target="_blank">Open in Asana &rarr;</a>` : ''}</li>`
+  ).join('')}</ul></div>`;
+}
+
+function firstActionItemText(account) {
+  const items = account.action_items;
+  return (items && items.length) ? items[0].text : (account.no_doc ? 'No research yet' : 'Not captured this sweep');
+}
+
 function renderCard(account) {
   const placeholder = account.no_doc ? 'No research yet' : 'Not captured this sweep';
   const arr = account.arr || {};
@@ -158,6 +177,7 @@ function renderCard(account) {
         `<li>${esc(r.text)}${r.source_tag ? ` <span class="risk-tag">[${esc(r.source_tag)}]</span>` : ''}</li>`
       ).join('')}</ul></div>`
     : '';
+  const actionItemsHtml = actionItemsListHtml(account.action_items, placeholder);
   const refreshHref = `claude://claude.ai/new?q=${encodeURIComponent(account.refresh_query)}`;
   const docLink = account.doc_url
     ? `<a href="${esc(account.doc_url)}" target="_blank">Open Context doc &rarr;</a>`
@@ -180,7 +200,7 @@ function renderCard(account) {
         <div><div class="field-label">TAM</div>${fieldValue(account.tam, placeholder)}</div>
       </div>
       ${risksHtml}
-      <div class="next-step"><strong>Next step</strong>${esc(account.next_step)}</div>
+      ${actionItemsHtml}
       <div class="card-footer">
         ${docLink}
         <a href="${refreshHref}" target="_blank">Refresh research</a>
@@ -260,7 +280,7 @@ function openPanel(tileKey) {
             <span class="panel-row-name">${esc(a.account_name)}</span>
             ${healthBadge(a.health_group)}
           </div>
-          <div class="panel-row-step">${esc(a.next_step)}</div>
+          <div class="panel-row-step">${esc(firstActionItemText(a))}</div>
           <div class="panel-row-note">${esc(filter.note(a))}</div>
         </div>
       `).join('')
