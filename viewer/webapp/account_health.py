@@ -77,9 +77,6 @@ _OWNER_TABLE_ROW_RE = {
 
 _TIER_CONTEXT_RE = re.compile(r'(?:Edition|Tier|Plan)\s*:\s*(.+)', re.IGNORECASE)
 
-NEXT_STEP_FALLBACK = "Review this account's Context Doc for next steps"
-NEXT_STEP_NO_DOC = "No Context Doc found yet — use “Refresh research” below to generate one"
-
 _RISK_HEADING_RE = re.compile(
     r'(?:Top open risks|Open Risks\s*&\s*Issues|Blockers\s*/\s*Risks|Risks\s*/\s*Blockers)\s*:?\s*\n'
     r'((?:[ \t]*[-*].*(?:\n|$))+)',
@@ -87,20 +84,29 @@ _RISK_HEADING_RE = re.compile(
 )
 _RISK_SOURCE_TAG_RE = re.compile(r'\s*\[([^\]]+)\]\s*$')
 
-_NEXT_STEP_RE = re.compile(
+MAX_ACTION_ITEMS = 5
+
+# Docs that give next steps as their own heading followed by a bullet list
+# (the same convention already used for the Risks section) -- take every
+# bullet (up to MAX_ACTION_ITEMS), not just the first, so the card can show
+# a real list of concrete action items instead of one sentence.
+_ACTION_ITEMS_HEADING_RE = re.compile(
+    r'(?:Next Steps?|Recommendations?|Action Items?)\s*:?\s*\n'
+    r'((?:[ \t]*[-*].*(?:\n|$))+)',
+    re.IGNORECASE,
+)
+# Docs that give the next step as a single inline "label: sentence"
+# instead of a heading + bullets.
+_ACTION_ITEM_INLINE_RE = re.compile(
     r'(?:recommendation|next step|decide)\w*\s*:[ \t]*(.+?)(?:\n|$)',
     re.IGNORECASE,
 )
-# Docs that give the next step as its own heading followed by a bullet list
-# (the same convention already used for the Risks section) rather than an
-# inline "label: sentence" -- match that shape too and take the first
-# bullet, so a doc doesn't have to use the exact inline phrasing to surface
-# a real next step instead of the generic fallback.
-_NEXT_STEP_HEADING_RE = re.compile(
-    r'(?:Next Steps?|Recommendations?)\s*:?\s*\n'
-    r'[ \t]*[-*]\s*(.+?)(?:\n|$)',
-    re.IGNORECASE,
-)
+# An action item's trailing [...] tag, same convention as a risk's source
+# tag -- here naming an Asana task, as either a full app.asana.com URL or
+# a bare numeric GID (e.g. "[Asana: 1211234567890]").
+_ACTION_ITEM_TAG_RE = re.compile(r'\s*\[([^\]]+)\]\s*$')
+_ASANA_URL_RE = re.compile(r'https?://app\.asana\.com/\S+', re.IGNORECASE)
+_ASANA_GID_RE = re.compile(r'\b(\d{8,})\b')
 
 _SWEPT_RE = re.compile(r'Last swept\s*:\s*(\d{4}-\d{2}-\d{2})', re.IGNORECASE)
 
@@ -263,17 +269,104 @@ def parse_risks(text: str) -> List[Dict]:
     return risks
 
 
-def parse_next_step(text: str) -> str:
-    """First sentence following recommendation/next-step/decide wording, or
-    (failing that) the first bullet under a "Next Steps"/"Recommendation"
-    heading; the fixed fallback string if neither shape matches."""
-    match = _NEXT_STEP_RE.search(text)
-    if match:
-        return match.group(1).strip()
-    heading_match = _NEXT_STEP_HEADING_RE.search(text)
+def _asana_url_from_tag(tag: str) -> Optional[str]:
+    """A trailing [...] tag's Asana deep link, if it names one: a full
+    app.asana.com URL used as-is, or a bare numeric GID (only when the
+    tag also says "asana", so an unrelated numeric tag -- a date, a
+    ticket number -- is never mistaken for one) turned into the same
+    permalink pattern action_items.py's task_intelligence_deep_links
+    uses."""
+    url_match = _ASANA_URL_RE.search(tag)
+    if url_match:
+        return url_match.group(0).rstrip('.,;)')
+    if 'asana' in tag.lower():
+        gid_match = _ASANA_GID_RE.search(tag)
+        if gid_match:
+            return f'https://app.asana.com/0/0/{gid_match.group(1)}/f'
+    return None
+
+
+def _build_action_item(bullet: str, source: str) -> Dict:
+    """One action item from a raw bullet/sentence: strip a trailing
+    Asana-task tag (if present) into asana_url, else fall back to a bare
+    app.asana.com URL already inline in the text. `source` records where
+    this item came from ('brief' or 'context_doc') -- see
+    extract_recap_action_items and parse_action_items."""
+    bullet = bullet.strip()
+    asana_url = None
+    tag_match = _ACTION_ITEM_TAG_RE.search(bullet)
+    if tag_match:
+        found = _asana_url_from_tag(tag_match.group(1))
+        if found:
+            asana_url = found
+            bullet = bullet[:tag_match.start()].strip()
+    if not asana_url:
+        url_match = _ASANA_URL_RE.search(bullet)
+        if url_match:
+            asana_url = url_match.group(0).rstrip('.,;)')
+    return {'text': bullet, 'asana_url': asana_url, 'source': source}
+
+
+def extract_recap_action_items(account_recap_items: Optional[List[Dict]]) -> Dict[str, List[str]]:
+    """Map each account-recap card's title (gdrive_briefs.read_section's
+    'account-recap' slug -- the accounts/ subfolder of *today's* brief,
+    assembled from email, Slack, Zoom/Glean meeting summaries, and Asana)
+    to its content.action_items list of plain-text strings. These are the
+    account's actual recent-activity next steps and are build_account_entry's
+    primary source for the card's action items -- the Context Doc is a
+    slow-moving standing-context file, not where live next steps should
+    come from, and is only a fallback when today's brief has nothing for
+    this account. Same defensive-degrade contract as
+    extract_callout_findings: a malformed entry is skipped, never raised,
+    so one bad account-recap card can't blank every account's items."""
+    result: Dict[str, List[str]] = {}
+    if not account_recap_items:
+        return result
+    for item in account_recap_items:
+        if not isinstance(item, dict):
+            continue
+        title = item.get('title')
+        if not title:
+            continue
+        content = item.get('content')
+        if not isinstance(content, dict):
+            continue
+        raw_items = content.get('action_items')
+        if not isinstance(raw_items, list):
+            continue
+        texts = [t.strip() for t in raw_items if isinstance(t, str) and t.strip()]
+        if texts:
+            result[title] = texts
+    return result
+
+
+def parse_action_items(text: str) -> List[Dict]:
+    """Up to MAX_ACTION_ITEMS concrete next steps found in the Context
+    Doc itself, each as {'text', 'asana_url', 'source': 'context_doc'}
+    (asana_url is None unless the item names an Asana task). Prefers
+    every bullet under a "Next Steps"/"Recommendations"/"Action Items"
+    heading -- the richer shape, since it can hold several items --
+    falling back to the single inline "recommendation/next step/decide:
+    ..." sentence when a doc uses that shape instead. An empty list
+    (neither shape found) is a valid, expected outcome.
+
+    This is a fallback source only -- see build_account_entry and
+    extract_recap_action_items's docstring for why the Context Doc
+    (slow-moving standing context, not a feed of recent activity) isn't
+    the primary source for an account's action items."""
+    heading_match = _ACTION_ITEMS_HEADING_RE.search(text)
     if heading_match:
-        return heading_match.group(1).strip()
-    return NEXT_STEP_FALLBACK
+        bullets = [
+            re.sub(r'^[-*]\s*', '', line.strip())
+            for line in heading_match.group(1).splitlines() if line.strip()
+        ]
+        return [_build_action_item(b, source='context_doc') for b in bullets[:MAX_ACTION_ITEMS]]
+
+    inline_match = _ACTION_ITEM_INLINE_RE.search(text)
+    if inline_match:
+        return [_build_action_item(inline_match.group(1), source='context_doc')]
+
+    return []
 
 
 def compute_swept_days_ago(text: str, modified_time: Optional[str], today: date) -> Optional[int]:
@@ -329,12 +422,24 @@ def build_account_entry(
     doc_result: Union[Dict, str, None],
     current_user_name: Optional[str],
     today: date,
+    recap_action_items: Optional[List[str]] = None,
 ) -> Dict:
     """Assemble one account's uniform card dict. doc_result is a dict on
     success, 'not_found' or None (treated identically) otherwise -- every
     account renders a full card either way, per the spec's anti-goal
-    against silently dropping accounts."""
+    against silently dropping accounts.
+
+    Action items source precedence: today's account-recap card
+    (recap_action_items, from extract_recap_action_items -- built out of
+    email, Slack, Zoom/Glean meeting summaries, and Asana, i.e. this
+    account's actual recent activity) wins whenever it has anything, even
+    when the Context Doc also parses to a next step. The Context Doc
+    (parse_action_items) is only used as a fallback when today's brief
+    has nothing for this account -- it's meant to hold low-velocity
+    standing context for Claude, not to be the source of truth for what
+    to do next."""
     refresh_query = f'refresh the context for {account_name}'
+    recap_items = [_build_action_item(t, source='brief') for t in (recap_action_items or [])][:MAX_ACTION_ITEMS]
 
     if not isinstance(doc_result, dict):
         return {
@@ -352,7 +457,7 @@ def build_account_entry(
             'ae': None,
             'tam': None,
             'risks': [],
-            'next_step': NEXT_STEP_NO_DOC,
+            'action_items': recap_items,
             'doc_url': None,
             'refresh_query': refresh_query,
             'no_doc': True,
@@ -378,7 +483,7 @@ def build_account_entry(
         'ae': owners['ae'],
         'tam': owners['tam'],
         'risks': parse_risks(text),
-        'next_step': parse_next_step(text),
+        'action_items': recap_items if recap_items else parse_action_items(text),
         'doc_url': doc_result.get('doc_url'),
         'refresh_query': refresh_query,
         'no_doc': False,
@@ -418,24 +523,32 @@ def build_page_model(
     doc_fetcher: Callable[[str], Union[Dict, str, None]],
     current_user_name: Optional[str],
     today: date,
+    recap_action_items_by_name: Optional[Dict[str, List[str]]] = None,
 ) -> Dict:
     """Resolve every account-config entry into a card, bucket into the
     fixed-order health groups with ARR subtotals, and compute the stat
-    tiles. Every entry renders somewhere -- never silently dropped."""
+    tiles. Every entry renders somewhere -- never silently dropped.
+
+    recap_action_items_by_name (from extract_recap_action_items) is
+    today's brief's per-account action items, keyed by account name --
+    the primary source for each card's action items; see
+    build_account_entry's docstring for the fallback precedence."""
+    recap_map = recap_action_items_by_name or {}
     entries = []
     for acct in accounts_config:
         name = resolve_account_name(acct)
         tier = acct.get('tier', 'primary')
         doc_result = doc_fetcher(name)
+        recap_items = recap_map.get(name)
         try:
-            entry = build_account_entry(name, tier, doc_result, current_user_name, today)
+            entry = build_account_entry(name, tier, doc_result, current_user_name, today, recap_items)
         except Exception:
             # A parsing bug on one account's doc must never take the whole
             # page down -- fall back to the same placeholder card a
             # genuinely-missing doc gets, per the spec's anti-goal against
             # silently dropping an account.
             logger.warning('build_page_model: build_account_entry raised for %r -- falling back to placeholder', name, exc_info=True)
-            entry = build_account_entry(name, tier, 'not_found', current_user_name, today)
+            entry = build_account_entry(name, tier, 'not_found', current_user_name, today, recap_items)
         entries.append(entry)
 
     groups = []

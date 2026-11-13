@@ -2162,10 +2162,18 @@ def api_account_health(date_str):
     def doc_fetcher(name):
         return prefetched_docs.get(name)
 
+    # Action items' primary source is today's brief -- email, Slack,
+    # Zoom/Glean meeting summaries, and Asana, via the account-recap
+    # section already written for this date -- not the Context Doc,
+    # which holds slow-moving standing context, not recent next steps.
+    account_recap_items = gdrive_briefs.read_section(date_str, 'account-recap', google_token, folder_id)
+    recap_action_items_by_name = account_health.extract_recap_action_items(account_recap_items)
+
     model = account_health.build_page_model(
         config.get('accounts', []), doc_fetcher,
         current_user_name=request.brief_user.get('name'),
         today=date.today(),
+        recap_action_items_by_name=recap_action_items_by_name,
     )
 
     callout_items = gdrive_briefs.read_section(date_str, 'portfolio-summary', google_token, folder_id)
