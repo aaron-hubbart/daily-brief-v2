@@ -271,6 +271,41 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 #tab-admin .adm-empty{color:var(--t3);font-size:12px;padding:8px 0;}
 #tab-admin input[type="text"]{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
 
+/* ── Tasks area (migrated from templates/tasks.html) ── */
+#area-content .head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1.5px solid var(--border-strong);}
+#area-content .head h1{font-size:19px;font-weight:600;letter-spacing:-.025em;}
+#area-content .head .sub{font-size:12px;color:var(--t3);}
+#area-content .hint{font-size:12.5px;color:var(--t3);padding:12px 0;}
+#area-content .empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
+#area-content details.group{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);margin-bottom:12px;overflow:hidden;}
+#area-content details.group summary{padding:10px 14px;background:var(--surface2);font-size:12px;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center;list-style:none;}
+#area-content details.group summary::-webkit-details-marker{display:none;}
+#area-content .group-count{font-size:10.5px;font-weight:500;color:var(--t3);}
+#area-content .group-body{padding:4px 14px 8px;}
+#area-content details.board-group{border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);margin:6px 0;overflow:hidden;}
+#area-content details.board-group summary{padding:6px 10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;list-style:none;}
+#area-content details.board-group summary::-webkit-details-marker{display:none;}
+#area-content .board-name{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);}
+#area-content .board-count{font-size:10.5px;font-weight:500;color:var(--t3);}
+#area-content .board-body{padding:2px 10px 6px;background:var(--surface);}
+#area-content .task-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:.5px solid var(--border);}
+#area-content .task-row:last-child{border-bottom:none;}
+#area-content .task-row.removing{opacity:.4;}
+#area-content .task-check{margin-top:3px;cursor:pointer;}
+#area-content .task-body{flex:1;font-size:12.5px;}
+#area-content .task-title{color:var(--t1);}
+#area-content .task-links{flex-shrink:0;}
+#area-content .duebox{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:6px;}
+#area-content .duebox input[type=date]{font-family:var(--font);font-size:11px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+#area-content .duebox input[type=date].overdue{color:var(--bad-t);border-color:var(--bad-t);}
+#area-content .duebtn{font-size:10.5px;padding:2px 7px;background:transparent;color:var(--t2);border:1px solid var(--border-strong);border-radius:var(--r);cursor:pointer;white-space:nowrap;font-family:var(--font);}
+#area-content .duebtn:hover{background:var(--accent-bg);color:var(--accent-t);border-color:var(--accent);}
+#area-content .due-sync-note{font-size:9.5px;color:var(--t3);margin-left:2px;}
+#area-content .lbtn{font-size:10.5px;color:var(--accent-t);text-decoration:none;white-space:nowrap;}
+#area-content .lbtn:hover{text-decoration:underline;}
+#area-content .badge{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:99px;background:var(--surface2);color:var(--t2);}
+#area-content .badge.bwarn{background:var(--bad-bg);color:var(--bad-t);}
+
 </style>
 </head>
 <body>
@@ -633,7 +668,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
      needs them to already exist in the DOM for a fresh load of a
      non-root path. -->
 <template id="tpl-environments"><p>Coming soon</p></template>
-<template id="tpl-tasks"><p>Coming soon</p></template>
+<template id="tpl-tasks">
+<div class="head">
+  <div>
+    <h1>Tasks</h1>
+    <div class="sub">Signed in as <span id="tasks-user-email"></span></div>
+  </div>
+</div>
+
+<div id="tasks-body"><div class="empty">Loading&hellip;</div></div>
+</template>
 <template id="tpl-day-plan"><p>Coming soon</p></template>
 <template id="tpl-account-health"><p>Coming soon</p></template>
 
@@ -2580,6 +2624,107 @@ function openSettingsFromQuery() {
   }
 }
 
+// ── Tasks area (migrated from templates/tasks.html) ─────────────
+// load() -> loadTasks() (collides with the Customers tab's bootstrap
+// load() above). wireDueBox()/wireDueBoxes() -> wireTaskDueBox()/
+// wireTaskDueBoxes() (the shell already has its own 2-arg wireDueBox()
+// for Brief's Postgres-backed action-items due dates, above). dateOffset()
+// and showToast() are reused from their existing definitions above rather
+// than redefined here — both already do exactly what this page needs.
+async function loadTasks(signal) {
+  const body = document.getElementById('tasks-body');
+  const emailEl = document.getElementById('tasks-user-email');
+  fetch('api/whoami', { signal }).then(r => r.json()).then(d => {
+    if (!signal.aborted && emailEl) emailEl.textContent = d.email || '';
+  }).catch(() => {});
+
+  try {
+    const r = await fetch('api/tasks', { credentials: 'include', signal });
+    if (!r.ok) throw new Error(r.statusText);
+    const data = await r.json();
+    body.innerHTML = data.html || '<div class="empty">Nothing open — you\'re all caught up.</div>';
+    wireCheckboxes();
+    wireTaskDueBoxes();
+  } catch (e) {
+    if (signal.aborted) return; // navigated away mid-fetch — bail out silently
+    body.innerHTML = `<div class="empty" style="color:var(--bad-t)">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function wireCheckboxes() {
+  document.querySelectorAll('#tasks-body .task-check').forEach(cb => {
+    cb.addEventListener('change', onCheck);
+  });
+}
+
+async function onCheck(e) {
+  const checkbox = e.target;
+  const row = checkbox.closest('.task-row');
+  const itemKey = row.dataset.itemKey;
+  const checked = checkbox.checked;
+
+  // Optimistic: remove immediately rather than waiting for a full refetch,
+  // per the Tasks tab design spec's "Marking complete" section.
+  row.classList.add('removing');
+  checkbox.disabled = true;
+
+  try {
+    const r = await fetch('api/tasks/' + encodeURIComponent(itemKey) + '/checked', {
+      method: 'PATCH', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({checked}),
+    });
+    if (!r.ok) throw new Error(r.statusText);
+    const data = await r.json();
+    if (!data.asana_synced) throw new Error('Asana sync failed');
+    setTimeout(() => row.remove(), 200);
+  } catch(err) {
+    row.classList.remove('removing');
+    checkbox.disabled = false;
+    checkbox.checked = !checked;
+    showToast("Couldn't sync to Asana — try again", 'err', 5000);
+  }
+}
+
+const DUE_SHORTCUTS = {today: 0, tomorrow: 1, 'next-week': 7, 'next-month': 30};
+
+function wireTaskDueBoxes() {
+  document.querySelectorAll('#tasks-body .duebox').forEach(wireTaskDueBox);
+}
+
+function wireTaskDueBox(duebox) {
+  const itemKey = duebox.dataset.itemKey;
+  const input = duebox.querySelector('.due-input');
+  const note = duebox.querySelector('[data-role="sync-status"]');
+
+  function commit(newValue) {
+    input.value = newValue || '';
+    input.classList.toggle('overdue', !!newValue && newValue < dateOffset(0));
+    if (note) note.textContent = 'Syncing…';
+    fetch('api/tasks/' + encodeURIComponent(itemKey) + '/due-date', {
+      method: 'PATCH', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({due_on: newValue || null}),
+    }).then(async r => {
+      if (!r.ok) throw new Error(r.statusText);
+      const data = await r.json();
+      if (note) note.textContent = data.asana_synced === false ? 'Saved (Asana sync failed)' : 'Saved';
+    }).catch(() => {
+      if (note) note.textContent = 'Save failed — retry';
+    }).finally(() => {
+      setTimeout(() => { if (note) note.textContent = ''; }, 3000);
+    });
+  }
+
+  input.addEventListener('change', e => { e.stopPropagation(); commit(input.value); });
+  duebox.querySelectorAll('.duebtn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      commit(dateOffset(DUE_SHORTCUTS[btn.dataset.shortcut]));
+    });
+  });
+}
+
 // ── Sidebar shell: client-side area router ─────────────────────
 // Brief is the only fully-wired area today; the other four are inert
 // "Coming soon" stubs (see <template id="tpl-..."> below) until Tasks 3-6
@@ -2602,7 +2747,7 @@ const AREAS = {
     },
   },
   environments: { mount(signal) { /* Task 5 fills this in */ } },
-  tasks: { mount(signal) { /* Task 3 fills this in */ } },
+  tasks: { mount(signal) { loadTasks(signal); } },
   'day-plan': { mount(signal) { /* Task 4 fills this in */ } },
   'account-health': { mount(signal) { /* Task 6 fills this in */ } },
 };
