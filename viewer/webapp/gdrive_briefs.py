@@ -162,7 +162,7 @@ def _find_folder_cached(drive, parent_id: str, name: str) -> Optional[str]:
             return cached[0]
 
     query = f"parents='{parent_id}' and name='{name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-    results = drive.files().list(q=query, spaces='drive', pageSize=1, fields='files(id)').execute()
+    results = drive.files().list(q=query, spaces='drive', pageSize=1, fields='files(id)').execute(num_retries=3)
     files = results.get('files', [])
     if not files:
         logger.warning(f'No folder "{name}" found in parent {parent_id}')
@@ -189,7 +189,7 @@ def _list_date_folder(drive, date_folder_id: str):
     results = drive.files().list(
         q=query, spaces='drive', pageSize=50,
         fields='files(id,name,mimeType)',
-    ).execute()
+    ).execute(num_retries=3)
     all_files = results.get('files', [])
 
     file_map = {}
@@ -208,7 +208,7 @@ def _list_date_folder(drive, date_folder_id: str):
 
 def _download_json(drive, file_id: str):
     """Download and parse a JSON file from Drive."""
-    content = drive.files().get_media(fileId=file_id).execute()
+    content = drive.files().get_media(fileId=file_id).execute(num_retries=3)
     return json.loads(content)
 
 
@@ -221,7 +221,7 @@ def _read_subfolder_files(drive, subfolder_id: str) -> List[Dict]:
     results = drive.files().list(
         q=query, spaces='drive', pageSize=50,
         fields='files(id,name)',
-    ).execute()
+    ).execute(num_retries=3)
 
     items = []
     for f in results.get('files', []):
@@ -456,7 +456,7 @@ def get_account_projects(refresh_token: str, folder_id: Optional[str] = None) ->
         )
         results = drive.files().list(
             q=query, spaces='drive', pageSize=1, fields='files(id)',
-        ).execute()
+        ).execute(num_retries=3)
         files = results.get('files', [])
         if not files:
             logger.warning('get_account_projects: account-config.json not found in /config')
@@ -564,7 +564,7 @@ def list_available_briefs(refresh_token: str, folder_id: Optional[str] = None,
         results = drive.files().list(
             q=query, spaces='drive', pageSize=100,
             fields='files(name)', orderBy='name desc',
-        ).execute()
+        ).execute(num_retries=3)
 
         files = results.get('files', [])
         dates = []
@@ -618,7 +618,7 @@ def read_account_config(refresh_token: str, folder_id: Optional[str] = None) -> 
         )
         results = drive.files().list(
             q=query, spaces='drive', pageSize=1, fields='files(id)',
-        ).execute()
+        ).execute(num_retries=3)
         files = results.get('files', [])
         if not files:
             logger.info('read_account_config: account-config.json not found — returning empty config')
@@ -659,7 +659,7 @@ def write_account_config(config_data: Dict, refresh_token: str,
                 'mimeType': 'application/vnd.google-apps.folder',
                 'parents': [parent_folder],
             }
-            created_folder = drive.files().create(body=folder_metadata, fields='id').execute()
+            created_folder = drive.files().create(body=folder_metadata, fields='id').execute(num_retries=3)
             config_folder_id = created_folder['id']
             with _cache_lock:
                 _folder_cache[f'{parent_folder}/config'] = (config_folder_id, time.monotonic() + _FOLDER_TTL)
@@ -671,7 +671,7 @@ def write_account_config(config_data: Dict, refresh_token: str,
         )
         results = drive.files().list(
             q=query, spaces='drive', pageSize=1, fields='files(id)',
-        ).execute()
+        ).execute(num_retries=3)
         files = results.get('files', [])
 
         payload = json.dumps(config_data, indent=2).encode('utf-8')
@@ -680,11 +680,11 @@ def write_account_config(config_data: Dict, refresh_token: str,
         if not files:
             logger.info('write_account_config: account-config.json not found — creating it')
             file_metadata = {'name': 'account-config.json', 'parents': [config_folder_id]}
-            created_file = drive.files().create(body=file_metadata, media_body=media, fields='id').execute()
+            created_file = drive.files().create(body=file_metadata, media_body=media, fields='id').execute(num_retries=3)
             file_id = created_file['id']
         else:
             file_id = files[0]['id']
-            drive.files().update(fileId=file_id, media_body=media).execute()
+            drive.files().update(fileId=file_id, media_body=media).execute(num_retries=3)
 
         # Invalidate the account-projects cache so next read picks up changes
         cache_key = f'account-config:{parent_folder}'
@@ -744,7 +744,7 @@ def _find_folder_in_shared_drive(drive, parent_id: str, name: str) -> Optional[s
     results = drive.files().list(
         q=query, spaces='drive', pageSize=1, fields='files(id)',
         supportsAllDrives=True, includeItemsFromAllDrives=True,
-    ).execute()
+    ).execute(num_retries=3)
     files = results.get('files', [])
     if not files:
         return None
@@ -769,7 +769,7 @@ def _list_all_files_in_shared_drive(drive, query: str, fields: str = 'files(id,n
             fields=f'nextPageToken,{fields}',
             supportsAllDrives=True, includeItemsFromAllDrives=True,
             pageToken=page_token,
-        ).execute()
+        ).execute(num_retries=3)
         files.extend(results.get('files', []))
         page_token = results.get('nextPageToken')
         if not page_token:
@@ -946,7 +946,7 @@ def read_doc_text(drive, doc_id: str) -> str:
         if cached and cached[1] > now:
             return cached[0]
 
-    content = drive.files().export(fileId=doc_id, mimeType='text/plain').execute()
+    content = drive.files().export(fileId=doc_id, mimeType='text/plain').execute(num_retries=3)
     text = content.decode('utf-8') if isinstance(content, bytes) else content
 
     with _cache_lock:
@@ -1067,7 +1067,7 @@ def read_account_environments(refresh_token: str, account_name: str) -> Optional
             logger.info('read_account_environments: %s not found — returning empty defaults', file_name)
             return dict(_EMPTY_ACCOUNT_ENVIRONMENTS)
 
-        content = drive.files().get_media(fileId=file_match['id'], supportsAllDrives=True).execute()
+        content = drive.files().get_media(fileId=file_match['id'], supportsAllDrives=True).execute(num_retries=3)
         return json.loads(content)
 
     except Exception as e:
@@ -1110,11 +1110,11 @@ def write_account_environments(account_name: str, data: Dict, refresh_token: str
             file_metadata = {'name': file_name, 'parents': [account_folder_id]}
             drive.files().create(
                 body=file_metadata, media_body=media, fields='id', supportsAllDrives=True,
-            ).execute()
+            ).execute(num_retries=3)
         else:
             drive.files().update(
                 fileId=existing['id'], media_body=media, supportsAllDrives=True,
-            ).execute()
+            ).execute(num_retries=3)
 
         logger.info('write_account_environments: saved %s', file_name)
         return True
@@ -1152,7 +1152,7 @@ def read_config(refresh_token: str, folder_id: Optional[str] = None) -> Optional
         )
         results = drive.files().list(
             q=query, spaces='drive', pageSize=1, fields='files(id)',
-        ).execute()
+        ).execute(num_retries=3)
         files = results.get('files', [])
         if not files:
             logger.info('read_config: config.json not found — returning empty config')
@@ -1232,7 +1232,7 @@ def write_config(updates: Dict, refresh_token: str,
                 'mimeType': 'application/vnd.google-apps.folder',
                 'parents': [parent_folder],
             }
-            created_folder = drive.files().create(body=folder_metadata, fields='id').execute()
+            created_folder = drive.files().create(body=folder_metadata, fields='id').execute(num_retries=3)
             config_folder_id = created_folder['id']
             with _cache_lock:
                 _folder_cache[f'{parent_folder}/config'] = (config_folder_id, time.monotonic() + _FOLDER_TTL)
@@ -1244,7 +1244,7 @@ def write_config(updates: Dict, refresh_token: str,
         )
         results = drive.files().list(
             q=query, spaces='drive', pageSize=1, fields='files(id)',
-        ).execute()
+        ).execute(num_retries=3)
         files = results.get('files', [])
 
         existing = {}
@@ -1258,11 +1258,11 @@ def write_config(updates: Dict, refresh_token: str,
         if not files:
             logger.info('write_config: config.json not found — creating it')
             file_metadata = {'name': 'config.json', 'parents': [config_folder_id]}
-            created_file = drive.files().create(body=file_metadata, media_body=media, fields='id').execute()
+            created_file = drive.files().create(body=file_metadata, media_body=media, fields='id').execute(num_retries=3)
             file_id = created_file['id']
         else:
             file_id = files[0]['id']
-            drive.files().update(fileId=file_id, media_body=media).execute()
+            drive.files().update(fileId=file_id, media_body=media).execute(num_retries=3)
 
         logger.info('write_config: saved config.json (file_id=%s)', file_id)
         return True
