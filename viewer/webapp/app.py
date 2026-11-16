@@ -1034,6 +1034,10 @@ def set_folder_id():
 
 @app.route('/')
 @app.route('/index.html')
+@app.route('/environments')
+@app.route('/tasks')
+@app.route('/day-plan')
+@app.route('/account-health')
 @login_required
 def index():
     return send_from_directory(VIEWER_HTML_DIR, 'daily-brief-viewer.html')
@@ -1248,7 +1252,7 @@ def customers_page():
     daily-brief-viewer.html (see its "migrated from templates/customers.html"
     comments) -- redirect bookmarks/old links there instead of maintaining
     two separate editors of the same account-config.json/config.json."""
-    return redirect(url_for('index', openSettings='customers'))
+    return redirect(url_for('index', area='account-health'))
 
 
 @app.route('/api/customers/config')
@@ -1420,12 +1424,6 @@ def _portfolio_health_cache_set(user_id, payload):
 def _portfolio_health_cache_evict(user_id):
     with _portfolio_health_cache_lock:
         _portfolio_health_cache.pop(user_id, None)
-
-
-@app.route('/environments')
-@login_required
-def environments_page():
-    return render_template('environments.html', user_email=request.brief_user['email'])
 
 
 def _load_in_scope_customers(request):
@@ -1782,12 +1780,6 @@ def api_live_action_items(date_str):
     return jsonify({'html': html, 'count': total_count})
 
 
-@app.route('/tasks')
-@login_required
-def tasks_page():
-    return render_template('tasks.html', user_email=request.brief_user['email'])
-
-
 @app.route('/api/tasks')
 @login_required
 def api_tasks():
@@ -2084,12 +2076,6 @@ def _day_plan_render_kwargs(data, dict_fields=(), list_fields=()):
     return kwargs
 
 
-@app.route('/day-plan')
-@login_required
-def day_plan_page():
-    return render_template('day_plan.html', user_email=request.brief_user['email'])
-
-
 @app.route('/api/day-plan/<date_str>/morning')
 @login_required
 def api_day_plan_morning(date_str):
@@ -2130,12 +2116,6 @@ def api_day_plan_evening(date_str):
     )
     html = render_template('evening_wrapup_fragment.html', available=True, **kwargs)
     return jsonify({'available': True, 'html': html})
-
-
-@app.route('/account-health')
-@login_required
-def account_health_page():
-    return render_template('account_health.html', user_email=request.brief_user['email'])
 
 
 @app.route('/api/account-health/<date_str>')
