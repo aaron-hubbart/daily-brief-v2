@@ -193,18 +193,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 .tab-panel.active{display:block;}
 
 /* ── Customers tab (migrated from templates/customers.html) ── */
-/* Day Planning reuses the same cust-* classes (its panel was migrated */
-/* from the same markup), so every selector here also matches #tab-day-planning. */
-#tab-customers,#tab-day-planning{font-size:14px;}
+#tab-customers{font-size:14px;}
 #tab-customers .cust-internal-gid{font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
 #tab-customers .cust-internal-gid label{font-weight:500;font-size:12px;color:var(--t2);}
-#tab-customers .cust-panel,#tab-day-planning .cust-panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);overflow:hidden;}
-#tab-customers .cust-panel-head,#tab-day-planning .cust-panel-head{padding:10px 14px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
-#tab-customers .cust-panel-body,#tab-day-planning .cust-panel-body{padding:12px 14px;}
-#tab-customers table,#tab-day-planning table{width:100%;border-collapse:collapse;font-size:12.5px;}
-#tab-customers th,#tab-day-planning th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
-#tab-customers td,#tab-day-planning td{padding:7px 8px;border-bottom:.5px solid var(--border);vertical-align:middle;}
-#tab-customers tr:last-child td,#tab-day-planning tr:last-child td{border-bottom:none;}
+#tab-customers .cust-panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);overflow:hidden;}
+#tab-customers .cust-panel-head{padding:10px 14px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
+#tab-customers .cust-panel-body{padding:12px 14px;}
+#tab-customers table{width:100%;border-collapse:collapse;font-size:12.5px;}
+#tab-customers th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
+#tab-customers td{padding:7px 8px;border-bottom:.5px solid var(--border);vertical-align:middle;}
+#tab-customers tr:last-child td{border-bottom:none;}
 #tab-customers tr.editing td{background:var(--accent-bg);}
 #tab-customers .cust-acct-name{font-weight:500;}
 #tab-customers .cust-mono{font-family:var(--mono);font-size:11px;color:var(--t3);}
@@ -213,22 +211,22 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 #tab-customers .cust-pill.primary{background:var(--accent-bg);color:var(--accent-t);}
 #tab-customers .cust-pill.secondary{background:var(--surface2);color:var(--t2);}
 #tab-customers .cust-day-tag{font-size:11px;color:var(--t2);}
-#tab-customers select,#tab-customers input[type="text"],#tab-day-planning select,#tab-day-planning input[type="text"]{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+#tab-customers select,#tab-customers input[type="text"]{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
 #tab-customers select{cursor:pointer;}
-#tab-customers .cust-btn,#tab-day-planning .cust-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
-#tab-customers .cust-btn:hover,#tab-day-planning .cust-btn:hover{filter:brightness(.95);}
-#tab-customers .cust-btn.primary,#tab-day-planning .cust-btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
-#tab-customers .cust-btn.danger,#tab-day-planning .cust-btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
-#tab-customers .cust-btn.save,#tab-day-planning .cust-btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
-#tab-customers .cust-btn:disabled,#tab-day-planning .cust-btn:disabled{opacity:.4;cursor:default;}
-#tab-customers .cust-actions,#tab-day-planning .cust-actions{display:flex;gap:6px;}
-#tab-customers .cust-msg,#tab-day-planning .cust-msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
-#tab-customers .cust-msg.ok,#tab-day-planning .cust-msg.ok{color:var(--good-t);}
-#tab-customers .cust-msg.err,#tab-day-planning .cust-msg.err{color:var(--bad-t);}
-#tab-customers .cust-empty,#tab-day-planning .cust-empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
+#tab-customers .cust-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+#tab-customers .cust-btn:hover{filter:brightness(.95);}
+#tab-customers .cust-btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
+#tab-customers .cust-btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
+#tab-customers .cust-btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
+#tab-customers .cust-btn:disabled{opacity:.4;cursor:default;}
+#tab-customers .cust-actions{display:flex;gap:6px;}
+#tab-customers .cust-msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
+#tab-customers .cust-msg.ok{color:var(--good-t);}
+#tab-customers .cust-msg.err{color:var(--bad-t);}
+#tab-customers .cust-empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
 #tab-customers .cust-section-head td{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t2);background:var(--surface2);padding:8px 8px;border-bottom:1px solid var(--border-strong);}
-#tab-customers .cust-add-row,#tab-day-planning .cust-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
-#tab-customers .cust-add-row input,#tab-day-planning .cust-add-row input{flex:1;min-width:120px;}
+#tab-customers .cust-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+#tab-customers .cust-add-row input{flex:1;min-width:120px;}
 #cust-toast-container{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;}
 .cust-toast{padding:10px 20px;border-radius:var(--r);font-size:13px;font-weight:500;pointer-events:auto;opacity:0;transform:translateY(-12px);animation:cust-toast-in .25s ease forwards;}
 .cust-toast.ok{background:var(--good-bg);color:var(--good-t);border:1px solid var(--good-t);}
@@ -306,6 +304,75 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 #area-content .badge{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:99px;background:var(--surface2);color:var(--t2);}
 #area-content .badge.bwarn{background:var(--bad-bg);color:var(--bad-t);}
 
+/* ── Day Plan area (migrated from templates/day_plan.html) ── */
+/* .empty is already covered by the Tasks rule above (identical rule); .lbtn
+   gets an extra, more specific override below rather than editing the
+   shared #area-content .lbtn rule, since Day Plan needs margin-left:auto
+   but Tasks' own .lbtn usage doesn't live in a flex container, so touching
+   the shared rule isn't necessary and would risk future fights per Task 3's
+   carried-forward collision note. */
+#area-content .toggle{display:flex;gap:8px;margin-bottom:16px;}
+#area-content .toggle-btn{font-size:12px;font-weight:500;padding:5px 12px;background:var(--surface);color:var(--t2);border:1px solid var(--border-strong);border-radius:var(--r);cursor:pointer;font-family:var(--font);}
+#area-content .toggle-btn.active{background:var(--accent-bg);color:var(--accent-t);border-color:var(--accent);}
+#area-content .ssub{font-size:10.5px;font-weight:700;color:var(--accent-t);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border);}
+#area-content .dp-empty{color:var(--t3);font-size:12.5px;padding:24px 0;text-align:center;}
+#area-content .dp-empty-inline{color:var(--t3);font-size:12px;padding:6px 0;}
+#area-content .dp-stats{display:flex;gap:10px;margin-bottom:8px;}
+#area-content .dp-stat{flex:1;background:var(--surface2);border-radius:var(--r);padding:10px 12px;}
+#area-content .dp-stat-label{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);}
+#area-content .dp-stat-value{font-size:18px;font-weight:600;color:var(--t1);margin-top:2px;}
+#area-content .dp-callout{background:var(--accent-bg);border-radius:var(--r);padding:12px 14px;}
+#area-content .dp-callout-list{list-style:none;}
+#area-content .dp-callout-list li{padding:3px 0;font-size:12.5px;color:var(--t1);}
+#area-content .dp-schedule,#area-content .dp-done-list,#area-content .dp-carried-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:4px 12px;}
+#area-content .dp-sched-item,#area-content .dp-done-item,#area-content .dp-carried-item{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:.5px solid var(--border);}
+#area-content .dp-sched-item:last-child,#area-content .dp-done-item:last-child,#area-content .dp-carried-item:last-child{border-bottom:none;}
+#area-content .dp-done-item,#area-content .dp-carried-item{display:block;}
+#area-content .itime{font-size:11px;color:var(--t3);font-family:var(--mono);width:60px;flex-shrink:0;}
+#area-content .ititle{font-size:13px;font-weight:500;color:var(--t1);}
+#area-content .isub{font-size:11.5px;color:var(--t2);margin-top:2px;}
+#area-content .dp-sched-item .lbtn{margin-left:auto;}
+#area-content .dp-qa-columns{display:flex;gap:10px;flex-wrap:wrap;}
+#area-content .dp-qa-col{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;}
+#area-content .dp-qa-col-name{font-size:12px;font-weight:600;margin-bottom:4px;}
+#area-content .dp-qa-col-list{list-style:none;font-size:12px;color:var(--t2);}
+#area-content .dp-qa-col-list li{padding:2px 0;}
+#area-content .dp-cp-row{display:flex;gap:10px;flex-wrap:wrap;}
+#area-content .dp-cp-card{flex:1;min-width:150px;background:var(--bad-bg);border-left:3px solid var(--bad-t);border-radius:var(--r);padding:10px 12px;}
+#area-content .dp-cp-title{font-size:12.5px;font-weight:600;color:var(--t1);}
+#area-content .dp-cp-detail,#area-content .dp-cp-amount,#area-content .dp-cp-due{font-size:11.5px;color:var(--t2);margin-top:2px;}
+#area-content .dp-wins-blocking{display:flex;gap:16px;}
+#area-content .dp-wins,#area-content .dp-blocking{flex:1;}
+#area-content .dp-wins ul,#area-content .dp-blocking ul{list-style:none;font-size:12.5px;}
+#area-content .dp-wins li,#area-content .dp-blocking li{padding:3px 0;}
+
+/* Day Planning categories panel — relocated here from the Settings modal's
+   #tab-day-planning tab (see the removed #tab-customers,#tab-day-planning
+   cust-* rules above, now #tab-customers-only). Scoped to .dp-categories
+   rather than bare #area-content selectors so a future area that happens
+   to reuse table/cust-btn/cust-msg generically won't fight this one. */
+#area-content .dp-categories-head{display:flex;justify-content:space-between;align-items:center;margin:20px 0 8px;}
+#area-content .dp-categories-head h2{font-size:14.5px;font-weight:600;}
+#area-content .dp-categories table{width:100%;border-collapse:collapse;font-size:12.5px;}
+#area-content .dp-categories th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
+#area-content .dp-categories td{padding:7px 8px;border-bottom:.5px solid var(--border);vertical-align:middle;}
+#area-content .dp-categories tr:last-child td{border-bottom:none;}
+#area-content .dp-categories tr.editing td{background:var(--accent-bg);}
+#area-content .dp-categories input[type="text"]{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+#area-content .dp-categories .cust-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+#area-content .dp-categories .cust-btn:hover{filter:brightness(.95);}
+#area-content .dp-categories .cust-btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
+#area-content .dp-categories .cust-btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
+#area-content .dp-categories .cust-btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
+#area-content .dp-categories .cust-btn:disabled{opacity:.4;cursor:default;}
+#area-content .dp-categories .cust-actions{display:flex;gap:6px;}
+#area-content .dp-categories .cust-msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
+#area-content .dp-categories .cust-msg.ok{color:var(--good-t);}
+#area-content .dp-categories .cust-msg.err{color:var(--bad-t);}
+#area-content .dp-categories .cust-empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
+#area-content .dp-categories .cust-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+#area-content .dp-categories .cust-add-row input{flex:1;min-width:120px;}
+
 </style>
 </head>
 <body>
@@ -348,7 +415,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
       <button class="settings-tab active" data-tab="setup" onclick="switchSettingsTab('setup')">Setup</button>
       <button class="settings-tab" data-tab="account" onclick="switchSettingsTab('account')">Account</button>
       <button class="settings-tab" data-tab="customers" onclick="switchSettingsTab('customers')">Customers</button>
-      <button class="settings-tab" data-tab="day-planning" onclick="switchSettingsTab('day-planning')">Day Planning</button>
       <button class="settings-tab" id="settings-tab-admin" data-tab="admin" onclick="switchSettingsTab('admin')" style="display:none;">Admin</button>
     </div>
     <div class="modal-body settings-body">
@@ -529,31 +595,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
         </div>
       </div>
 
-      <div class="tab-panel" id="tab-day-planning">
-        <div class="cust-panel">
-          <div class="cust-panel-head">
-            <span>Quick Action Categories</span>
-            <button class="cust-btn save" id="dpc-save-btn" onclick="saveDayPlanningCategories()" disabled>Save to Drive</button>
-          </div>
-          <div class="cust-panel-body">
-            <table>
-              <thead>
-                <tr><th>Name</th><th>Description</th><th>Actions</th></tr>
-              </thead>
-              <tbody id="dpc-body">
-                <tr><td colspan="3" class="cust-empty">Loading…</td></tr>
-              </tbody>
-            </table>
-            <div class="cust-add-row">
-              <input type="text" id="dpc-new-name" placeholder="Category name">
-              <input type="text" id="dpc-new-description" placeholder="Description (used to classify items into this category)">
-              <button class="cust-btn primary" id="dpc-add-btn" onclick="addDayPlanningCategory()">Add category</button>
-            </div>
-            <div class="cust-msg" id="dpc-msg"></div>
-          </div>
-        </div>
-      </div>
-
       <div class="tab-panel" id="tab-admin">
         <div class="adm-panel">
           <div class="adm-panel-head">Deployment status</div>
@@ -678,7 +719,43 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 
 <div id="tasks-body"><div class="empty">Loading&hellip;</div></div>
 </template>
-<template id="tpl-day-plan"><p>Coming soon</p></template>
+<template id="tpl-day-plan">
+<div class="head">
+  <div>
+    <h1>Day Plan</h1>
+    <div class="sub">Signed in as <span id="day-plan-user-email"></span> &middot; Viewing <span id="dp-date-label"></span></div>
+  </div>
+</div>
+
+<div class="toggle">
+  <button type="button" class="toggle-btn" id="toggle-morning" onclick="setView('morning')">Morning</button>
+  <button type="button" class="toggle-btn" id="toggle-evening" onclick="setView('evening')">Evening</button>
+  <a class="toggle-btn" id="dp-refresh-link" href="#" target="_blank">Refresh</a>
+</div>
+
+<div id="day-plan-body"><div class="empty">Loading&hellip;</div></div>
+
+<div class="dp-categories">
+  <div class="dp-categories-head">
+    <h2>Quick Action Categories</h2>
+    <button class="cust-btn save" id="dpc-save-btn" onclick="saveDayPlanningCategories()" disabled>Save to Drive</button>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Description</th><th>Actions</th></tr>
+    </thead>
+    <tbody id="dpc-body">
+      <tr><td colspan="3" class="cust-empty">Loading…</td></tr>
+    </tbody>
+  </table>
+  <div class="cust-add-row">
+    <input type="text" id="dpc-new-name" placeholder="Category name">
+    <input type="text" id="dpc-new-description" placeholder="Description (used to classify items into this category)">
+    <button class="cust-btn primary" id="dpc-add-btn" onclick="addDayPlanningCategory()">Add category</button>
+  </div>
+  <div class="cust-msg" id="dpc-msg"></div>
+</div>
+</template>
 <template id="tpl-account-health"><p>Coming soon</p></template>
 
 <script>
@@ -1761,7 +1838,6 @@ async function openSetup(fromReplay) {
 // ── Settings modal (tabs) ───────────────────────────────────────
 let custLoaded = false;
 let adminLoaded = false;
-let dayPlanningLoaded = false;
 
 function openSettings(tab) {
   document.getElementById('settings-overlay').classList.add('show');
@@ -1779,7 +1855,6 @@ function switchSettingsTab(tab) {
   if (foot) foot.style.display = tab === 'setup' ? 'flex' : 'none';
   if (tab === 'account') initAccountTab();
   if (tab === 'customers' && !custLoaded) { custLoaded = true; load(); loadKeyContacts(); }
-  if (tab === 'day-planning' && !dayPlanningLoaded) { dayPlanningLoaded = true; loadDayPlanningCategories(); }
   if (tab === 'admin' && !adminLoaded) { adminLoaded = true; loadConfig(); loadUsers(); loadTestUsers(); }
 }
 
@@ -2268,161 +2343,6 @@ async function saveKeyContacts() {
   }
 }
 
-const DAY_PLANNING_CATEGORIES_MAX = 3;
-const DAY_PLANNING_CATEGORIES_DEFAULT = [
-  {name: 'Account Follow-Ups', description: 'Tasks tied to a specific customer account that need follow-up.'},
-  {name: 'Internal / Strategic', description: 'Internal meetings, planning, and work not tied to a specific account.'},
-  {name: 'Personal / Admin', description: 'Administrative tasks, scheduling, and other personal to-dos.'}
-];
-let DAY_PLANNING_CATEGORIES = [];
-let dpcDirty = false;
-
-async function loadDayPlanningCategories() {
-  try {
-    const r = await fetch('api/settings/day-planning-categories', {credentials:'include'});
-    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
-    const data = await r.json();
-    DAY_PLANNING_CATEGORIES = data.day_planning_categories || [];
-    if (!DAY_PLANNING_CATEGORIES.length) {
-      DAY_PLANNING_CATEGORIES = DAY_PLANNING_CATEGORIES_DEFAULT.map(c => ({...c}));
-      renderDayPlanningCategories();
-      markDayPlanningCategoriesDirty();
-      document.getElementById('dpc-msg').textContent = 'Suggested defaults — edit as needed, then Save to Drive.';
-      return;
-    }
-    renderDayPlanningCategories();
-  } catch(e) {
-    document.getElementById('dpc-body').innerHTML =
-      `<tr><td colspan="3" class="cust-empty" style="color:var(--bad-t)">Failed to load: ${e.message}</td></tr>`;
-  }
-}
-
-function renderDayPlanningCategories() {
-  const tbody = document.getElementById('dpc-body');
-  if (!DAY_PLANNING_CATEGORIES.length) {
-    tbody.innerHTML = '<tr><td colspan="3" class="cust-empty">No categories configured</td></tr>';
-  } else {
-    tbody.innerHTML = DAY_PLANNING_CATEGORIES.map((cat, i) => `
-      <tr data-idx="${i}">
-        <td class="cust-acct-name">${esc(cat.name)}</td>
-        <td>${esc(cat.description)}</td>
-        <td class="cust-actions">
-          <button class="cust-btn" onclick="editDayPlanningCategory(${i})">Edit</button>
-          <button class="cust-btn danger" onclick="removeDayPlanningCategory(${i})">Remove</button>
-        </td>
-      </tr>
-    `).join('');
-  }
-  const atMax = DAY_PLANNING_CATEGORIES.length >= DAY_PLANNING_CATEGORIES_MAX;
-  document.getElementById('dpc-new-name').disabled = atMax;
-  document.getElementById('dpc-new-description').disabled = atMax;
-  document.getElementById('dpc-add-btn').disabled = atMax;
-}
-
-function dayPlanningNameTaken(name, excludeIdx) {
-  return DAY_PLANNING_CATEGORIES.some((c, i) => i !== excludeIdx && c.name.toLowerCase() === name.toLowerCase());
-}
-
-function addDayPlanningCategory() {
-  const nameInput = document.getElementById('dpc-new-name');
-  const descInput = document.getElementById('dpc-new-description');
-  const name = nameInput.value.trim();
-  const description = descInput.value.trim();
-  const msg = document.getElementById('dpc-msg');
-  if (!name || !description) return;
-  if (DAY_PLANNING_CATEGORIES.length >= DAY_PLANNING_CATEGORIES_MAX) return;
-  if (dayPlanningNameTaken(name, -1)) {
-    msg.textContent = `Category "${name}" already exists`;
-    msg.className = 'cust-msg';
-    return;
-  }
-  DAY_PLANNING_CATEGORIES.push({name, description});
-  nameInput.value = '';
-  descInput.value = '';
-  markDayPlanningCategoriesDirty();
-  renderDayPlanningCategories();
-}
-
-function removeDayPlanningCategory(idx) {
-  const cat = DAY_PLANNING_CATEGORIES[idx];
-  const msg = document.getElementById('dpc-msg');
-  if (DAY_PLANNING_CATEGORIES.length <= 1) {
-    msg.textContent = 'At least one category is required — add a replacement before removing this one.';
-    msg.className = 'cust-msg';
-    return;
-  }
-  if (!confirm(`Remove "${cat.name}" from Day Planning categories?`)) return;
-  DAY_PLANNING_CATEGORIES.splice(idx, 1);
-  markDayPlanningCategoriesDirty();
-  renderDayPlanningCategories();
-}
-
-function editDayPlanningCategory(idx) {
-  const cat = DAY_PLANNING_CATEGORIES[idx];
-  const tbody = document.getElementById('dpc-body');
-  const tr = tbody.querySelector(`tr[data-idx="${idx}"]`);
-  tr.className = 'editing';
-  tr.innerHTML = `
-    <td><input type="text" id="dpc-e-name" value="${esc(cat.name)}" style="width:100%"></td>
-    <td><input type="text" id="dpc-e-description" value="${esc(cat.description)}" style="width:100%"></td>
-    <td class="cust-actions">
-      <button class="cust-btn save" onclick="saveDayPlanningCategoryRow(${idx})">OK</button>
-      <button class="cust-btn" onclick="renderDayPlanningCategories()">Cancel</button>
-    </td>
-  `;
-}
-
-function saveDayPlanningCategoryRow(idx) {
-  const name = document.getElementById('dpc-e-name').value.trim();
-  const description = document.getElementById('dpc-e-description').value.trim();
-  const msg = document.getElementById('dpc-msg');
-  if (!name || !description) {
-    msg.textContent = 'A category needs both a name and a description.';
-    msg.className = 'cust-msg';
-    return;
-  }
-  if (dayPlanningNameTaken(name, idx)) {
-    msg.textContent = `Category "${name}" already exists`;
-    msg.className = 'cust-msg';
-    return;
-  }
-  DAY_PLANNING_CATEGORIES[idx] = {name, description};
-  markDayPlanningCategoriesDirty();
-  renderDayPlanningCategories();
-}
-
-function markDayPlanningCategoriesDirty() {
-  dpcDirty = true;
-  document.getElementById('dpc-save-btn').disabled = false;
-  document.getElementById('dpc-msg').textContent = 'Unsaved changes';
-  document.getElementById('dpc-msg').className = 'cust-msg';
-}
-
-async function saveDayPlanningCategories() {
-  const btn = document.getElementById('dpc-save-btn');
-  const msg = document.getElementById('dpc-msg');
-  btn.disabled = true;
-  msg.textContent = 'Saving…';
-  msg.className = 'cust-msg';
-  try {
-    const r = await fetch('api/settings/day-planning-categories', {
-      method: 'PUT', credentials: 'include',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({day_planning_categories: DAY_PLANNING_CATEGORIES})
-    });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error || r.statusText);
-    dpcDirty = false;
-    msg.textContent = '';
-    msg.className = 'cust-msg';
-    showToast('Day Planning categories saved to Drive', 'ok', 5000);
-  } catch(e) {
-    msg.textContent = e.message;
-    msg.className = 'cust-msg';
-    btn.disabled = false;
-  }
-}
-
 window.addEventListener('beforeunload', e => { if (dirty || kcDirty || dpcDirty) { e.preventDefault(); e.returnValue = ''; } });
 
 // ── Admin tab (migrated from templates/admin.html) ──────────────
@@ -2725,6 +2645,234 @@ function wireTaskDueBox(duebox) {
   });
 }
 
+// ── Day Plan area (migrated from templates/day_plan.html) ───────
+// load() -> loadDayPlanView() (collides with the Customers tab's bootstrap
+// load() above, the same reason Task 3 renamed Tasks' own load() to
+// loadTasks()). setView(view) doesn't collide with any existing global, so
+// it keeps its name, same as day_plan.html had it. mountDayPlan(signal) is
+// the area's own bootstrap (called from AREAS['day-plan'].mount below) —
+// it wires up both the schedule (setView -> loadDayPlanView) and the Quick
+// Action Categories panel (loadDayPlanningCategories, moved below from the
+// Settings modal's former Day Planning tab — its functions are otherwise
+// unchanged and still use the same dpc-* element ids).
+function dpTodayLocalIso() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Slug each view's Drive file is stored under (see the Day Planning design
+// doc §2) -- used to build the per-view Refresh deep link, same claude://
+// pattern brief_fragment.html's per-section Refresh links use.
+const DP_VIEW_SLUG = {morning: 'morning-plan', evening: 'evening-wrapup'};
+
+let dpViewDate = null, dpIsToday = false, currentView = 'evening', dpMountSignal = null;
+
+function updateDateAndRefreshLink() {
+  document.getElementById('dp-date-label').textContent = dpIsToday ? `Today (${dpViewDate})` : dpViewDate;
+  const query = `/daily-brief Refresh section:${DP_VIEW_SLUG[currentView]} date:${dpViewDate}`;
+  document.getElementById('dp-refresh-link').href = `claude://claude.ai/new?q=${encodeURIComponent(query)}`;
+}
+
+function setView(view) {
+  currentView = view;
+  document.getElementById('toggle-morning').classList.toggle('active', view === 'morning');
+  document.getElementById('toggle-evening').classList.toggle('active', view === 'evening');
+  updateDateAndRefreshLink();
+  loadDayPlanView();
+}
+
+async function loadDayPlanView() {
+  const signal = dpMountSignal;
+  const body = document.getElementById('day-plan-body');
+  body.innerHTML = '<div class="empty">Loading&hellip;</div>';
+  try {
+    const r = await fetch(`api/day-plan/${encodeURIComponent(dpViewDate)}/${currentView}`, {credentials:'include', signal});
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    const data = await r.json();
+    body.innerHTML = data.available ? data.html : '<div class="dp-empty">Not generated yet — run the daily brief skill for this date, or hit Refresh above.</div>';
+  } catch(e) {
+    if (signal && signal.aborted) return; // navigated away mid-fetch — bail out silently
+    body.innerHTML = `<div class="empty" style="color:var(--bad-t)">Failed to load: ${e.message}</div>`;
+  }
+}
+
+const DAY_PLANNING_CATEGORIES_MAX = 3;
+const DAY_PLANNING_CATEGORIES_DEFAULT = [
+  {name: 'Account Follow-Ups', description: 'Tasks tied to a specific customer account that need follow-up.'},
+  {name: 'Internal / Strategic', description: 'Internal meetings, planning, and work not tied to a specific account.'},
+  {name: 'Personal / Admin', description: 'Administrative tasks, scheduling, and other personal to-dos.'}
+];
+let DAY_PLANNING_CATEGORIES = [];
+let dpcDirty = false;
+
+async function loadDayPlanningCategories() {
+  try {
+    const r = await fetch('api/settings/day-planning-categories', {credentials:'include'});
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    const data = await r.json();
+    DAY_PLANNING_CATEGORIES = data.day_planning_categories || [];
+    if (!DAY_PLANNING_CATEGORIES.length) {
+      DAY_PLANNING_CATEGORIES = DAY_PLANNING_CATEGORIES_DEFAULT.map(c => ({...c}));
+      renderDayPlanningCategories();
+      markDayPlanningCategoriesDirty();
+      document.getElementById('dpc-msg').textContent = 'Suggested defaults — edit as needed, then Save to Drive.';
+      return;
+    }
+    renderDayPlanningCategories();
+  } catch(e) {
+    document.getElementById('dpc-body').innerHTML =
+      `<tr><td colspan="3" class="cust-empty" style="color:var(--bad-t)">Failed to load: ${e.message}</td></tr>`;
+  }
+}
+
+function renderDayPlanningCategories() {
+  const tbody = document.getElementById('dpc-body');
+  if (!DAY_PLANNING_CATEGORIES.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="cust-empty">No categories configured</td></tr>';
+  } else {
+    tbody.innerHTML = DAY_PLANNING_CATEGORIES.map((cat, i) => `
+      <tr data-idx="${i}">
+        <td class="cust-acct-name">${esc(cat.name)}</td>
+        <td>${esc(cat.description)}</td>
+        <td class="cust-actions">
+          <button class="cust-btn" onclick="editDayPlanningCategory(${i})">Edit</button>
+          <button class="cust-btn danger" onclick="removeDayPlanningCategory(${i})">Remove</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+  const atMax = DAY_PLANNING_CATEGORIES.length >= DAY_PLANNING_CATEGORIES_MAX;
+  document.getElementById('dpc-new-name').disabled = atMax;
+  document.getElementById('dpc-new-description').disabled = atMax;
+  document.getElementById('dpc-add-btn').disabled = atMax;
+}
+
+function dayPlanningNameTaken(name, excludeIdx) {
+  return DAY_PLANNING_CATEGORIES.some((c, i) => i !== excludeIdx && c.name.toLowerCase() === name.toLowerCase());
+}
+
+function addDayPlanningCategory() {
+  const nameInput = document.getElementById('dpc-new-name');
+  const descInput = document.getElementById('dpc-new-description');
+  const name = nameInput.value.trim();
+  const description = descInput.value.trim();
+  const msg = document.getElementById('dpc-msg');
+  if (!name || !description) return;
+  if (DAY_PLANNING_CATEGORIES.length >= DAY_PLANNING_CATEGORIES_MAX) return;
+  if (dayPlanningNameTaken(name, -1)) {
+    msg.textContent = `Category "${name}" already exists`;
+    msg.className = 'cust-msg';
+    return;
+  }
+  DAY_PLANNING_CATEGORIES.push({name, description});
+  nameInput.value = '';
+  descInput.value = '';
+  markDayPlanningCategoriesDirty();
+  renderDayPlanningCategories();
+}
+
+function removeDayPlanningCategory(idx) {
+  const cat = DAY_PLANNING_CATEGORIES[idx];
+  const msg = document.getElementById('dpc-msg');
+  if (DAY_PLANNING_CATEGORIES.length <= 1) {
+    msg.textContent = 'At least one category is required — add a replacement before removing this one.';
+    msg.className = 'cust-msg';
+    return;
+  }
+  if (!confirm(`Remove "${cat.name}" from Day Planning categories?`)) return;
+  DAY_PLANNING_CATEGORIES.splice(idx, 1);
+  markDayPlanningCategoriesDirty();
+  renderDayPlanningCategories();
+}
+
+function editDayPlanningCategory(idx) {
+  const cat = DAY_PLANNING_CATEGORIES[idx];
+  const tbody = document.getElementById('dpc-body');
+  const tr = tbody.querySelector(`tr[data-idx="${idx}"]`);
+  tr.className = 'editing';
+  tr.innerHTML = `
+    <td><input type="text" id="dpc-e-name" value="${esc(cat.name)}" style="width:100%"></td>
+    <td><input type="text" id="dpc-e-description" value="${esc(cat.description)}" style="width:100%"></td>
+    <td class="cust-actions">
+      <button class="cust-btn save" onclick="saveDayPlanningCategoryRow(${idx})">OK</button>
+      <button class="cust-btn" onclick="renderDayPlanningCategories()">Cancel</button>
+    </td>
+  `;
+}
+
+function saveDayPlanningCategoryRow(idx) {
+  const name = document.getElementById('dpc-e-name').value.trim();
+  const description = document.getElementById('dpc-e-description').value.trim();
+  const msg = document.getElementById('dpc-msg');
+  if (!name || !description) {
+    msg.textContent = 'A category needs both a name and a description.';
+    msg.className = 'cust-msg';
+    return;
+  }
+  if (dayPlanningNameTaken(name, idx)) {
+    msg.textContent = `Category "${name}" already exists`;
+    msg.className = 'cust-msg';
+    return;
+  }
+  DAY_PLANNING_CATEGORIES[idx] = {name, description};
+  markDayPlanningCategoriesDirty();
+  renderDayPlanningCategories();
+}
+
+function markDayPlanningCategoriesDirty() {
+  dpcDirty = true;
+  document.getElementById('dpc-save-btn').disabled = false;
+  document.getElementById('dpc-msg').textContent = 'Unsaved changes';
+  document.getElementById('dpc-msg').className = 'cust-msg';
+}
+
+async function saveDayPlanningCategories() {
+  const btn = document.getElementById('dpc-save-btn');
+  const msg = document.getElementById('dpc-msg');
+  btn.disabled = true;
+  msg.textContent = 'Saving…';
+  msg.className = 'cust-msg';
+  try {
+    const r = await fetch('api/settings/day-planning-categories', {
+      method: 'PUT', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({day_planning_categories: DAY_PLANNING_CATEGORIES})
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || r.statusText);
+    dpcDirty = false;
+    msg.textContent = '';
+    msg.className = 'cust-msg';
+    showToast('Day Planning categories saved to Drive', 'ok', 5000);
+  } catch(e) {
+    msg.textContent = e.message;
+    msg.className = 'cust-msg';
+    btn.disabled = false;
+  }
+}
+
+function mountDayPlan(signal) {
+  dpMountSignal = signal;
+  const emailEl = document.getElementById('day-plan-user-email');
+  fetch('api/whoami', { signal }).then(r => r.json()).then(d => {
+    if (!signal.aborted && emailEl) emailEl.textContent = d.email || '';
+  }).catch(() => {});
+
+  const params = new URLSearchParams(window.location.search);
+  dpViewDate = params.get('date') || dpTodayLocalIso();
+  dpIsToday = dpViewDate === dpTodayLocalIso();
+  // Default view: today uses the time-of-day split (local hour >= 12 is
+  // evening); any other date always defaults to evening, since a past day
+  // is presumably over — see the Day Planning design doc's Global
+  // Constraints.
+  currentView = (dpIsToday && new Date().getHours() < 12) ? 'morning' : 'evening';
+  setView(currentView);
+  loadDayPlanningCategories();
+}
+
 // ── Sidebar shell: client-side area router ─────────────────────
 // Brief is the only fully-wired area today; the other four are inert
 // "Coming soon" stubs (see <template id="tpl-..."> below) until Tasks 3-6
@@ -2748,7 +2896,7 @@ const AREAS = {
   },
   environments: { mount(signal) { /* Task 5 fills this in */ } },
   tasks: { mount(signal) { loadTasks(signal); } },
-  'day-plan': { mount(signal) { /* Task 4 fills this in */ } },
+  'day-plan': { mount(signal) { mountDayPlan(signal); } },
   'account-health': { mount(signal) { /* Task 6 fills this in */ } },
 };
 let currentArea = null, currentAbort = null;
