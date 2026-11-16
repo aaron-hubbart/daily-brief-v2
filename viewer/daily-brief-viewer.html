@@ -607,7 +607,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
   <span id="status-msg"></span>
 </div>
 
-<div class="viewer-wrap" id="viewer-wrap">
+<div class="viewer-wrap" id="viewer-wrap" style="display:none;">
   <div class="empty-state" id="empty-state">
     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -626,6 +626,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 
   </div>
 </div>
+
+<!-- These must come before the inline script block below: it runs
+     synchronously during parsing (no defer/async/module), and its initial
+     bootstrap call (navigateTo(areaFromPathname(location.pathname), ...))
+     needs them to already exist in the DOM for a fresh load of a
+     non-root path. -->
+<template id="tpl-environments"><p>Coming soon</p></template>
+<template id="tpl-tasks"><p>Coming soon</p></template>
+<template id="tpl-day-plan"><p>Coming soon</p></template>
+<template id="tpl-account-health"><p>Coming soon</p></template>
 
 <script>
 // ── Configuration ── Set these to match your environment
@@ -2646,11 +2656,6 @@ checkOnboarding();
 openSettingsFromQuery();
 navigateTo(areaFromPathname(location.pathname), { push: false });
 </script>
-
-<template id="tpl-environments"><p>Coming soon</p></template>
-<template id="tpl-tasks"><p>Coming soon</p></template>
-<template id="tpl-day-plan"><p>Coming soon</p></template>
-<template id="tpl-account-health"><p>Coming soon</p></template>
 
 </body>
 </html>
