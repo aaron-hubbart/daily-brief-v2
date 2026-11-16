@@ -170,8 +170,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
   .topbar>*{flex-shrink:0;}
   .selector-wrap{flex-basis:100%;flex-grow:0;order:1;}
   .topbar-title,.sep{order:0;}
-  #google-connect-btn,#settings-btn,.mode-btn{order:2;}
+  #google-connect-btn,.mode-btn{order:2;}
 }
+
+/* ── Sidebar shell ── */
+#shell-body{display:flex;flex:1;min-height:0;}
+#sidebar{display:flex;flex-direction:column;width:168px;flex-shrink:0;gap:4px;padding:.75rem .5rem;background:var(--surface);border-right:1px solid var(--border-strong);}
+.sidebar-item{display:flex;align-items:center;height:34px;padding:0 10px;width:100%;font-family:var(--font);font-size:12.5px;font-weight:500;color:var(--t2);background:none;border:1px solid transparent;border-radius:var(--r);cursor:pointer;text-align:left;white-space:nowrap;transition:background .1s,color .1s;}
+.sidebar-item:hover{background:var(--surface2);color:var(--t1);}
+.sidebar-item.active{border-color:var(--accent);color:var(--t1);}
+#sidebar-settings{margin-top:auto;}
+#shell-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;}
+#area-content:empty{display:none;}
 
 /* ── Settings modal: tabs ── */
 .settings-modal{width:90vw;max-width:none;}
@@ -265,6 +275,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 </head>
 <body>
 
+<div id="shell-body" style="display:flex;">
+  <nav id="sidebar">
+    <button class="sidebar-item active" data-area="brief">Brief</button>
+    <button class="sidebar-item" data-area="environments">Environments</button>
+    <button class="sidebar-item" data-area="tasks">Tasks</button>
+    <button class="sidebar-item" data-area="day-plan">Day Plan</button>
+    <button class="sidebar-item" data-area="account-health">Account Health</button>
+    <button id="sidebar-settings" class="sidebar-item">&#9881; Settings</button>
+  </nav>
+  <div id="shell-main">
+
 <div class="topbar">
   <span class="topbar-title">Daily Briefs</span>
   <div class="sep"></div>
@@ -274,11 +295,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
     <span class="brief-count" id="brief-count"></span>
   </div>
   <button class="icon-btn" id="google-connect-btn" onclick="connectGoogleDrive()" style="display:none;" title="Connect Google Drive to view briefs">Connect Google Drive</button>
-  <a class="icon-btn" href="environments" style="text-decoration:none;display:inline-flex;align-items:center;">Environments</a>
-  <a class="icon-btn" href="tasks" style="text-decoration:none;display:inline-flex;align-items:center;">Tasks</a>
-  <a class="icon-btn" id="day-plan-link" href="day-plan" style="text-decoration:none;display:inline-flex;align-items:center;">Day Plan</a>
-  <a class="icon-btn" href="account-health" style="text-decoration:none;display:inline-flex;align-items:center;">Account Health</a>
-  <button class="icon-btn" id="settings-btn" onclick="openSettings('account')" title="Settings">&#9881; Settings</button>
   <button class="mode-btn" id="mode-btn" onclick="toggleMode()" title="Toggle light/dark mode">☀</button>
 </div>
 
@@ -604,6 +620,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
   </div>
   <!-- Brief HTML injected here directly — same document, no iframe, no sandbox -->
   <div class="brief-content" id="brief-content"></div>
+</div>
+
+<div id="area-content"></div>
+
+  </div>
 </div>
 
 <script>
@@ -1408,7 +1429,11 @@ async function selectBrief(idx) {
 
   // Set immediately (not after the fetch below) so Day Plan stays clickable
   // for the newly-selected date even while this brief is still loading.
-  document.getElementById('day-plan-link').href = 'day-plan?date=' + encodeURIComponent(brief.name);
+  // (The old topbar nav link this used to target was replaced by the
+  // sidebar in the nav redesign — Task 4 re-threads this date into the
+  // shell's Day Plan area; guarded here since the element no longer exists.)
+  const dayPlanLink = document.getElementById('day-plan-link');
+  if (dayPlanLink) dayPlanLink.href = 'day-plan?date=' + encodeURIComponent(brief.name);
 
   setStatus('Loading ' + formatLabel(brief) + '…');
   content.style.display = 'none';
@@ -2545,11 +2570,87 @@ function openSettingsFromQuery() {
   }
 }
 
+// ── Sidebar shell: client-side area router ─────────────────────
+// Brief is the only fully-wired area today; the other four are inert
+// "Coming soon" stubs (see <template id="tpl-..."> below) until Tasks 3-6
+// migrate each one's real markup/JS into this shell.
+let briefLoadedOnce = false;
+const AREAS = {
+  brief: {
+    mount() {
+      document.getElementById('viewer-wrap').style.display = '';
+      // Only fetch the brief list on the first mount — flipping back to
+      // Brief after visiting another area shouldn't re-fetch it every time.
+      if (!briefLoadedOnce) { briefLoadedOnce = true; loadBriefList(); }
+    },
+    unmount() {
+      document.getElementById('viewer-wrap').style.display = 'none';
+      // status-bar is Brief's own loading/error indicator (setStatus/
+      // clearStatus) — hide it on the way out so a stale "could not load"
+      // message doesn't linger over an unrelated area.
+      clearStatus();
+    },
+  },
+  environments: { mount(signal) { /* Task 5 fills this in */ } },
+  tasks: { mount(signal) { /* Task 3 fills this in */ } },
+  'day-plan': { mount(signal) { /* Task 4 fills this in */ } },
+  'account-health': { mount(signal) { /* Task 6 fills this in */ } },
+};
+let currentArea = null, currentAbort = null;
+
+function navigateTo(areaSlug, { push = true } = {}) {
+  if (!AREAS[areaSlug]) areaSlug = 'brief';
+
+  // Cancel any in-flight fetch from the area we're leaving so a slow
+  // response can't land in #area-content after a different area has
+  // already mounted (rapid sidebar clicking).
+  if (currentAbort) currentAbort.abort();
+
+  if (currentArea && AREAS[currentArea] && typeof AREAS[currentArea].unmount === 'function') {
+    AREAS[currentArea].unmount();
+  }
+
+  const areaContent = document.getElementById('area-content');
+  areaContent.innerHTML = '';
+  const tpl = document.getElementById('tpl-' + areaSlug);
+  if (tpl) areaContent.appendChild(tpl.content.cloneNode(true));
+
+  document.querySelectorAll('.sidebar-item[data-area]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.area === areaSlug);
+  });
+
+  currentArea = areaSlug;
+  currentAbort = new AbortController();
+  if (AREAS[areaSlug] && typeof AREAS[areaSlug].mount === 'function') {
+    AREAS[areaSlug].mount(currentAbort.signal);
+  }
+
+  if (push) {
+    history.pushState({ area: areaSlug }, '', areaSlug === 'brief' ? '/' : '/' + areaSlug);
+  }
+}
+
+function areaFromPathname(pathname) {
+  const map = { '/': 'brief', '/index.html': 'brief', '/environments': 'environments', '/tasks': 'tasks', '/day-plan': 'day-plan', '/account-health': 'account-health' };
+  return map[pathname] || 'brief';
+}
+
+window.addEventListener('popstate', () => navigateTo(areaFromPathname(location.pathname), { push: false }));
+document.querySelectorAll('.sidebar-item[data-area]').forEach(btn =>
+  btn.addEventListener('click', () => navigateTo(btn.dataset.area)));
+document.getElementById('sidebar-settings').addEventListener('click', () => openSettings('setup'));
+
 initMode();
-loadBriefList();
 refreshGoogleStatus();
 checkOnboarding();
 openSettingsFromQuery();
+navigateTo(areaFromPathname(location.pathname), { push: false });
 </script>
+
+<template id="tpl-environments"><p>Coming soon</p></template>
+<template id="tpl-tasks"><p>Coming soon</p></template>
+<template id="tpl-day-plan"><p>Coming soon</p></template>
+<template id="tpl-account-health"><p>Coming soon</p></template>
+
 </body>
 </html>
