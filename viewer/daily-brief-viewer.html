@@ -180,6 +180,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 .sidebar-item:hover{background:var(--surface2);color:var(--t1);}
 .sidebar-item.active{border-color:var(--accent);color:var(--t1);}
 #sidebar-settings{margin-top:auto;}
+
+/* Sidebar: collapse to an always-visible icon rail below 640px (same breakpoint as the
+   topbar reflow). Must come after the base sidebar rules above so it wins the cascade.
+   Labels are hidden (font-size:0); each item shows its one-letter glyph from data-glyph via ::before. */
+@media(max-width:640px){
+  #sidebar{width:48px;padding:.75rem .25rem;align-items:center;}
+  .sidebar-item{font-size:0;justify-content:center;padding:0;width:34px;}
+  .sidebar-item::before{content:attr(data-glyph);font-size:14px;font-weight:600;line-height:1;}
+}
 #shell-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;}
 #area-content:empty{display:none;}
 
@@ -541,12 +550,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 
 <div id="shell-body" style="display:flex;">
   <nav id="sidebar">
-    <button class="sidebar-item active" data-area="brief">Brief</button>
-    <button class="sidebar-item" data-area="environments">Environments</button>
-    <button class="sidebar-item" data-area="tasks">Tasks</button>
-    <button class="sidebar-item" data-area="day-plan">Day Plan</button>
-    <button class="sidebar-item" data-area="account-health">Account Health</button>
-    <button id="sidebar-settings" class="sidebar-item">&#9881; Settings</button>
+    <button class="sidebar-item active" data-area="brief" data-glyph="B">Brief</button>
+    <button class="sidebar-item" data-area="environments" data-glyph="E">Environments</button>
+    <button class="sidebar-item" data-area="tasks" data-glyph="T">Tasks</button>
+    <button class="sidebar-item" data-area="day-plan" data-glyph="D">Day Plan</button>
+    <button class="sidebar-item" data-area="account-health" data-glyph="A">Account Health</button>
+    <button id="sidebar-settings" class="sidebar-item" data-glyph="&#9881;">&#9881; Settings</button>
   </nav>
   <div id="shell-main">
 
