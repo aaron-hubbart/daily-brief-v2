@@ -192,41 +192,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 .tab-panel{display:none;}
 .tab-panel.active{display:block;}
 
-/* ── Customers tab (migrated from templates/customers.html) ── */
-#tab-customers{font-size:14px;}
-#tab-customers .cust-internal-gid{font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
-#tab-customers .cust-internal-gid label{font-weight:500;font-size:12px;color:var(--t2);}
-#tab-customers .cust-panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);overflow:hidden;}
-#tab-customers .cust-panel-head{padding:10px 14px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
-#tab-customers .cust-panel-body{padding:12px 14px;}
-#tab-customers table{width:100%;border-collapse:collapse;font-size:12.5px;}
-#tab-customers th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
-#tab-customers td{padding:7px 8px;border-bottom:.5px solid var(--border);vertical-align:middle;}
-#tab-customers tr:last-child td{border-bottom:none;}
-#tab-customers tr.editing td{background:var(--accent-bg);}
-#tab-customers .cust-acct-name{font-weight:500;}
-#tab-customers .cust-mono{font-family:var(--mono);font-size:11px;color:var(--t3);}
-#tab-customers .cust-sub{display:block;font-size:10px;opacity:.6;}
-#tab-customers .cust-pill{font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:2px 7px;border-radius:99px;display:inline-block;}
-#tab-customers .cust-pill.primary{background:var(--accent-bg);color:var(--accent-t);}
-#tab-customers .cust-pill.secondary{background:var(--surface2);color:var(--t2);}
-#tab-customers .cust-day-tag{font-size:11px;color:var(--t2);}
-#tab-customers select,#tab-customers input[type="text"]{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
-#tab-customers select{cursor:pointer;}
-#tab-customers .cust-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
-#tab-customers .cust-btn:hover{filter:brightness(.95);}
-#tab-customers .cust-btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
-#tab-customers .cust-btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
-#tab-customers .cust-btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
-#tab-customers .cust-btn:disabled{opacity:.4;cursor:default;}
-#tab-customers .cust-actions{display:flex;gap:6px;}
-#tab-customers .cust-msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
-#tab-customers .cust-msg.ok{color:var(--good-t);}
-#tab-customers .cust-msg.err{color:var(--bad-t);}
-#tab-customers .cust-empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
-#tab-customers .cust-section-head td{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t2);background:var(--surface2);padding:8px 8px;border-bottom:1px solid var(--border-strong);}
-#tab-customers .cust-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
-#tab-customers .cust-add-row input{flex:1;min-width:120px;}
 #cust-toast-container{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;}
 .cust-toast{padding:10px 20px;border-radius:var(--r);font-size:13px;font-weight:500;pointer-events:auto;opacity:0;transform:translateY(-12px);animation:cust-toast-in .25s ease forwards;}
 .cust-toast.ok{background:var(--good-bg);color:var(--good-t);border:1px solid var(--good-t);}
@@ -611,7 +576,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
     <div class="settings-tabs" id="settings-tabs">
       <button class="settings-tab active" data-tab="setup" onclick="switchSettingsTab('setup')">Setup</button>
       <button class="settings-tab" data-tab="account" onclick="switchSettingsTab('account')">Account</button>
-      <button class="settings-tab" data-tab="customers" onclick="switchSettingsTab('customers')">Customers</button>
       <button class="settings-tab" id="settings-tab-admin" data-tab="admin" onclick="switchSettingsTab('admin')" style="display:none;">Admin</button>
     </div>
     <div class="modal-body settings-body">
@@ -2087,7 +2051,6 @@ async function openSetup(fromReplay) {
 }
 
 // ── Settings modal (tabs) ───────────────────────────────────────
-let custLoaded = false;
 let adminLoaded = false;
 
 function openSettings(tab) {
@@ -2105,7 +2068,6 @@ function switchSettingsTab(tab) {
   const foot = document.getElementById('setup-foot');
   if (foot) foot.style.display = tab === 'setup' ? 'flex' : 'none';
   if (tab === 'account') initAccountTab();
-  if (tab === 'customers' && !custLoaded) { custLoaded = true; loadCustomersConfig(); loadKeyContacts(); }
   if (tab === 'admin' && !adminLoaded) { adminLoaded = true; loadConfig(); loadUsers(); loadTestUsers(); }
 }
 
@@ -2247,10 +2209,8 @@ async function saveMaxBriefsToLoad() {
 // Environments' own bootstrap load()s, and now also with Account Health's
 // own load() below -- this is the fourth and last bare load() collision;
 // since the roster markup itself is relocated onto the Account Health page
-// below, this is where it ends up living). Called both from
-// switchSettingsTab's now-dead-end 'customers' branch (no signal -- until
-// Task 7 removes that branch entirely, this is a no-op there, see the guard
-// below) and from AREAS['account-health'].mount (with the mount signal).
+// below, this is where it ends up living). Called from
+// AREAS['account-health'].mount (with the mount signal).
 let CONFIG = null;
 let dirty = false;
 
@@ -2260,12 +2220,8 @@ async function loadCustomersConfig(signal) {
   // This markup (and the listeners below) only exist in the live DOM while
   // Account Health is the mounted area -- it lives inside <template
   // id="tpl-account-health"> now, not as always-present (if hidden) Settings
-  // modal markup. Two call sites can reach this function while some other
-  // area (or no area yet) is mounted: switchSettingsTab's now-dead-end
-  // 'customers' branch (until Task 7 removes it), and openSettingsFromQuery's
-  // ?openSettings=customers deep link, which fires before the very first
-  // navigateTo/mount. Bail out silently rather than throwing on a null
-  // element in either case.
+  // modal markup. Bail out silently rather than throwing on a null element if
+  // this runs while Account Health is not mounted.
   const tierEl = document.getElementById('new-tier');
   if (!tierEl) return;
 
@@ -2541,9 +2497,7 @@ let kcDirty = false;
 
 async function loadKeyContacts(signal) {
   // Same reasoning as loadCustomersConfig above: this markup only exists
-  // while Account Health is mounted, but switchSettingsTab's dead-end
-  // 'customers' branch and the ?openSettings=customers deep link can both
-  // still reach this function with no area mounted at all.
+  // while Account Health is mounted, so bail out if it is not.
   if (!document.getElementById('kc-body')) return;
   try {
     const r = await fetch('api/key-contacts', {credentials:'include', signal});
@@ -2828,7 +2782,7 @@ async function stopImpersonating() {
 function openSettingsFromQuery() {
   const tab = new URLSearchParams(window.location.search).get('openSettings');
   if (tab) {
-    openSettings(tab);
+    if (['setup', 'account', 'admin'].includes(tab)) openSettings(tab);
     history.replaceState(null, '', window.location.pathname);
   }
 }
