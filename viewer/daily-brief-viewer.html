@@ -2243,25 +2243,38 @@ async function saveMaxBriefsToLoad() {
 }
 
 // ── Customers tab (migrated from templates/customers.html) ─────
-// load() -> loadCustomersConfig() (collides with Tasks'/Day Plan's/
+// load() -> loadCustomersConfig(signal) (collides with Tasks'/Day Plan's/
 // Environments' own bootstrap load()s, and now also with Account Health's
 // own load() below -- this is the fourth and last bare load() collision;
 // since the roster markup itself is relocated onto the Account Health page
 // below, this is where it ends up living). Called both from
-// switchSettingsTab's now-dead-end 'customers' branch (until Task 7 removes
-// it) and from AREAS['account-health'].mount.
+// switchSettingsTab's now-dead-end 'customers' branch (no signal -- until
+// Task 7 removes that branch entirely, this is a no-op there, see the guard
+// below) and from AREAS['account-health'].mount (with the mount signal).
 let CONFIG = null;
 let dirty = false;
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
-async function loadCustomersConfig() {
+async function loadCustomersConfig(signal) {
+  // This markup (and the listeners below) only exist in the live DOM while
+  // Account Health is the mounted area -- it lives inside <template
+  // id="tpl-account-health"> now, not as always-present (if hidden) Settings
+  // modal markup. Two call sites can reach this function while some other
+  // area (or no area yet) is mounted: switchSettingsTab's now-dead-end
+  // 'customers' branch (until Task 7 removes it), and openSettingsFromQuery's
+  // ?openSettings=customers deep link, which fires before the very first
+  // navigateTo/mount. Bail out silently rather than throwing on a null
+  // element in either case.
+  const tierEl = document.getElementById('new-tier');
+  if (!tierEl) return;
+
   // These listener attachments used to run once at top-level script-parse
   // time, back when this markup was always present (if hidden) in the
-  // Settings modal. Now that it only exists inside <template
-  // id="tpl-account-health"> -- cloned into the live DOM fresh on every
-  // mount -- they're re-attached here instead, every time this loads.
-  document.getElementById('new-tier').addEventListener('change', function() {
+  // Settings modal. Now that it's only cloned into the live DOM fresh on
+  // every Account Health mount, they're re-attached here instead, every
+  // time this loads.
+  tierEl.addEventListener('change', function() {
     document.getElementById('new-day').disabled = this.value !== 'secondary';
   });
   document.getElementById('internal-gid').addEventListener('input', () => markDirty());
@@ -2269,18 +2282,23 @@ async function loadCustomersConfig() {
   document.getElementById('internal-section').addEventListener('input', () => markDirty());
 
   try {
-    const r = await fetch('api/customers/config', {credentials:'include'});
+    const r = await fetch('api/customers/config', {credentials:'include', signal});
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     CONFIG = await r.json();
     CONFIG.accounts = (CONFIG.accounts || []).sort((a,b) =>
       (a.account_name||'').localeCompare(b.account_name||'', undefined, {sensitivity:'base'})
     );
+    // Bail if the user navigated away while this fetch was in flight -- the
+    // Account Health template (and these elements) may already be gone.
+    if ((signal && signal.aborted) || !document.getElementById('acct-body')) return;
     document.getElementById('internal-gid').value = CONFIG.internal_project_gid || '';
     document.getElementById('internal-name').value = CONFIG.internal_project_name || '';
     document.getElementById('internal-section').value = CONFIG.internal_default_section_name || '';
     render();
   } catch(e) {
-    document.getElementById('acct-body').innerHTML =
+    if (signal && signal.aborted) return; // navigated away mid-fetch — bail out silently
+    const body = document.getElementById('acct-body');
+    if (body) body.innerHTML =
       `<tr><td colspan="7" class="cust-empty" style="color:var(--bad-t)">Failed to load: ${e.message}</td></tr>`;
   }
 }
@@ -2521,17 +2539,26 @@ function addScannedAccounts() {
 let KEY_CONTACTS = [];
 let kcDirty = false;
 
-async function loadKeyContacts() {
+async function loadKeyContacts(signal) {
+  // Same reasoning as loadCustomersConfig above: this markup only exists
+  // while Account Health is mounted, but switchSettingsTab's dead-end
+  // 'customers' branch and the ?openSettings=customers deep link can both
+  // still reach this function with no area mounted at all.
+  if (!document.getElementById('kc-body')) return;
   try {
-    const r = await fetch('api/key-contacts', {credentials:'include'});
+    const r = await fetch('api/key-contacts', {credentials:'include', signal});
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     const data = await r.json();
     KEY_CONTACTS = (data.key_contacts || []).slice().sort((a,b) =>
       a.localeCompare(b, undefined, {sensitivity:'base'})
     );
+    // Bail if the user navigated away while this fetch was in flight.
+    if ((signal && signal.aborted) || !document.getElementById('kc-body')) return;
     renderKeyContacts();
   } catch(e) {
-    document.getElementById('kc-body').innerHTML =
+    if (signal && signal.aborted) return; // navigated away mid-fetch — bail out silently
+    const body = document.getElementById('kc-body');
+    if (body) body.innerHTML =
       `<tr><td colspan="2" class="cust-empty" style="color:var(--bad-t)">Failed to load: ${e.message}</td></tr>`;
   }
 }
@@ -4752,7 +4779,7 @@ const AREAS = {
   environments: { mount(signal) { loadEnvironments(signal); } },
   tasks: { mount(signal) { loadTasks(signal); } },
   'day-plan': { mount(signal) { mountDayPlan(signal); } },
-  'account-health': { mount(signal) { loadAccountHealth(signal); loadCustomersConfig(); loadKeyContacts(); } },
+  'account-health': { mount(signal) { loadAccountHealth(signal); loadCustomersConfig(signal); loadKeyContacts(signal); } },
 };
 let currentArea = null, currentAbort = null;
 
