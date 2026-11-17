@@ -458,6 +458,118 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 #area-content .pending-env-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;background:var(--accent-bg);color:var(--accent-t);border:1px solid var(--accent);border-radius:99px;padding:2px 8px 2px 10px;}
 #area-content .pending-env-chip button{border:none;background:none;color:inherit;cursor:pointer;font-size:13px;line-height:1;padding:0;}
 #area-content .save-status{font-size:11.5px;color:var(--t3);}
+
+/* ── Account Health area (migrated from templates/account_health.html) ──
+   .head/.empty are identical to the rules Tasks already added above and are
+   reused as-is (same reasoning as Day Plan's/Environments' own notes).
+   a.back's own top-of-page "Back to briefs" link was dropped (the sidebar
+   replaces it, same as every other migrated area) and Account Health's own
+   JS never used a.back anywhere else, so the class isn't carried over at
+   all this time. .badge, .group-head, .field-grid, and .panel/.panel-head
+   collided with different-looking rules Tasks/Day Plan/Environments already
+   defined under #area-content, so Account Health's versions are scoped
+   under ah- prefixed names instead of silently overriding them -- the
+   stat-tile drill-down panel's whole small component (backdrop/panel/head/
+   close/rows) was renamed together for naming consistency with its already
+   ah-prefixed element ids, even though only .panel and .panel-head were a
+   genuine collision. The Customers tab's own roster + Key Contacts markup
+   (cut from the Settings modal, see Step 2) is relocated below the health
+   cards; its cust-* rules are duplicated and rescoped under .ah-customers
+   rather than reusing the now-stale #tab-customers selector or bare
+   #area-content selectors, the same choice Day Plan made for its own
+   relocated categories panel (see the .dp-categories note above). */
+#area-content .stat-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+#area-content .stat{flex:1;min-width:150px;background:var(--surface2);border-radius:var(--r);padding:10px 12px;cursor:pointer;border:1px solid transparent;}
+#area-content .stat:hover{border-color:var(--border-strong);}
+#area-content .stat-label{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);}
+#area-content .stat-value{font-size:18px;font-weight:600;color:var(--t1);margin-top:2px;}
+#area-content .stat-note{font-size:11px;color:var(--t3);margin-top:2px;}
+#area-content .callout{background:var(--accent-bg);border-radius:var(--r);padding:12px 14px;margin-bottom:20px;}
+#area-content .callout h2{font-size:11px;font-weight:700;color:var(--accent-t);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+#area-content .callout ol{list-style:decimal;padding-left:18px;}
+#area-content .callout li{padding:3px 0;font-size:12.5px;color:var(--t1);}
+#area-content .hidden{display:none !important;}
+#area-content .group{margin-bottom:22px;}
+#area-content .ah-group-head{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;padding-bottom:4px;margin-bottom:10px;border-bottom:1px solid var(--border);}
+#area-content .ah-group-head .ghead-sub{font-weight:500;text-transform:none;letter-spacing:0;color:var(--t3);}
+#area-content .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;transition:box-shadow .2s, border-color .2s;}
+#area-content .card.jump-highlight{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg);}
+#area-content .card-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+#area-content .card-name{font-size:13.5px;font-weight:600;}
+#area-content .ah-badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:999px;white-space:nowrap;}
+#area-content .ah-badge-needs_attention{background:var(--bad-bg);color:var(--bad-t);}
+#area-content .ah-badge-watch{background:var(--warn-bg);color:var(--warn-t);}
+#area-content .ah-badge-healthy{background:var(--good-bg);color:var(--good-t);}
+#area-content .ah-badge-no_health_data{background:var(--surface2);color:var(--t2);border:1px solid var(--border-strong);}
+#area-content .pill{font-size:10.5px;color:var(--t2);background:var(--surface2);padding:2px 7px;border-radius:999px;}
+#area-content .swept-pill{font-size:10.5px;color:var(--t2);margin-left:auto;}
+#area-content .ah-field-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px;margin-bottom:8px;}
+#area-content .field-label{font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);}
+#area-content .field-value{font-size:12.5px;color:var(--t1);margin-top:1px;}
+#area-content .field-value.placeholder{color:var(--t2);font-style:italic;}
+#area-content .field-note{font-size:11px;color:var(--bad-t);margin-top:2px;}
+#area-content .risks{margin-bottom:8px;}
+#area-content .risks-label{font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);margin-bottom:3px;}
+#area-content .risks ul{list-style:none;}
+#area-content .risks li{font-size:12px;color:var(--t1);padding:2px 0;}
+#area-content .risk-tag{color:var(--t3);font-size:10.5px;}
+#area-content .action-items{font-size:12.5px;color:var(--t1);background:var(--surface2);border-radius:var(--r);padding:7px 10px;margin-bottom:8px;}
+#area-content .action-items-label{font-weight:600;color:var(--t2);font-size:10px;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:3px;}
+#area-content .action-items.placeholder{color:var(--t2);font-style:italic;}
+#area-content .action-items ul{list-style:none;}
+#area-content .action-items li{padding:2px 0;}
+#area-content .action-items a.asana-link{margin-left:6px;font-size:10.5px;color:var(--accent-t);text-decoration:none;white-space:nowrap;}
+#area-content .action-items a.asana-link:hover{text-decoration:underline;}
+#area-content .card-footer{display:flex;gap:14px;}
+#area-content .card-footer a{font-size:11px;color:var(--accent-t);text-decoration:none;}
+#area-content .card-footer a:hover{text-decoration:underline;}
+#area-content .ah-panel-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50;}
+#area-content .ah-panel{background:var(--surface);border-radius:var(--r);max-width:560px;width:100%;max-height:80vh;overflow-y:auto;padding:16px;}
+#area-content .ah-panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+#area-content .ah-panel-head h2{font-size:14px;font-weight:600;}
+#area-content .ah-panel-close{font-size:12px;color:var(--t3);cursor:pointer;background:none;border:none;font-family:var(--font);}
+#area-content .ah-panel-row{display:flex;flex-direction:column;gap:2px;padding:9px 8px;border-radius:var(--r);cursor:pointer;}
+#area-content .ah-panel-row:hover{background:var(--surface2);}
+#area-content .ah-panel-row-top{display:flex;align-items:center;gap:8px;}
+#area-content .ah-panel-row-name{font-size:12.5px;font-weight:600;}
+#area-content .ah-panel-row-step{font-size:11.5px;color:var(--t2);}
+#area-content .ah-panel-row-note{font-size:11px;color:var(--t3);}
+#area-content .ah-customers-head{display:flex;justify-content:space-between;align-items:center;margin:20px 0 8px;}
+#area-content .ah-customers-head h2{font-size:14.5px;font-weight:600;}
+#area-content .ah-customers{font-size:14px;}
+#area-content .ah-customers .cust-internal-gid{font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+#area-content .ah-customers .cust-internal-gid label{font-weight:500;font-size:12px;color:var(--t2);}
+#area-content .ah-customers .cust-panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);overflow:hidden;}
+#area-content .ah-customers .cust-panel-head{padding:10px 14px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
+#area-content .ah-customers .cust-panel-body{padding:12px 14px;}
+#area-content .ah-customers table{width:100%;border-collapse:collapse;font-size:12.5px;}
+#area-content .ah-customers th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
+#area-content .ah-customers td{padding:7px 8px;border-bottom:.5px solid var(--border);vertical-align:middle;}
+#area-content .ah-customers tr:last-child td{border-bottom:none;}
+#area-content .ah-customers tr.editing td{background:var(--accent-bg);}
+#area-content .ah-customers .cust-acct-name{font-weight:500;}
+#area-content .ah-customers .cust-mono{font-family:var(--mono);font-size:11px;color:var(--t3);}
+#area-content .ah-customers .cust-sub{display:block;font-size:10px;opacity:.6;}
+#area-content .ah-customers .cust-pill{font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:2px 7px;border-radius:99px;display:inline-block;}
+#area-content .ah-customers .cust-pill.primary{background:var(--accent-bg);color:var(--accent-t);}
+#area-content .ah-customers .cust-pill.secondary{background:var(--surface2);color:var(--t2);}
+#area-content .ah-customers .cust-day-tag{font-size:11px;color:var(--t2);}
+#area-content .ah-customers select,#area-content .ah-customers input[type="text"]{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+#area-content .ah-customers select{cursor:pointer;}
+#area-content .ah-customers .cust-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+#area-content .ah-customers .cust-btn:hover{filter:brightness(.95);}
+#area-content .ah-customers .cust-btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
+#area-content .ah-customers .cust-btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
+#area-content .ah-customers .cust-btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
+#area-content .ah-customers .cust-btn:disabled{opacity:.4;cursor:default;}
+#area-content .ah-customers .cust-actions{display:flex;gap:6px;}
+#area-content .ah-customers .cust-msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
+#area-content .ah-customers .cust-msg.ok{color:var(--good-t);}
+#area-content .ah-customers .cust-msg.err{color:var(--bad-t);}
+#area-content .ah-customers .cust-empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
+#area-content .ah-customers .cust-section-head td{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t2);background:var(--surface2);padding:8px 8px;border-bottom:1px solid var(--border-strong);}
+#area-content .ah-customers .cust-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+#area-content .ah-customers .cust-add-row input{flex:1;min-width:120px;}
 </style>
 </head>
 <body>
@@ -601,83 +713,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
         <div class="account-msg" id="max-briefs-msg"></div>
         <hr class="account-hr">
         <button class="icon-btn" onclick="openSetup(true)">Replay setup guide</button>
-      </div>
-
-      <div class="tab-panel" id="tab-customers">
-        <div class="cust-internal-gid">
-          <label>Internal Asana Project:</label>
-          <input type="text" id="internal-name" placeholder="Project name" style="width:170px">
-          <input type="text" id="internal-gid" placeholder="Project GID" class="cust-mono" style="width:170px">
-          <label>Default Section:</label>
-          <input type="text" id="internal-section" placeholder="Section name" style="width:150px">
-        </div>
-
-        <div class="cust-panel">
-          <div class="cust-panel-head">
-            <span>Account List</span>
-            <div style="display:flex;gap:8px">
-              <button class="cust-btn" id="scan-btn" onclick="scanForAccounts()">Scan for Accounts</button>
-              <button class="cust-btn save" id="save-btn" onclick="saveConfig()" disabled>Save to Drive</button>
-            </div>
-          </div>
-          <div class="cust-panel-body">
-            <table>
-              <thead>
-                <tr>
-                  <th>Account Name</th>
-                  <th>Tier</th>
-                  <th>Run Day</th>
-                  <th>Slack Channel</th>
-                  <th>Asana Project</th>
-                  <th>Default Section</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="acct-body">
-                <tr><td colspan="7" class="cust-empty">Loading…</td></tr>
-              </tbody>
-            </table>
-            <div class="cust-add-row">
-              <input type="text" id="new-name" placeholder="Account name">
-              <select id="new-tier">
-                <option value="primary">Primary</option>
-                <option value="secondary">Secondary</option>
-              </select>
-              <select id="new-day" disabled>
-                <option value="">—</option>
-                <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
-                <option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
-              </select>
-              <input type="text" id="new-slack-name" placeholder="Slack channel name"><input type="text" id="new-slack" placeholder="Slack Channel ID" class="cust-mono">
-              <input type="text" id="new-asana-name" placeholder="Asana project name"><input type="text" id="new-gid" placeholder="Asana Project GID" class="cust-mono">
-              <input type="text" id="new-section" placeholder="Default section name">
-              <button class="cust-btn primary" onclick="addAccount()">Add account</button>
-            </div>
-            <div class="cust-msg" id="msg"></div>
-          </div>
-        </div>
-
-        <div class="cust-panel" style="margin-top:16px">
-          <div class="cust-panel-head">
-            <span>Key Contacts</span>
-            <button class="cust-btn save" id="kc-save-btn" onclick="saveKeyContacts()" disabled>Save to Drive</button>
-          </div>
-          <div class="cust-panel-body">
-            <table>
-              <thead>
-                <tr><th>Name</th><th>Actions</th></tr>
-              </thead>
-              <tbody id="kc-body">
-                <tr><td colspan="2" class="cust-empty">Loading…</td></tr>
-              </tbody>
-            </table>
-            <div class="cust-add-row">
-              <input type="text" id="kc-new-name" placeholder="Full name" onkeydown="if(event.key==='Enter'){event.preventDefault();addKeyContact();}">
-              <button class="cust-btn primary" onclick="addKeyContact()">Add contact</button>
-            </div>
-            <div class="cust-msg" id="kc-msg"></div>
-          </div>
-        </div>
       </div>
 
       <div class="tab-panel" id="tab-admin">
@@ -867,7 +902,112 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
   <div class="cust-msg" id="dpc-msg"></div>
 </div>
 </template>
-<template id="tpl-account-health"><p>Coming soon</p></template>
+<template id="tpl-account-health">
+<div class="head">
+  <div>
+    <h1>Account Health</h1>
+    <div class="sub">Signed in as <span id="account-health-user-email"></span> &middot; <span id="ah-count">Loading&hellip;</span></div>
+  </div>
+</div>
+
+<div class="stat-row" id="ah-stats"></div>
+<div class="callout hidden" id="ah-callout">
+  <h2>This week</h2>
+  <ol id="ah-callout-list"></ol>
+</div>
+
+<div id="ah-body"><div class="empty">Loading&hellip;</div></div>
+
+<div class="ah-panel-backdrop hidden" id="ah-panel-backdrop">
+  <div class="ah-panel">
+    <div class="ah-panel-head">
+      <h2 id="ah-panel-title"></h2>
+      <button type="button" class="ah-panel-close" id="ah-panel-close">Close</button>
+    </div>
+    <div id="ah-panel-rows"></div>
+  </div>
+</div>
+
+<div class="ah-customers-head">
+  <h2>Customers</h2>
+</div>
+<div class="ah-customers">
+  <div class="cust-internal-gid">
+    <label>Internal Asana Project:</label>
+    <input type="text" id="internal-name" placeholder="Project name" style="width:170px">
+    <input type="text" id="internal-gid" placeholder="Project GID" class="cust-mono" style="width:170px">
+    <label>Default Section:</label>
+    <input type="text" id="internal-section" placeholder="Section name" style="width:150px">
+  </div>
+
+  <div class="cust-panel">
+    <div class="cust-panel-head">
+      <span>Account List</span>
+      <div style="display:flex;gap:8px">
+        <button class="cust-btn" id="scan-btn" onclick="scanForAccounts()">Scan for Accounts</button>
+        <button class="cust-btn save" id="save-btn" onclick="saveConfig()" disabled>Save to Drive</button>
+      </div>
+    </div>
+    <div class="cust-panel-body">
+      <table>
+        <thead>
+          <tr>
+            <th>Account Name</th>
+            <th>Tier</th>
+            <th>Run Day</th>
+            <th>Slack Channel</th>
+            <th>Asana Project</th>
+            <th>Default Section</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="acct-body">
+          <tr><td colspan="7" class="cust-empty">Loading…</td></tr>
+        </tbody>
+      </table>
+      <div class="cust-add-row">
+        <input type="text" id="new-name" placeholder="Account name">
+        <select id="new-tier">
+          <option value="primary">Primary</option>
+          <option value="secondary">Secondary</option>
+        </select>
+        <select id="new-day" disabled>
+          <option value="">—</option>
+          <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+          <option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+        </select>
+        <input type="text" id="new-slack-name" placeholder="Slack channel name"><input type="text" id="new-slack" placeholder="Slack Channel ID" class="cust-mono">
+        <input type="text" id="new-asana-name" placeholder="Asana project name"><input type="text" id="new-gid" placeholder="Asana Project GID" class="cust-mono">
+        <input type="text" id="new-section" placeholder="Default section name">
+        <button class="cust-btn primary" onclick="addAccount()">Add account</button>
+      </div>
+      <div class="cust-msg" id="msg"></div>
+    </div>
+  </div>
+
+  <div class="cust-panel" style="margin-top:16px">
+    <div class="cust-panel-head">
+      <span>Key Contacts</span>
+      <button class="cust-btn save" id="kc-save-btn" onclick="saveKeyContacts()" disabled>Save to Drive</button>
+    </div>
+    <div class="cust-panel-body">
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="kc-body">
+          <tr><td colspan="2" class="cust-empty">Loading…</td></tr>
+        </tbody>
+      </table>
+      <div class="cust-add-row">
+        <input type="text" id="kc-new-name" placeholder="Full name" onkeydown="if(event.key==='Enter'){event.preventDefault();addKeyContact();}">
+        <button class="cust-btn primary" onclick="addKeyContact()">Add contact</button>
+      </div>
+      <div class="cust-msg" id="kc-msg"></div>
+    </div>
+  </div>
+</div>
+</template>
 
 <script>
 // ── Configuration ── Set these to match your environment
@@ -1965,7 +2105,7 @@ function switchSettingsTab(tab) {
   const foot = document.getElementById('setup-foot');
   if (foot) foot.style.display = tab === 'setup' ? 'flex' : 'none';
   if (tab === 'account') initAccountTab();
-  if (tab === 'customers' && !custLoaded) { custLoaded = true; load(); loadKeyContacts(); }
+  if (tab === 'customers' && !custLoaded) { custLoaded = true; loadCustomersConfig(); loadKeyContacts(); }
   if (tab === 'admin' && !adminLoaded) { adminLoaded = true; loadConfig(); loadUsers(); loadTestUsers(); }
 }
 
@@ -2103,20 +2243,31 @@ async function saveMaxBriefsToLoad() {
 }
 
 // ── Customers tab (migrated from templates/customers.html) ─────
+// load() -> loadCustomersConfig() (collides with Tasks'/Day Plan's/
+// Environments' own bootstrap load()s, and now also with Account Health's
+// own load() below -- this is the fourth and last bare load() collision;
+// since the roster markup itself is relocated onto the Account Health page
+// below, this is where it ends up living). Called both from
+// switchSettingsTab's now-dead-end 'customers' branch (until Task 7 removes
+// it) and from AREAS['account-health'].mount.
 let CONFIG = null;
 let dirty = false;
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
-document.getElementById('new-tier').addEventListener('change', function() {
-  document.getElementById('new-day').disabled = this.value !== 'secondary';
-});
+async function loadCustomersConfig() {
+  // These listener attachments used to run once at top-level script-parse
+  // time, back when this markup was always present (if hidden) in the
+  // Settings modal. Now that it only exists inside <template
+  // id="tpl-account-health"> -- cloned into the live DOM fresh on every
+  // mount -- they're re-attached here instead, every time this loads.
+  document.getElementById('new-tier').addEventListener('change', function() {
+    document.getElementById('new-day').disabled = this.value !== 'secondary';
+  });
+  document.getElementById('internal-gid').addEventListener('input', () => markDirty());
+  document.getElementById('internal-name').addEventListener('input', () => markDirty());
+  document.getElementById('internal-section').addEventListener('input', () => markDirty());
 
-document.getElementById('internal-gid').addEventListener('input', () => markDirty());
-document.getElementById('internal-name').addEventListener('input', () => markDirty());
-document.getElementById('internal-section').addEventListener('input', () => markDirty());
-
-async function load() {
   try {
     const r = await fetch('api/customers/config', {credentials:'include'});
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
@@ -4333,10 +4484,254 @@ function escAttrEnv(s) { return escEnv(s).replace(/"/g, '&quot;').replace(/'/g, 
 
 window.addEventListener('beforeunload', e => { if (envDirty) { e.preventDefault(); e.returnValue = ''; } });
 
+// ── Account Health area (migrated from templates/account_health.html) ──
+// load() -> loadAccountHealth(signal) (collides with the Customers tab's
+// bootstrap load() above, the same reason Tasks/Day Plan/Environments
+// renamed their own load()s) -- threads the mount AbortController signal
+// into its one fetch, with an `if (signal.aborted) return;` bail-out in the
+// catch block, matching the others. esc() -> escAH() (collides with the
+// Customers tab's own esc(), but with different behavior -- null-safe and
+// escapes single quotes, which the Customers tab's esc()/escAttr() don't --
+// so renamed rather than reused, the same call Environments made for its
+// own esc()/escAttr() -> escEnv()/escAttrEnv()). .badge/.group-head/
+// .field-grid/.panel/.panel-head collided with different-looking rules
+// Tasks/Day Plan/Environments already defined under #area-content, so
+// Account Health's versions are scoped under ah- prefixed names instead of
+// silently overriding them (see the CSS section's note for detail). The
+// dropped top-of-page "← Back to briefs" link (the sidebar replaces it,
+// same as every other migrated area) means a.back's CSS wasn't carried
+// over either, since Account Health's own JS never used it elsewhere the
+// way Environments' in-app back-links did.
+//
+// The Customers tab's own roster + Key Contacts markup/JS (cut from the
+// Settings modal's #tab-customers panel, now living in <template
+// id="tpl-account-health"> below the health cards) is relocated onto this
+// page too, per the Account Health task. Its own load() -> loadCustomersConfig()
+// rename is covered above, next to its definition; AREAS['account-health']
+// .mount below calls loadAccountHealth/loadCustomersConfig/loadKeyContacts
+// together so all three sections populate on every visit to this area.
+let PAGE_DATA = null;
+let ahKeydownBound = false;
+
+function todayLocalIso() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function escAH(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+const HEALTH_LABELS = {needs_attention: 'Needs Attention', watch: 'Watch', healthy: 'Healthy', no_health_data: 'No Health Data'};
+
+function healthBadge(group) {
+  return `<span class="ah-badge ah-badge-${escAH(group)}">${escAH(HEALTH_LABELS[group] || group)}</span>`;
+}
+
+function fieldValue(value, placeholderText) {
+  if (value === null || value === undefined || value === '') {
+    return `<div class="field-value placeholder">${escAH(placeholderText)}</div>`;
+  }
+  return `<div class="field-value">${escAH(value)}</div>`;
+}
+
+function actionItemsListHtml(items, placeholderText) {
+  if (!items || !items.length) {
+    return `<div class="action-items placeholder"><span class="action-items-label">Action items</span>${escAH(placeholderText)}</div>`;
+  }
+  return `<div class="action-items"><span class="action-items-label">Action items</span><ul>${items.map(item =>
+    `<li>${escAH(item.text)}${item.source === 'context_doc' ? ' <span class="risk-tag">[Context Doc]</span>' : ''}${item.asana_url ? ` <a class="asana-link" href="${escAH(item.asana_url)}" target="_blank">Open in Asana &rarr;</a>` : ''}</li>`
+  ).join('')}</ul></div>`;
+}
+
+function firstActionItemText(account) {
+  const items = account.action_items;
+  return (items && items.length) ? items[0].text : (account.no_doc ? 'No research yet' : 'Not captured this sweep');
+}
+
+function renderCard(account) {
+  const placeholder = account.no_doc ? 'No research yet' : 'Not captured this sweep';
+  const arr = account.arr || {};
+  const arrDisplay = arr.raw ? `${arr.raw}${arr.disputed ? ' (disputed)' : ''}` : null;
+  const risksHtml = (account.risks && account.risks.length)
+    ? `<div class="risks"><div class="risks-label">Risks</div><ul>${account.risks.map(r =>
+        `<li>${escAH(r.text)}${r.source_tag ? ` <span class="risk-tag">[${escAH(r.source_tag)}]</span>` : ''}</li>`
+      ).join('')}</ul></div>`
+    : '';
+  const actionItemsHtml = actionItemsListHtml(account.action_items, placeholder);
+  const refreshHref = `claude://claude.ai/new?q=${encodeURIComponent(account.refresh_query)}`;
+  const docLink = account.doc_url
+    ? `<a href="${escAH(account.doc_url)}" target="_blank">Open Context doc &rarr;</a>`
+    : '';
+
+  return `
+    <div class="card" data-account-name="${escAH(account.account_name)}">
+      <div class="card-top">
+        <span class="card-name">${escAH(account.account_name)}</span>
+        ${healthBadge(account.health_group)}
+        ${account.commercial_tier ? `<span class="pill">${escAH(account.commercial_tier)}</span>` : ''}
+        <span class="swept-pill">${escAH(account.swept_label)}</span>
+      </div>
+      <div class="ah-field-grid">
+        <div><div class="field-label">ARR</div>${fieldValue(arrDisplay, placeholder)}${arr.disputed && arr.note ? `<div class="field-note">${escAH(arr.note)}</div>` : ''}</div>
+        <div><div class="field-label">Renewal</div>${fieldValue(account.renewal, placeholder)}</div>
+        <div><div class="field-label">Health</div>${fieldValue((account.health_signals || []).join(', ') || null, placeholder)}${account.health_disagree ? '<div class="field-note">Scores disagree</div>' : ''}</div>
+        <div><div class="field-label">CSM</div>${fieldValue(account.csm, placeholder)}</div>
+        <div><div class="field-label">AE</div>${fieldValue(account.ae, placeholder)}</div>
+        <div><div class="field-label">TAM</div>${fieldValue(account.tam, placeholder)}</div>
+      </div>
+      ${risksHtml}
+      ${actionItemsHtml}
+      <div class="card-footer">
+        ${docLink}
+        <a href="${refreshHref}" target="_blank">Refresh research</a>
+      </div>
+    </div>`;
+}
+
+function renderGroups(groups) {
+  const body = document.getElementById('ah-body');
+  if (!groups.some(g => g.count > 0)) {
+    body.innerHTML = '<div class="empty">No accounts configured yet.</div>';
+    return;
+  }
+  body.innerHTML = groups.map(g => `
+    <div class="group">
+      <div class="ah-group-head">
+        <span>${escAH(g.label)} (${g.count})</span>
+        <span class="ghead-sub">${escAH(g.arr_subtotal_raw)} ARR</span>
+      </div>
+      ${g.accounts.length ? g.accounts.map(renderCard).join('') : '<div class="empty">None</div>'}
+    </div>
+  `).join('');
+}
+
+function renderStatTiles(stats) {
+  const tiles = [
+    {key: 'accounts', label: 'Accounts', value: stats.accounts_count},
+    {key: 'arr', label: 'Combined ARR', value: stats.combined_arr_raw,
+     note: stats.combined_arr_disputed_count > 0 ? `${stats.combined_arr_disputed_count} figure(s) disputed` : null},
+    {key: 'needs-attention', label: 'Needs Attention', value: stats.needs_attention_count},
+    {key: 'stale', label: 'Stale Data (>30d)', value: stats.stale_count},
+  ];
+  document.getElementById('ah-stats').innerHTML = tiles.map(t => `
+    <div class="stat" data-tile="${t.key}">
+      <div class="stat-label">${escAH(t.label)}</div>
+      <div class="stat-value">${escAH(t.value)}</div>
+      ${t.note ? `<div class="stat-note">${escAH(t.note)}</div>` : ''}
+    </div>
+  `).join('');
+
+  document.querySelectorAll('#ah-stats .stat').forEach(el => {
+    el.addEventListener('click', () => openPanel(el.dataset.tile));
+  });
+}
+
+function renderCallout(callout) {
+  const box = document.getElementById('ah-callout');
+  if (!callout || !callout.findings || !callout.findings.length) {
+    box.classList.add('hidden');
+    return;
+  }
+  document.getElementById('ah-callout-list').innerHTML = callout.findings.map(f => `<li>${escAH(f)}</li>`).join('');
+  box.classList.remove('hidden');
+}
+
+function allAccounts() {
+  return (PAGE_DATA.groups || []).flatMap(g => g.accounts);
+}
+
+const TILE_FILTERS = {
+  'accounts': {title: 'All accounts', match: () => true, note: a => a.swept_label},
+  'arr': {title: 'Disputed ARR', match: a => a.arr && a.arr.disputed, note: a => (a.arr && a.arr.note) || ''},
+  'needs-attention': {title: 'Needs Attention', match: a => a.health_group === 'needs_attention', note: a => a.swept_label},
+  'stale': {title: 'Stale Data (>30d)', match: a => a.swept_days !== null && a.swept_days !== undefined && a.swept_days > 30, note: a => a.swept_label},
+};
+
+function openPanel(tileKey) {
+  const filter = TILE_FILTERS[tileKey];
+  if (!filter || !PAGE_DATA) return;
+  const matches = allAccounts().filter(filter.match);
+
+  document.getElementById('ah-panel-title').textContent = filter.title;
+  document.getElementById('ah-panel-rows').innerHTML = matches.length
+    ? matches.map(a => `
+        <div class="ah-panel-row" data-account-name="${escAH(a.account_name)}">
+          <div class="ah-panel-row-top">
+            <span class="ah-panel-row-name">${escAH(a.account_name)}</span>
+            ${healthBadge(a.health_group)}
+          </div>
+          <div class="ah-panel-row-step">${escAH(firstActionItemText(a))}</div>
+          <div class="ah-panel-row-note">${escAH(filter.note(a))}</div>
+        </div>
+      `).join('')
+    : '<div class="empty">No matching accounts.</div>';
+
+  document.querySelectorAll('#ah-panel-rows .ah-panel-row').forEach(el => {
+    el.addEventListener('click', () => jumpToCard(el.dataset.accountName));
+  });
+
+  document.getElementById('ah-panel-backdrop').classList.remove('hidden');
+}
+
+function closePanel() {
+  document.getElementById('ah-panel-backdrop').classList.add('hidden');
+}
+
+function jumpToCard(accountName) {
+  closePanel();
+  const card = document.querySelector(`.card[data-account-name="${CSS.escape(accountName)}"]`);
+  if (!card) return;
+  card.scrollIntoView({behavior: 'smooth', block: 'center'});
+  card.classList.add('jump-highlight');
+  setTimeout(() => card.classList.remove('jump-highlight'), 1600);
+}
+
+async function loadAccountHealth(signal) {
+  document.getElementById('ah-panel-close').addEventListener('click', closePanel);
+  document.getElementById('ah-panel-backdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'ah-panel-backdrop') closePanel();
+  });
+  if (!ahKeydownBound) {
+    ahKeydownBound = true;
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closePanel();
+    });
+  }
+
+  const emailEl = document.getElementById('account-health-user-email');
+  fetch('api/whoami', { signal }).then(r => r.json()).then(d => {
+    if (!signal.aborted && emailEl) emailEl.textContent = d.email || '';
+  }).catch(() => {});
+
+  const body = document.getElementById('ah-body');
+  body.innerHTML = '<div class="empty">Loading&hellip;</div>';
+  try {
+    const r = await fetch(`api/account-health/${todayLocalIso()}`, {credentials: 'include', signal});
+    if (!r.ok) {
+      let message = r.statusText;
+      try { message = (await r.json()).error || message; } catch (_) { /* non-JSON error body (e.g. a login redirect) */ }
+      throw new Error(message);
+    }
+    const data = await r.json();
+    PAGE_DATA = data;
+    document.getElementById('ah-count').textContent = `${data.stat_tiles.accounts_count} account(s)`;
+    renderStatTiles(data.stat_tiles);
+    renderCallout(data.callout);
+    renderGroups(data.groups);
+  } catch (e) {
+    if (signal.aborted) return; // navigated away mid-fetch — bail out silently
+    body.innerHTML = `<div class="empty" style="color:var(--bad-t)">Failed to load: ${escAH(e.message)}</div>`;
+  }
+}
+
 // ── Sidebar shell: client-side area router ─────────────────────
-// Brief is the only fully-wired area today; the other four are inert
-// "Coming soon" stubs (see <template id="tpl-..."> below) until Tasks 3-6
-// migrate each one's real markup/JS into this shell.
+// Brief, Environments, Tasks, Day Plan, and Account Health are all
+// fully-wired areas (Tasks 3-6 migrated each one's real markup/JS into
+// this shell in turn).
 let briefLoadedOnce = false;
 const AREAS = {
   brief: {
@@ -4357,7 +4752,7 @@ const AREAS = {
   environments: { mount(signal) { loadEnvironments(signal); } },
   tasks: { mount(signal) { loadTasks(signal); } },
   'day-plan': { mount(signal) { mountDayPlan(signal); } },
-  'account-health': { mount(signal) { /* Task 6 fills this in */ } },
+  'account-health': { mount(signal) { loadAccountHealth(signal); loadCustomersConfig(); loadKeyContacts(); } },
 };
 let currentArea = null, currentAbort = null;
 
