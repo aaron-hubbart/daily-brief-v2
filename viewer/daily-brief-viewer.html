@@ -373,6 +373,91 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 #area-content .dp-categories .cust-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
 #area-content .dp-categories .cust-add-row input{flex:1;min-width:120px;}
 
+/* ── Environments area (migrated from templates/environments.html) ──
+   .head/.hint/.empty are identical to the rules Tasks already added above
+   and are reused as-is (same reasoning as Day Plan's note below). .toggle-btn,
+   .badge, and .group-body collided with different-looking rules Tasks/Day
+   Plan already defined under #area-content, so Environments' versions are
+   scoped under env- prefixed names instead of silently overriding them.
+   Environments' own toast-container/.toast CSS and showToast()/esc()/escAttr()
+   JS were dropped/renamed the same way -- see the JS section below. a.back's
+   own top-of-page "Back to briefs" link was dropped (the sidebar replaces
+   it), but the class is still used by the in-app "← Portfolio"/"← <customer>"
+   links inside renderCustomer()/renderTeamDetail(), so the rule stays. */
+#area-content a.back{font-size:12px;color:var(--accent-t);text-decoration:none;}
+#area-content a.back:hover{text-decoration:underline;}
+#area-content select,#area-content input[type="text"],#area-content input[type="date"],#area-content input[type="number"],#area-content textarea{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+#area-content textarea{width:100%;min-height:52px;resize:vertical;}
+#area-content .btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+#area-content .btn:hover{filter:brightness(.95);}
+#area-content .btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
+#area-content .btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
+#area-content .btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
+#area-content .btn:disabled{opacity:.4;cursor:default;}
+#area-content input:disabled,#area-content select:disabled{opacity:.5;cursor:not-allowed;background:var(--surface2);}
+#area-content .link-field-row{display:flex;gap:6px;align-items:center;}
+#area-content .link-field-row input{flex:1;}
+#area-content .link-icon{font-size:13px;color:var(--accent-t);text-decoration:none;flex:0 0 auto;padding:2px 4px;}
+#area-content .link-icon:hover{text-decoration:underline;}
+#area-content .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+#area-content .customer-select{min-width:260px;}
+#area-content .region-select{min-width:140px;}
+#area-content .env-toggle-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+#area-content .env-toggle-btn:hover{filter:brightness(.95);}
+#area-content .env-toggle-btn.active{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
+#area-content .panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);margin-bottom:16px;overflow:hidden;}
+#area-content .panel-head{padding:10px 14px;background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
+#area-content .panel-body{padding:12px 14px;}
+#area-content table{width:100%;border-collapse:collapse;font-size:12.5px;}
+#area-content th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
+#area-content td{padding:7px 8px;border-bottom:.5px solid var(--border);vertical-align:top;}
+#area-content tr:last-child td{border-bottom:none;}
+#area-content .add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+#area-content .add-row input{flex:1;min-width:120px;}
+#area-content .env-card{border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
+#area-content .env-card-head{padding:8px 12px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:600;}
+#area-content .env-card-body{padding:10px 12px;}
+#area-content .env-subsection{border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden;}
+#area-content .env-subsection-head{padding:6px 10px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
+#area-content .env-subsection-body{padding:10px;}
+#area-content .meeting-row{display:flex;flex-wrap:wrap;align-items:center;column-gap:18px;row-gap:6px;padding:8px 0;border-bottom:.5px solid var(--border);}
+#area-content .meeting-row:last-child{border-bottom:none;}
+#area-content .meeting-row .mtg-name{flex:1 1 170px;font-weight:500;font-size:12.5px;}
+#area-content .meeting-row .mtg-field{display:flex;align-items:center;gap:6px;flex:0 0 auto;}
+#area-content .meeting-row .mtg-field>span{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);white-space:nowrap;}
+#area-content .meeting-row select{width:auto;min-width:112px;}
+#area-content .meeting-row input[type="date"]{width:auto;}
+#area-content .meeting-row input[type="text"]{width:auto;min-width:150px;}
+#area-content .env-badge{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--t3);background:var(--surface2);border:1px solid var(--border-strong);border-radius:99px;padding:1px 7px;margin-left:8px;}
+#area-content .env-group{border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
+#area-content .group-head{padding:8px 12px;background:var(--surface2);display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);}
+#area-content .env-group-body{padding:10px 12px;}
+#area-content .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+#area-content .field-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;}
+#area-content .field-grid label,#area-content .field label,#area-content .field-grid-3 label{display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);margin-bottom:3px;}
+#area-content .field-grid input,#area-content .field-grid select,#area-content .field-grid-3 input,#area-content .field-grid-3 select{width:100%;}
+#area-content .field{margin-bottom:10px;}
+#area-content .team-checks label{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--t1);margin-right:12px;margin-bottom:4px;}
+#area-content .dated-list-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;}
+#area-content .dated-list-row input{flex:1;}
+#area-content .dated-list-row input.date-input{flex:0 0 130px;}
+#area-content .dated-list-row input.ticket-input{flex:0 0 110px;}
+#area-content .team-card{border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
+#area-content .team-card-head{padding:8px 12px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;gap:8px;}
+#area-content .team-card-head input{flex:1;font-weight:600;font-size:12.5px;}
+#area-content .team-card-body{padding:10px 12px;}
+#area-content .caret-btn{border:none;background:none;cursor:pointer;font-size:11px;color:var(--t3);padding:2px 4px;line-height:1;}
+#area-content .caret-btn:hover{color:var(--t1);}
+#area-content .collapsible-body.collapsed{display:none;}
+#area-content .member-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}
+#area-content .member-row input{flex:1;min-width:100px;}
+#area-content .add-team-panel{border-top:1px solid var(--border);margin-top:10px;padding-top:10px;}
+#area-content .env-pick-list{display:flex;flex-direction:column;gap:4px;margin:6px 0;}
+#area-content .env-pick-list label{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--t1);}
+#area-content .pending-env-list{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;}
+#area-content .pending-env-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;background:var(--accent-bg);color:var(--accent-t);border:1px solid var(--accent);border-radius:99px;padding:2px 8px 2px 10px;}
+#area-content .pending-env-chip button{border:none;background:none;color:inherit;cursor:pointer;font-size:13px;line-height:1;padding:0;}
+#area-content .save-status{font-size:11.5px;color:var(--t3);}
 </style>
 </head>
 <body>
@@ -708,7 +793,33 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
      bootstrap call (navigateTo(areaFromPathname(location.pathname), ...))
      needs them to already exist in the DOM for a fresh load of a
      non-root path. -->
-<template id="tpl-environments"><p>Coming soon</p></template>
+<template id="tpl-environments">
+<div class="head">
+  <div>
+    <h1>Environments</h1>
+    <div class="sub">Signed in as <span id="environments-user-email"></span></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span class="save-status" id="save-status"></span>
+    <button class="btn save" id="env-save-btn" onclick="saveAll()" disabled>Save to Drive</button>
+  </div>
+</div>
+
+<div class="toolbar">
+  <label for="customer-select" style="font-size:12px;font-weight:500;">Customer:</label>
+  <select class="customer-select" id="customer-select" onchange="onCustomerChange()">
+    <option value="">Loading…</option>
+  </select>
+  <label for="region-filter" style="font-size:12px;font-weight:500;">Region:</label>
+  <select class="region-select" id="region-filter" onchange="onRegionFilterChange()">
+    <option value="">All regions</option>
+  </select>
+  <button type="button" class="env-toggle-btn" id="my-customers-toggle" onclick="toggleMyCustomers()">My Customers</button>
+  <button type="button" class="btn" id="discover-btn" onclick="openDiscoverySkill()" disabled>Discover via Claude</button>
+</div>
+
+<div id="content"><div class="empty">Loading&hellip;</div></div>
+</template>
 <template id="tpl-tasks">
 <div class="head">
   <div>
@@ -2873,6 +2984,1355 @@ function mountDayPlan(signal) {
   loadDayPlanningCategories();
 }
 
+
+// ── Environments area (migrated from templates/environments.html) ──
+// load() -> loadEnvironments(signal) (collides with the Customers tab's
+// bootstrap load() above, the same reason Tasks/Day Plan renamed their own
+// load()s) -- now takes the mount AbortController signal, threaded into all
+// three of its fetches. dirty -> envDirty and markDirty() ->
+// markEnvironmentsDirty() (collide with the Customers tab's own dirty flag
+// and markDirty()). esc()/escAttr() -> escEnv()/escAttrEnv() (collide with
+// the Customers tab's own esc()/escAttr(), but with different behavior --
+// null-safe, and escAttr() also escapes single quotes -- so renamed rather
+// than reused). showToast() is reused from the Customers tab's existing
+// definition above rather than redefined here (same decision Tasks/Day Plan
+// made; the two implementations were otherwise identical). id="save-btn" ->
+// id="env-save-btn" (the Customers tab's Settings-modal panel already owns
+// id="save-btn", always present in the DOM even when hidden).
+let STATE = null;
+let CURRENT = null;
+let envDirty = false;
+let VIEW = 'portfolio';
+let CURRENT_TEAM_ID = null;
+
+const COMPONENT_OPTIONS = ['Connectors', 'Operate', 'Optimize', 'Tasklist', 'Zeebe'];
+const STANDARD_ENV_NAMES = ['Development', 'DR/Failover', 'Production', 'QA/Test', 'Sandbox', 'Staging'];
+const OBSERVABILITY_OPTIONS = ['External to cluster', 'Not Used', 'Within cluster'];
+const HOSTING_PLATFORM_OPTIONS = ['AWS', 'Azure', 'Customer Data Center', 'GCP'];
+const YES_NO_OPTIONS = ['No', 'Yes'];
+const SECONDARY_STORAGE_OPTIONS = ['Amazon Aurora PostgreSQL', 'ElasticSearch', 'MariaDB', 'MSSQL', 'MySQL', 'Open Search', 'Oracle', 'PostgreSQL'];
+const USE_CASE_STATUS_OPTIONS = ['Discovery', 'In Progress', 'Live', 'On Hold', 'Retired'];
+
+let MY_CUSTOMER_NORMALIZED = new Set();
+let filterRegion = localStorage.getItem('env-tab:region') || '';
+// Always starts true -- the Environments tab should land on "My Customers"
+// every time, regardless of how a previous visit left this toggle.
+let filterMyCustomers = true;
+const MY_CUSTOMERS_FUZZY_THRESHOLD = 0.72;
+
+// Normalizes a customer name for comparison: lowercase, trim, collapse
+// whitespace, and drop common legal-entity suffixes/punctuation, so
+// "Acme Corp." and "acme corp" are treated as the same customer.
+function normalizeCustomerName(name) {
+  return (name || '')
+    .toLowerCase()
+    .replace(/[.,]/g, '')
+    .replace(/\b(inc|llc|ltd|corp|corporation|co)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Dice's coefficient over character bigrams — a cheap, dependency-free
+// string-similarity score in [0, 1], used only as a fallback when two
+// normalized names aren't exactly equal (e.g. abbreviations or reordered
+// words) so the "My Customers" toggle doesn't undercount its own list.
+function bigramSimilarity(a, b) {
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+  const bigrams = s => {
+    const set = new Map();
+    for (let i = 0; i < s.length - 1; i++) {
+      const bg = s.slice(i, i + 2);
+      set.set(bg, (set.get(bg) || 0) + 1);
+    }
+    return set;
+  };
+  const bgA = bigrams(a);
+  const bgB = bigrams(b);
+  let overlap = 0;
+  bgA.forEach((count, bg) => {
+    if (bgB.has(bg)) overlap += Math.min(count, bgB.get(bg));
+  });
+  const totalA = Array.from(bgA.values()).reduce((s, c) => s + c, 0);
+  const totalB = Array.from(bgB.values()).reduce((s, c) => s + c, 0);
+  return (2 * overlap) / (totalA + totalB);
+}
+
+// Whether `name` (an Environments-portfolio project name) is one of the
+// signed-in user's own accounts. Tries an exact normalized match first,
+// then falls back to fuzzy similarity — the portfolio and
+// account-config.json are independently maintained name lists, so exact
+// byte-for-byte matches understate the real overlap.
+function isMyCustomer(name) {
+  const normalized = normalizeCustomerName(name);
+  if (MY_CUSTOMER_NORMALIZED.has(normalized)) return true;
+  let best = 0;
+  MY_CUSTOMER_NORMALIZED.forEach(candidate => {
+    best = Math.max(best, bigramSimilarity(normalized, candidate));
+  });
+  return best >= MY_CUSTOMERS_FUZZY_THRESHOLD;
+}
+let addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
+
+let expandedIds = new Set();
+
+function expandedStorageKey(name) {
+  return `env-tab:expanded:${name}`;
+}
+
+function loadExpandedIds(name) {
+  try {
+    const raw = localStorage.getItem(expandedStorageKey(name));
+    expandedIds = new Set(raw ? JSON.parse(raw) : []);
+  } catch(e) {
+    expandedIds = new Set();
+  }
+}
+
+function saveExpandedIds() {
+  try {
+    localStorage.setItem(expandedStorageKey(CURRENT), JSON.stringify(Array.from(expandedIds)));
+  } catch(e) { /* localStorage unavailable — collapse state just won't persist */ }
+}
+
+function isExpanded(id) {
+  return expandedIds.has(id);
+}
+
+function toggleExpanded(id) {
+  if (expandedIds.has(id)) expandedIds.delete(id);
+  else expandedIds.add(id);
+  saveExpandedIds();
+  renderCustomer();
+}
+
+function caretHtml(id) {
+  return `<button type="button" class="caret-btn" data-toggle-id="${escAttrEnv(id)}" aria-label="Toggle">${isExpanded(id) ? '▾' : '▸'}</button>`;
+}
+
+function wireCarets() {
+  document.querySelectorAll('.caret-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleExpanded(this.dataset.toggleId);
+    });
+  });
+}
+
+// Date.now() alone isn't unique when normalizeTeam/normalizeEnvironment/normalizeUseCase
+// run back-to-back in a .map() over items that are all missing an id (e.g. environments
+// with a blank/duplicate name from discovery) — same-millisecond calls returned the same
+// value, so those items collided on one id and shared expand/collapse state via expandedIds.
+let _fallbackIdSeq = 0;
+function nextFallbackId(prefix) {
+  _fallbackIdSeq += 1;
+  return prefix + '-' + Date.now() + '-' + _fallbackIdSeq;
+}
+
+function normalizeTeam(team) {
+  team.id = team.id || nextFallbackId('team');
+  team.notes = team.notes || '';
+  team.members = team.members || [];
+  team.exempt = team.exempt || false;
+  team.sentiment = team.sentiment || '';
+  team.sentiment_updated = team.sentiment_updated || '';
+  team.open_issues = (team.open_issues === undefined) ? null : team.open_issues;
+  team.open_issues_updated = team.open_issues_updated || '';
+  team.inapplicable_meeting_types = team.inapplicable_meeting_types || [];
+  team.onboarding_date = team.onboarding_date || '';
+  team.renewal_date = team.renewal_date || '';
+  return team;
+}
+
+function normalizeMeeting(m) {
+  m.id = m.id || nextFallbackId('mtg');
+  m.team_id = m.team_id || '';
+  m.meeting_type_id = m.meeting_type_id || '';
+  m.status = m.status || 'not_scheduled';
+  m.scheduled_date = m.scheduled_date || '';
+  m.occurred_date = m.occurred_date || '';
+  m.last_held_date = m.last_held_date || '';
+  m.standing_schedule = m.standing_schedule || '';
+  m.notes = m.notes || '';
+  return m;
+}
+
+function normalizeEsActivity(a) {
+  a.id = a.id || nextFallbackId('act');
+  a.team_id = a.team_id || '';
+  a.label = a.label || '';
+  a.status = a.status || 'not_done';
+  a.last_updated = a.last_updated || '';
+  a.notes = a.notes || '';
+  return a;
+}
+
+function normalizeEnvironment(env) {
+  env.id = env.id || nextFallbackId('env');
+  env.label = env.label || '(unlabeled environment)';
+  env.team_ids = env.team_ids || [];
+  env.deployment = env.deployment || {};
+  env.deployment.model = env.deployment.model || 'SaaS';
+  env.deployment.install_method = env.deployment.install_method || '';
+  env.deployment.sizing = env.deployment.sizing || '';
+  env.versions = env.versions || {};
+  env.versions.camunda_version = env.versions.camunda_version || '';
+  env.versions.components = env.versions.components || [];
+  env.infrastructure = env.infrastructure || {};
+  env.infrastructure.os = env.infrastructure.os || '';
+  env.infrastructure.hosting_platform = env.infrastructure.hosting_platform || '';
+  env.infrastructure.kubectl_access = env.infrastructure.kubectl_access || '';
+  env.infrastructure.secondary_storage = env.infrastructure.secondary_storage || '';
+  env.cluster = env.cluster || {};
+  env.cluster.broker_count = env.cluster.broker_count || '';
+  env.cluster.partitions = env.cluster.partitions || '';
+  env.cluster.replication = env.cluster.replication || '';
+  env.cluster.multi_region = env.cluster.multi_region || '';
+  env.observability = env.observability || {};
+  env.observability.kibana = env.observability.kibana || '';
+  env.observability.prometheus = env.observability.prometheus || '';
+  env.observability.dashboard_links = env.observability.dashboard_links || [];
+  env.multi_tenant = env.multi_tenant || {};
+  env.multi_tenant.multi_tenancy = env.multi_tenant.multi_tenancy || env.deployment.multi_tenancy || '';
+  env.multi_tenant.tenant_isolation = env.multi_tenant.tenant_isolation || '';
+  env.multi_tenant.tenant_names = env.multi_tenant.tenant_names || [];
+  delete env.deployment.multi_tenancy;
+  delete env.deployment.region;
+  env.links = env.links || {};
+  env.links.cluster_url = env.links.cluster_url || (Array.isArray(env.links.cluster_urls) ? (env.links.cluster_urls[0] || '') : '');
+  env.links.support_plan = env.links.support_plan || '';
+  env.links.runbook_links = env.links.runbook_links || [];
+  delete env.links.cluster_urls;
+  delete env.links.console_url;
+  env.notes = env.notes || '';
+  env.diagnostic_reports = env.diagnostic_reports || [];
+  env.helm_values = env.helm_values || [];
+  return env;
+}
+
+function normalizeUseCase(uc) {
+  uc.id = uc.id || nextFallbackId('usecase');
+  uc.name = uc.name || '';
+  uc.description = uc.description || '';
+  uc.status = uc.status || '';
+  uc.go_live_date = uc.go_live_date || '';
+  uc.environment_id = uc.environment_id || '';
+  uc.team_id = uc.team_id || '';
+  return uc;
+}
+
+async function loadEnvironments(signal) {
+  const emailEl = document.getElementById('environments-user-email');
+  fetch('api/whoami', { signal }).then(r => r.json()).then(d => {
+    if (!signal.aborted && emailEl) emailEl.textContent = d.email || '';
+  }).catch(() => {});
+
+  try {
+    const [envResp, custResp, catalogResp] = await Promise.all([
+      fetch('api/environments/config', {credentials:'include', signal}),
+      fetch('api/customers/config', {credentials:'include', signal}).catch(() => null),
+      fetch('api/environments/meeting-catalog', {credentials:'include', signal}).catch(() => null),
+    ]);
+    if (!envResp.ok) throw new Error((await envResp.json()).error || envResp.statusText);
+    STATE = await envResp.json();
+    STATE.customers = {};      // per-account data, fetched lazily on selection
+    STATE.loadError = {};      // name -> error message, when that account's file couldn't be read
+    STATE.meeting_catalog = (catalogResp && catalogResp.ok) ? (await catalogResp.json()).meeting_catalog : [];
+    if (custResp && custResp.ok) {
+      const custConfig = await custResp.json();
+      MY_CUSTOMER_NORMALIZED = new Set(
+        (custConfig.accounts || []).map(a => normalizeCustomerName(a.account_name))
+      );
+    }
+    renderCustomerSelect();
+  } catch(e) {
+    if (signal.aborted) return; // navigated away mid-fetch — bail out silently
+    document.getElementById('content').innerHTML =
+      `<div class="empty" style="color:var(--bad-t)">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function allRegions() {
+  const regions = new Set();
+  (STATE.in_scope_customers || []).forEach(c => {
+    if (c.theater) regions.add(c.theater);
+  });
+  return Array.from(regions).sort();
+}
+
+function customerTheater(name) {
+  const match = (STATE.in_scope_customers || []).find(c => c.name === name);
+  return match ? match.theater : null;
+}
+
+function visibleCustomerNames() {
+  let names = (STATE.in_scope_customers || []).map(c => c.name);
+  if (filterMyCustomers) names = names.filter(isMyCustomer);
+  if (filterRegion) names = names.filter(n => customerTheater(n) === filterRegion);
+  return names.sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'}));
+}
+
+function onRegionFilterChange() {
+  filterRegion = document.getElementById('region-filter').value;
+  localStorage.setItem('env-tab:region', filterRegion);
+  renderCustomerSelect();
+}
+
+function toggleMyCustomers() {
+  filterMyCustomers = !filterMyCustomers;
+  renderCustomerSelect();
+}
+
+function renderCustomerSelect() {
+  const select = document.getElementById('customer-select');
+  const regionSelect = document.getElementById('region-filter');
+  const myCustomersBtn = document.getElementById('my-customers-toggle');
+  const content = document.getElementById('content');
+
+  myCustomersBtn.classList.toggle('active', filterMyCustomers);
+  document.getElementById('discover-btn').disabled = true;
+
+  if (STATE.needs_pat) {
+    select.innerHTML = '<option value="">—</option>';
+    content.innerHTML = '<div class="hint">Add your Asana PAT in Settings to load the customer list.</div>';
+    return;
+  }
+  if (STATE.in_scope_customers === null) {
+    select.innerHTML = '<option value="">—</option>';
+    content.innerHTML = `<div class="hint" style="color:var(--bad-t)">${escEnv(STATE.error || 'Could not determine the customer list.')}</div>`;
+    return;
+  }
+  if (!STATE.in_scope_customers.length) {
+    select.innerHTML = '<option value="">—</option>';
+    content.innerHTML = '<div class="empty">No customers found in the Environments portfolio.</div>';
+    return;
+  }
+
+  const regions = allRegions();
+  if (filterRegion && !regions.includes(filterRegion)) {
+    filterRegion = '';
+    localStorage.setItem('env-tab:region', '');
+  }
+  regionSelect.innerHTML = '<option value="">All regions</option>' +
+    regions.map(r => `<option value="${escAttrEnv(r)}" ${r === filterRegion ? 'selected' : ''}>${escEnv(r)}</option>`).join('');
+
+  const names = visibleCustomerNames();
+  if (!names.length) {
+    select.innerHTML = '<option value="">—</option>';
+    content.innerHTML = '<div class="empty">No customers match the current filters.</div>';
+    CURRENT = null;
+    return;
+  }
+
+  select.innerHTML = names.map(name =>
+    `<option value="${escAttrEnv(name)}">${escEnv(name)}</option>`
+  ).join('');
+  if (!CURRENT || !names.includes(CURRENT)) CURRENT = names[0];
+  if (VIEW === 'portfolio') {
+    renderPortfolio();
+  } else {
+    selectCustomer(CURRENT);
+  }
+}
+
+async function onCustomerChange() {
+  VIEW = 'customer';
+  const select = document.getElementById('customer-select');
+  const next = select.value;
+  if (envDirty && !confirm('You have unsaved changes for ' + CURRENT + '. Discard them and switch customer?')) {
+    select.value = CURRENT;
+    return;
+  }
+  envDirty = false;
+  await selectCustomer(next);
+}
+
+async function renderPortfolio() {
+  // Reaching the Portfolio table is the only way to leave a envDirty
+  // customer/team view without going through onCustomerChange's own
+  // guard (e.g. clicking the "<- Portfolio" link) -- same unsaved-changes
+  // confirmation as switching customers via the dropdown.
+  if (envDirty && !confirm('You have unsaved changes for ' + CURRENT + '. Discard them and go to the Portfolio?')) {
+    return;
+  }
+  envDirty = false;
+  document.getElementById('env-save-btn').disabled = true;
+  document.getElementById('save-status').textContent = '';
+  VIEW = 'portfolio';
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="empty">Loading&hellip;</div>';
+  try {
+    const r = await fetch(`api/environments/portfolio-health`, {credentials:'include'});
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.error || r.statusText);
+    const visible = new Set(visibleCustomerNames());
+    const rows = body.customers.filter(c => visible.has(c.name)).map(c => `
+      <tr style="cursor:pointer;" data-customer-name="${escAttrEnv(c.name)}" onclick="onCustomerChange_fromPortfolio(this.dataset.customerName)">
+        <td>${escEnv(c.name)}</td>
+        <td>${c.error ? `<span style="color:var(--bad-t)">${escEnv(c.error)}</span>` : healthBadgeHtml({level: c.level})}</td>
+        <td>${c.team_count}</td>
+        <td>${c.overdue_count} overdue</td>
+        <td>${escEnv(c.sentiment_level || '—')}</td>
+        <td>${c.open_issues_total}</td>
+      </tr>`).join('');
+    content.innerHTML = `
+      <table class="portfolio-table">
+        <thead><tr><th>Customer</th><th>Health</th><th>Teams</th><th>Meetings</th><th>Sentiment</th><th>Open issues</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch(e) {
+    content.innerHTML = `<div class="empty" style="color:var(--bad-t)">Failed to load portfolio: ${escEnv(e.message)}</div>`;
+  }
+}
+
+function onCustomerChange_fromPortfolio(name) {
+  VIEW = 'customer';
+  document.getElementById('customer-select').value = name;
+  selectCustomer(name);
+}
+
+async function selectCustomer(name) {
+  CURRENT = name;
+  document.getElementById('customer-select').value = name;
+  document.getElementById('env-save-btn').disabled = true;
+  document.getElementById('save-status').textContent = '';
+
+  if (!STATE.customers[name] && !STATE.loadError[name]) {
+    document.getElementById('content').innerHTML = '<div class="empty">Loading&hellip;</div>';
+    try {
+      const r = await fetch(`api/environments/config/${encodeURIComponent(name)}`, {credentials:'include'});
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || r.statusText);
+      STATE.customers[name] = body;
+    } catch(e) {
+      STATE.loadError[name] = e.message;
+    }
+  }
+
+  if (STATE.loadError[name]) {
+    document.getElementById('content').innerHTML =
+      `<div class="hint" style="color:var(--bad-t)">${escEnv(STATE.loadError[name])}</div>`;
+    return;
+  }
+
+  ensureCustomer(name);
+  renderCustomer();
+  document.getElementById('env-save-btn').disabled = !envDirty;
+  document.getElementById('discover-btn').disabled = false;
+}
+
+function openDiscoverySkill() {
+  if (!CURRENT) return;
+  const url = 'claude://claude.ai/new?q=' +
+    encodeURIComponent('/account-environments-discovery ' + CURRENT);
+  window.open(url, '_blank');
+}
+
+function ensureCustomer(name) {
+  if (!STATE.customers[name]) {
+    STATE.customers[name] = {teams: [], environments: [], use_cases: [], meetings: [], es_activities: []};
+  }
+  const c = STATE.customers[name];
+  c.teams = (c.teams || []).map(normalizeTeam);
+  c.environments = (c.environments || []).map(normalizeEnvironment);
+  c.use_cases = (c.use_cases || []).map(normalizeUseCase);
+  c.meetings = (c.meetings || []).map(normalizeMeeting);
+  c.es_activities = (c.es_activities || []).map(normalizeEsActivity);
+}
+
+function rollupStripHtml(c) {
+  const r = c.rollup || {level: 'Green', team_count: 0, overdue_count: 0, sentiment_level: '', open_issues_total: 0};
+  return `
+    <div class="rollup-strip" style="display:flex;gap:16px;margin-bottom:12px;">
+      <div>Health: ${healthBadgeHtml({level: r.level})}</div>
+      <div>${r.team_count} team${r.team_count === 1 ? '' : 's'}</div>
+      <div>${r.overdue_count} overdue</div>
+      <div>Sentiment: ${escEnv(r.sentiment_level || '—')}</div>
+      <div>Open issues: ${r.open_issues_total}</div>
+    </div>`;
+}
+
+function renderCustomer() {
+  loadExpandedIds(CURRENT);
+  addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
+  const c = STATE.customers[CURRENT];
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <a class="back" href="#" onclick="renderPortfolio(); return false;">&larr; Portfolio</a>
+    ${rollupStripHtml(c)}
+    <div class="panel">
+      <div class="panel-head"><span>Teams</span></div>
+      <div class="panel-body" id="teams-body">${teamCardsHtml(c)}</div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <span>Environments</span>
+        <button class="btn primary" onclick="addEnvironment()">Add environment</button>
+      </div>
+      <div class="panel-body" id="envs-body">${environmentsHtml(c)}</div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <span>Use Cases</span>
+        <button class="btn primary" onclick="addUseCase()">Add use case</button>
+      </div>
+      <div class="panel-body" id="use-cases-body">${useCasesHtml(c)}</div>
+    </div>
+  `;
+  wireTeamCheckboxes();
+  wireNewEnvSelect();
+  wireCarets();
+}
+
+function wireTeamCheckboxes() {
+  // Delegated via data-* attributes rather than an inline onchange with an
+  // interpolated team id: HTML-entity-escaping a value that lands inside a
+  // single-quoted JS string in an inline handler doesn't actually protect
+  // it, since the browser decodes entities before compiling the handler as
+  // JS. A plain data attribute only needs standard HTML-attribute escaping.
+  document.querySelectorAll('.team-check').forEach(cb => {
+    cb.addEventListener('change', function() {
+      toggleEnvTeam(parseInt(this.dataset.envIdx, 10), this.dataset.teamId, this.checked);
+    });
+  });
+}
+
+const HEALTH_COLORS = {Green: '#2e7d32', Yellow: '#f9a825', Red: '#c62828', Exempt: '#888'};
+function healthBadgeHtml(health) {
+  if (!health) return '';
+  const color = HEALTH_COLORS[health.level] || '#888';
+  return `<span class="health-badge" style="color:${color};font-weight:700;">${escEnv(health.level)}</span>`;
+}
+
+function teamCardsHtml(c) {
+  const cards = c.teams.map((t, i) => teamCardHtml(t, i)).join('') ||
+    '<div class="empty" style="padding:8px 0;">No teams yet</div>';
+  return cards + addTeamPanelHtml(c);
+}
+
+function teamCardHtml(team, idx) {
+  const collapsed = isExpanded(team.id) ? '' : 'collapsed';
+  const exemptNote = team.exempt ? '<div class="empty" style="padding:4px 0;">Exempt — membership only, not tracked for meetings/health</div>' : '';
+  return `
+    <div class="team-card">
+      <div class="team-card-head">
+        ${caretHtml(team.id)}
+        <input type="text" value="${escAttrEnv(team.name)}" onchange="updateTeamField(${idx}, 'name', this.value)">
+        ${healthBadgeHtml(team.health)}
+        <label style="font-size:11.5px;font-weight:500;"><input type="checkbox" ${team.exempt ? 'checked' : ''} onchange="updateTeamField(${idx}, 'exempt', this.checked)"> Exempt</label>
+        <label style="font-size:11.5px;font-weight:500;">Sentiment
+          <select onchange="updateTeamField(${idx}, 'sentiment', this.value)">
+            ${['', 'Green', 'Yellow', 'Red'].map(v => `<option value="${v}" ${team.sentiment === v ? 'selected' : ''}>${v || '—'}</option>`).join('')}
+          </select>
+        </label>
+        <label style="font-size:11.5px;font-weight:500;">Open issues
+          <input type="number" min="0" style="width:60px;" value="${team.open_issues === null ? '' : team.open_issues}" onchange="updateTeamField(${idx}, 'open_issues', this.value === '' ? null : parseInt(this.value, 10))">
+        </label>
+        ${team.exempt ? '' : `<button type="button" class="btn" data-team-id="${escAttrEnv(team.id)}" onclick="renderTeamDetail(this.dataset.teamId)">View meetings &amp; health</button>`}
+        <button class="btn danger" onclick="removeTeam(${idx})">Remove</button>
+      </div>
+      <div class="team-card-body collapsible-body ${collapsed}">
+        ${exemptNote}
+        <div class="field"><label>Notes</label><textarea onchange="updateTeamField(${idx}, 'notes', this.value)">${escEnv(team.notes || '')}</textarea></div>
+        <div class="field">
+          <label>Members</label>
+          ${memberRowsHtml(idx, team.members)}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function memberRowsHtml(teamIdx, members) {
+  const rows = (members || []).map((m, i) => `
+    <div class="member-row">
+      <input type="text" placeholder="Name" value="${escAttrEnv(m.name || '')}" onchange="updateMemberField(${teamIdx}, ${i}, 'name', this.value)">
+      <input type="text" placeholder="Title" value="${escAttrEnv(m.title || '')}" onchange="updateMemberField(${teamIdx}, ${i}, 'title', this.value)">
+      <input type="text" placeholder="Email" value="${escAttrEnv(m.email || '')}" onchange="updateMemberField(${teamIdx}, ${i}, 'email', this.value)">
+      <input type="text" placeholder="Notes" value="${escAttrEnv(m.notes || '')}" onchange="updateMemberField(${teamIdx}, ${i}, 'notes', this.value)">
+      <button class="btn danger" onclick="removeMember(${teamIdx}, ${i})">Remove</button>
+    </div>
+  `).join('');
+  return rows + `<button class="btn" onclick="addMember(${teamIdx})">Add member</button>`;
+}
+
+function addMember(teamIdx) {
+  const team = STATE.customers[CURRENT].teams[teamIdx];
+  team.members = team.members || [];
+  team.members.push({name: '', title: '', email: '', notes: ''});
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function updateMemberField(teamIdx, memberIdx, field, value) {
+  STATE.customers[CURRENT].teams[teamIdx].members[memberIdx][field] = value;
+  markEnvironmentsDirty();
+}
+
+function removeMember(teamIdx, memberIdx) {
+  STATE.customers[CURRENT].teams[teamIdx].members.splice(memberIdx, 1);
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function addTeamPanelHtml(c) {
+  return `<div class="add-team-panel" id="add-team-panel">${addTeamPanelInnerHtml(c)}</div>`;
+}
+
+function addTeamPanelInnerHtml(c) {
+  const existingChecks = c.environments.length
+    ? `<div class="env-pick-list">${c.environments.map(env => `
+        <label><input type="checkbox" class="add-team-env-check" data-env-id="${escAttrEnv(env.id)}" ${addTeamDraft.existingEnvIds.has(env.id) ? 'checked' : ''}> ${escEnv(env.label)}</label>
+      `).join('')}</div>`
+    : '<div class="hint" style="padding:0;">No existing environments for this customer yet</div>';
+
+  const pendingChips = addTeamDraft.newEnvs.length
+    ? `<div class="pending-env-list">${addTeamDraft.newEnvs.map((name, i) => `
+        <span class="pending-env-chip">${escEnv(name)}<button type="button" onclick="removePendingNewEnv(${i})">&times;</button></span>
+      `).join('')}</div>`
+    : '';
+
+  return `
+    <div class="add-row">
+      <input type="text" id="new-team-name" placeholder="Team name">
+      <input type="text" id="new-team-notes" placeholder="Notes (optional)">
+    </div>
+    <div class="field" style="margin-top:8px;">
+      <label>Link existing environments</label>
+      ${existingChecks}
+    </div>
+    <div class="field">
+      <label>Create new environments for this team</label>
+      <div class="add-row" style="border-top:none;margin-top:0;padding-top:0;">
+        <select id="new-env-standard-select">
+          ${STANDARD_ENV_NAMES.map(n => `<option value="${escAttrEnv(n)}">${escEnv(n)}</option>`).join('')}
+          <option value="__custom__">Custom…</option>
+        </select>
+        <input type="text" id="new-env-custom-name" placeholder="Custom environment name" style="display:none;">
+        <button type="button" class="btn" onclick="queuePendingNewEnv()">+ Add</button>
+      </div>
+      ${pendingChips}
+    </div>
+    <div class="add-row">
+      <button class="btn primary" onclick="addTeam()">Add team</button>
+    </div>
+  `;
+}
+
+function renderAddTeamPanel() {
+  const c = STATE.customers[CURRENT];
+  document.getElementById('add-team-panel').innerHTML = addTeamPanelInnerHtml(c);
+  wireNewEnvSelect();
+}
+
+function wireNewEnvSelect() {
+  const sel = document.getElementById('new-env-standard-select');
+  const custom = document.getElementById('new-env-custom-name');
+  if (sel) {
+    sel.addEventListener('change', () => {
+      custom.style.display = sel.value === '__custom__' ? '' : 'none';
+    });
+  }
+  document.querySelectorAll('.add-team-env-check').forEach(cb => {
+    cb.addEventListener('change', function() {
+      toggleAddTeamExistingEnv(this.dataset.envId, this.checked);
+    });
+  });
+}
+
+function toggleAddTeamExistingEnv(envId, checked) {
+  if (checked) addTeamDraft.existingEnvIds.add(envId);
+  else addTeamDraft.existingEnvIds.delete(envId);
+}
+
+function queuePendingNewEnv() {
+  const sel = document.getElementById('new-env-standard-select');
+  const custom = document.getElementById('new-env-custom-name');
+  const name = sel.value === '__custom__' ? custom.value.trim() : sel.value;
+  if (!name) return;
+  addTeamDraft.newEnvs.push(name);
+  custom.value = '';
+  renderAddTeamPanel();
+}
+
+function removePendingNewEnv(idx) {
+  addTeamDraft.newEnvs.splice(idx, 1);
+  renderAddTeamPanel();
+}
+
+function addTeam() {
+  const nameInput = document.getElementById('new-team-name');
+  const notesInput = document.getElementById('new-team-notes');
+  const name = nameInput.value.trim();
+  if (!name) return;
+  const id = 'team-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
+  const team = {id, name, notes: notesInput.value.trim(), members: []};
+  const c = STATE.customers[CURRENT];
+  c.teams.push(team);
+  expandedIds.add(id);
+  expandedIds.add('group-' + id);
+
+  c.environments.forEach(env => {
+    if (addTeamDraft.existingEnvIds.has(env.id)) {
+      env.team_ids = env.team_ids || [];
+      if (!env.team_ids.includes(id)) env.team_ids.push(id);
+    }
+  });
+
+  addTeamDraft.newEnvs.forEach((label, i) => {
+    const envId = 'env-' + Date.now() + '-' + i;
+    c.environments.push({
+      id: envId,
+      label,
+      team_ids: [id],
+      deployment: {model: 'SaaS', install_method: '', sizing: ''},
+      versions: {camunda_version: '', components: []},
+      infrastructure: {os: '', hosting_platform: '', kubectl_access: '', secondary_storage: ''},
+      cluster: {broker_count: '', partitions: '', replication: '', multi_region: ''},
+      observability: {kibana: '', prometheus: '', dashboard_links: []},
+      multi_tenant: {multi_tenancy: '', tenant_isolation: '', tenant_names: []},
+      links: {cluster_url: '', support_plan: '', runbook_links: []},
+      notes: '',
+      diagnostic_reports: [],
+      helm_values: [],
+    });
+    expandedIds.add(envId);
+  });
+
+  addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
+  saveExpandedIds();
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function updateTeamField(idx, field, value) {
+  STATE.customers[CURRENT].teams[idx][field] = value;
+  markEnvironmentsDirty();
+}
+
+function removeTeam(idx) {
+  const team = STATE.customers[CURRENT].teams[idx];
+  if (!confirm(`Remove team "${team.name}"? It will also be unlinked from any environment.`)) return;
+  STATE.customers[CURRENT].teams.splice(idx, 1);
+  STATE.customers[CURRENT].environments.forEach(env => {
+    env.team_ids = (env.team_ids || []).filter(id => id !== team.id);
+  });
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function getOrCreateMeetingRow(teamId, meetingTypeId) {
+  const c = STATE.customers[CURRENT];
+  let row = c.meetings.find(m => m.team_id === teamId && m.meeting_type_id === meetingTypeId);
+  if (!row) {
+    row = normalizeMeeting({team_id: teamId, meeting_type_id: meetingTypeId});
+    c.meetings.push(row);
+  }
+  return row;
+}
+
+function updateMeetingField(teamId, meetingTypeId, field, value) {
+  const row = getOrCreateMeetingRow(teamId, meetingTypeId);
+  row[field] = value;
+  markEnvironmentsDirty();
+  renderTeamDetail(teamId);
+}
+
+function toggleMeetingApplicable(teamId, meetingTypeId, inapplicable) {
+  const team = STATE.customers[CURRENT].teams.find(t => t.id === teamId);
+  const set = new Set(team.inapplicable_meeting_types);
+  if (inapplicable) set.add(meetingTypeId); else set.delete(meetingTypeId);
+  team.inapplicable_meeting_types = Array.from(set);
+  markEnvironmentsDirty();
+  renderTeamDetail(teamId);
+}
+
+function addEsActivity(teamId) {
+  const activity = normalizeEsActivity({team_id: teamId, label: 'New activity'});
+  STATE.customers[CURRENT].es_activities.push(activity);
+  markEnvironmentsDirty();
+  renderTeamDetail(teamId);
+}
+
+function updateEsActivityField(activityId, field, value) {
+  const activity = STATE.customers[CURRENT].es_activities.find(a => a.id === activityId);
+  activity[field] = value;
+  markEnvironmentsDirty();
+  renderTeamDetail(CURRENT_TEAM_ID);
+}
+
+function removeEsActivity(activityId) {
+  const c = STATE.customers[CURRENT];
+  c.es_activities = c.es_activities.filter(a => a.id !== activityId);
+  markEnvironmentsDirty();
+  renderTeamDetail(CURRENT_TEAM_ID);
+}
+
+function renderTeamDetail(teamId) {
+  VIEW = 'team';
+  CURRENT_TEAM_ID = teamId;
+  const c = STATE.customers[CURRENT];
+  const idx = c.teams.findIndex(t => t.id === teamId);
+  const team = c.teams[idx];
+  const content = document.getElementById('content');
+
+  const health = team.health || {level: 'Green', reasons: []};
+  const reasonsHtml = health.reasons.length
+    ? `<ul>${health.reasons.map(r => `<li>${escEnv(r)}</li>`).join('')}</ul>`
+    : '<div class="empty" style="padding:4px 0;">No issues</div>';
+
+  // Interpolating an id into a quoted JS-string argument inside an
+  // onclick/onchange attribute is unsafe: the browser decodes HTML
+  // entities in attribute values *before* compiling the handler as JS, so
+  // escAttrEnv()'s entity-encoding of a quote doesn't protect against a
+  // value that itself contains one (see wireTeamCheckboxes' comment for
+  // the same issue elsewhere in this file). Every id below is instead
+  // passed via a data-* attribute and read back with this.dataset.
+  const oneTimeRowsHtml = (STATE.meeting_catalog || []).filter(m => m.category === 'one_time').map(entry => {
+    const row = getOrCreateMeetingRow(teamId, entry.id);
+    const ids = `data-team-id="${escAttrEnv(teamId)}" data-meeting-type-id="${escAttrEnv(entry.id)}"`;
+    return `
+      <div class="meeting-row">
+        <div class="mtg-name">${escEnv(entry.name)}</div>
+        <div class="mtg-field"><span>Status</span><select ${ids} onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'status', this.value)">
+          ${['not_scheduled', 'scheduled', 'occurred'].map(v => `<option value="${v}" ${row.status === v ? 'selected' : ''}>${v}</option>`).join('')}
+        </select></div>
+        <div class="mtg-field"><span>Scheduled</span><input type="date" ${ids} value="${escAttrEnv(row.scheduled_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'scheduled_date', this.value)"></div>
+        <div class="mtg-field"><span>Occurred</span><input type="date" ${ids} value="${escAttrEnv(row.occurred_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'occurred_date', this.value)"></div>
+      </div>`;
+  }).join('') || '<div class="empty" style="padding:4px 0;">No one-time meetings defined</div>';
+
+  const recurringRowsHtml = (STATE.meeting_catalog || []).filter(m => m.category === 'recurring').map(entry => {
+    const row = getOrCreateMeetingRow(teamId, entry.id);
+    const ids = `data-team-id="${escAttrEnv(teamId)}" data-meeting-type-id="${escAttrEnv(entry.id)}"`;
+    const inapplicable = (team.inapplicable_meeting_types || []).includes(entry.id);
+    const applicableField = entry.default_requirement !== 'required'
+      ? `<div class="mtg-field"><span>Applicable</span><input type="checkbox" ${ids} ${inapplicable ? '' : 'checked'} onchange="toggleMeetingApplicable(this.dataset.teamId, this.dataset.meetingTypeId, !this.checked)"></div>`
+      : '';
+    return `
+      <div class="meeting-row">
+        <div class="mtg-name">${escEnv(entry.name)}<span class="env-badge">${escEnv(entry.default_requirement)}</span></div>
+        ${applicableField}
+        <div class="mtg-field"><span>Standing schedule</span><input type="text" ${ids} value="${escAttrEnv(row.standing_schedule)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'standing_schedule', this.value)"></div>
+        <div class="mtg-field"><span>Last held</span><input type="date" ${ids} value="${escAttrEnv(row.last_held_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'last_held_date', this.value)"></div>
+      </div>`;
+  }).join('') || '<div class="empty" style="padding:4px 0;">No recurring meetings defined</div>';
+
+  const activitiesHtml = c.es_activities.filter(a => a.team_id === teamId).map(a => `
+    <div class="field" data-activity-id="${escAttrEnv(a.id)}">
+      <input type="text" value="${escAttrEnv(a.label)}" onchange="updateEsActivityField(this.closest('[data-activity-id]').dataset.activityId, 'label', this.value)">
+      <select onchange="updateEsActivityField(this.closest('[data-activity-id]').dataset.activityId, 'status', this.value)">
+        ${['not_done', 'done'].map(v => `<option value="${v}" ${a.status === v ? 'selected' : ''}>${v}</option>`).join('')}
+      </select>
+      <label>Last updated <input type="date" value="${escAttrEnv(a.last_updated)}" onchange="updateEsActivityField(this.closest('[data-activity-id]').dataset.activityId, 'last_updated', this.value)"></label>
+      <button type="button" class="btn danger" onclick="removeEsActivity(this.closest('[data-activity-id]').dataset.activityId)">Remove</button>
+    </div>`).join('') || '<div class="empty" style="padding:4px 0;">No ES activities yet</div>';
+
+  content.innerHTML = `
+    <a class="back" href="#" onclick="renderPortfolio(); return false;">&larr; Portfolio</a>
+    &middot;
+    <a class="back" href="#" onclick="VIEW='customer'; renderCustomer(); return false;">&larr; ${escEnv(CURRENT)}</a>
+    <h2>${escEnv(team.name)}</h2>
+    <div class="field"><label>Onboarding date</label><input type="date" value="${escAttrEnv(team.onboarding_date)}" onchange="updateTeamField(${idx}, 'onboarding_date', this.value)"></div>
+    <div class="field"><label>Renewal date</label><input type="date" value="${escAttrEnv(team.renewal_date)}" onchange="updateTeamField(${idx}, 'renewal_date', this.value)"></div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">Health: ${escEnv(health.level)}</div>
+      <div class="env-subsection-body">${reasonsHtml}</div>
+    </div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">Key Meetings &mdash; One-time (ES101 Onboarding)</div>
+      <div class="env-subsection-body">${oneTimeRowsHtml}</div>
+    </div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">Key Meetings &mdash; Recurring</div>
+      <div class="env-subsection-body">${recurringRowsHtml}</div>
+    </div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">ES Activities
+        <button type="button" class="btn primary" data-team-id="${escAttrEnv(teamId)}" onclick="addEsActivity(this.dataset.teamId)">Add activity</button>
+      </div>
+      <div class="env-subsection-body">${activitiesHtml}</div>
+    </div>
+  `;
+}
+
+function environmentsHtml(c) {
+  if (!c.environments.length) return '<div class="empty">No environments yet</div>';
+
+  const indexed = c.environments.map((env, idx) => ({env, idx}));
+  const groups = c.teams.map(team => ({
+    id: 'group-' + team.id,
+    label: team.name,
+    entries: indexed.filter(({env}) => (env.team_ids || []).includes(team.id)),
+  }));
+
+  const validTeamIds = new Set(c.teams.map(t => t.id));
+  const unassigned = indexed.filter(
+    ({env}) => !(env.team_ids || []).some(id => validTeamIds.has(id))
+  );
+  groups.push({id: 'group-unassigned', label: 'Unassigned', entries: unassigned});
+
+  return groups
+    .filter(g => g.entries.length)
+    .map(g => environmentGroupHtml(g, c.teams))
+    .join('');
+}
+
+function environmentGroupHtml(group, teams) {
+  const collapsed = isExpanded(group.id) ? '' : 'collapsed';
+  const cards = group.entries.map(({env, idx}) => environmentCardHtml(env, idx, teams)).join('');
+  return `
+    <div class="env-group">
+      <div class="group-head">
+        ${caretHtml(group.id)}
+        <span>${escEnv(group.label)} (${group.entries.length})</span>
+      </div>
+      <div class="env-group-body collapsible-body ${collapsed}">${cards}</div>
+    </div>
+  `;
+}
+
+function environmentCardHtml(env, idx, teams) {
+  const teamChecks = teams.map(t => `
+    <label><input type="checkbox" class="team-check" data-env-idx="${idx}" data-team-id="${escAttrEnv(t.id)}" ${((env.team_ids||[]).includes(t.id)) ? 'checked' : ''}> ${escEnv(t.name)}</label>
+  `).join('') || '<span class="hint" style="padding:0">No teams defined yet</span>';
+
+  const componentChecks = COMPONENT_OPTIONS.map(comp => `
+    <label><input type="checkbox" ${((env.versions.components||[]).includes(comp)) ? 'checked' : ''}
+      onchange="toggleEnvComponent(${idx}, '${comp}', this.checked)"> ${comp}</label>
+  `).join('');
+
+  const collapsed = isExpanded(env.id) ? '' : 'collapsed';
+  return `
+    <div class="env-card">
+      <div class="env-card-head">
+        ${caretHtml(env.id)}
+        <input type="text" value="${escAttrEnv(env.label)}" onchange="updateEnvField(${idx}, 'label', this.value)" style="font-weight:600;font-size:12.5px;">
+        <button class="btn danger" onclick="removeEnvironment(${idx})">Remove</button>
+      </div>
+      <div class="env-card-body collapsible-body ${collapsed}">
+        <div class="field"><label>Teams</label><div class="team-checks">${teamChecks}</div></div>
+        <div class="field-grid">
+          <div><label>Deployment model</label>
+            <select onchange="updateDeploymentModel(${idx}, this.value)">
+              <option value="SaaS" ${env.deployment.model==='SaaS'?'selected':''}>SaaS</option>
+              <option value="Self-Managed" ${env.deployment.model==='Self-Managed'?'selected':''}>Self-Managed</option>
+            </select>
+          </div>
+          <div><label>Install method</label><input type="text" value="${escAttrEnv(env.deployment.install_method)}" ${env.deployment.model==='SaaS'?'disabled':''} onchange="updateEnvNested(${idx}, 'deployment', 'install_method', this.value)"></div>
+          <div><label>Sizing</label><input type="text" value="${escAttrEnv(env.deployment.sizing)}" ${env.deployment.model==='Self-Managed'?'disabled':''} onchange="updateEnvNested(${idx}, 'deployment', 'sizing', this.value)"></div>
+          <div><label>Camunda version</label><input type="text" value="${escAttrEnv(env.versions.camunda_version)}" onchange="updateEnvNested(${idx}, 'versions', 'camunda_version', this.value)"></div>
+        </div>
+        <div class="field"><label>Components</label><div class="team-checks">${componentChecks}</div></div>
+        <div class="field"><label>Support plan</label>${linkFieldHtml(env.links.support_plan, `updateEnvNestedAndRerender(${idx}, 'links', 'support_plan', this.value)`)}</div>
+        <div class="field"><label>Cluster URL</label>${linkFieldHtml(env.links.cluster_url, `updateEnvNestedAndRerender(${idx}, 'links', 'cluster_url', this.value)`)}</div>
+        <div class="field"><label>Runbook links</label>${urlListHtml(idx, 'links', 'runbook_links', env.links.runbook_links)}</div>
+        <div class="field"><label>Notes</label><textarea onchange="updateEnvField(${idx}, 'notes', this.value)">${escEnv(env.notes || '')}</textarea></div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Infrastructure</div>
+          <div class="env-subsection-body">
+            <div class="field-grid">
+              <div><label>OS</label><input type="text" value="${escAttrEnv(env.infrastructure.os)}" onchange="updateEnvNested(${idx}, 'infrastructure', 'os', this.value)"></div>
+              <div>${hostingPlatformHtml(idx, env)}</div>
+              <div><label>Kubectl access</label>
+                <select onchange="updateEnvNested(${idx}, 'infrastructure', 'kubectl_access', this.value)">
+                  <option value=""></option>
+                  ${YES_NO_OPTIONS.map(o => `<option value="${escAttrEnv(o)}" ${env.infrastructure.kubectl_access===o?'selected':''}>${escEnv(o)}</option>`).join('')}
+                </select>
+              </div>
+              <div><label>Secondary storage</label>
+                <select onchange="updateEnvNested(${idx}, 'infrastructure', 'secondary_storage', this.value)">
+                  <option value=""></option>
+                  ${SECONDARY_STORAGE_OPTIONS.map(o => `<option value="${escAttrEnv(o)}" ${env.infrastructure.secondary_storage===o?'selected':''}>${escEnv(o)}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Cluster</div>
+          <div class="env-subsection-body">
+            <div class="field-grid-3">
+              <div><label>Broker count</label><input type="number" min="0" step="1" value="${escAttrEnv(env.cluster.broker_count)}" onchange="updateEnvNested(${idx}, 'cluster', 'broker_count', this.value)"></div>
+              <div><label>Partitions</label><input type="number" min="0" step="1" value="${escAttrEnv(env.cluster.partitions)}" onchange="updateEnvNested(${idx}, 'cluster', 'partitions', this.value)"></div>
+              <div><label>Replication</label><input type="number" min="0" step="1" value="${escAttrEnv(env.cluster.replication)}" onchange="updateEnvNested(${idx}, 'cluster', 'replication', this.value)"></div>
+            </div>
+            <div class="field"><label>Multi-region</label><input type="text" style="width:100%" value="${escAttrEnv(env.cluster.multi_region)}" onchange="updateEnvNested(${idx}, 'cluster', 'multi_region', this.value)"></div>
+          </div>
+        </div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Observability</div>
+          <div class="env-subsection-body">
+            <div class="field-grid">
+              <div><label>Kibana</label>
+                <select onchange="updateEnvNested(${idx}, 'observability', 'kibana', this.value)">
+                  <option value=""></option>
+                  ${OBSERVABILITY_OPTIONS.map(o => `<option value="${escAttrEnv(o)}" ${env.observability.kibana===o?'selected':''}>${escEnv(o)}</option>`).join('')}
+                </select>
+              </div>
+              <div><label>Prometheus</label>
+                <select onchange="updateEnvNested(${idx}, 'observability', 'prometheus', this.value)">
+                  <option value=""></option>
+                  ${OBSERVABILITY_OPTIONS.map(o => `<option value="${escAttrEnv(o)}" ${env.observability.prometheus===o?'selected':''}>${escEnv(o)}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="field"><label>Custom dashboard links</label>${urlListHtml(idx, 'observability', 'dashboard_links', env.observability.dashboard_links)}</div>
+          </div>
+        </div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Multi-tenant</div>
+          <div class="env-subsection-body">
+            <div class="field"><label>Multi-tenancy</label>
+              <select style="width:100%" onchange="updateMultiTenancy(${idx}, this.value)">
+                <option value=""></option>
+                ${YES_NO_OPTIONS.map(o => `<option value="${escAttrEnv(o)}" ${env.multi_tenant.multi_tenancy===o?'selected':''}>${escEnv(o)}</option>`).join('')}
+              </select>
+            </div>
+            ${env.multi_tenant.multi_tenancy === 'Yes' ? `
+            <div class="field"><label>Tenant isolation</label><input type="text" style="width:100%" value="${escAttrEnv(env.multi_tenant.tenant_isolation)}" onchange="updateEnvNested(${idx}, 'multi_tenant', 'tenant_isolation', this.value)"></div>
+            <div class="field"><label>Tenant names (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'multi_tenant', 'tenant_names', this.value)">${escEnv((env.multi_tenant.tenant_names||[]).join('\n'))}</textarea></div>
+            ` : ''}
+          </div>
+        </div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Supporting Files</div>
+          <div class="env-subsection-body">
+            <div class="field"><label>Diagnostic reports</label>${datedListHtml(idx, 'diagnostic_reports', env.diagnostic_reports, true)}</div>
+            <div class="field"><label>Helm values.yaml history</label>${datedListHtml(idx, 'helm_values', env.helm_values, false)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function useCasesHtml(c) {
+  if (!c.use_cases.length) return '<div class="empty">No use cases yet</div>';
+  return c.use_cases.map((uc, idx) => useCaseCardHtml(uc, idx, c)).join('');
+}
+
+function useCaseCardHtml(uc, idx, c) {
+  const collapsed = isExpanded(uc.id) ? '' : 'collapsed';
+  const envOptions = '<option value="">—</option>' + c.environments.map(env =>
+    `<option value="${escAttrEnv(env.id)}" ${uc.environment_id === env.id ? 'selected' : ''}>${escEnv(env.label)}</option>`
+  ).join('');
+  const teamOptions = '<option value="">—</option>' + c.teams.map(team =>
+    `<option value="${escAttrEnv(team.id)}" ${uc.team_id === team.id ? 'selected' : ''}>${escEnv(team.name)}</option>`
+  ).join('');
+  const statusOptions = '<option value=""></option>' + USE_CASE_STATUS_OPTIONS.map(o =>
+    `<option value="${escAttrEnv(o)}" ${uc.status === o ? 'selected' : ''}>${escEnv(o)}</option>`
+  ).join('');
+  return `
+    <div class="env-card">
+      <div class="env-card-head">
+        ${caretHtml(uc.id)}
+        <input type="text" placeholder="Use case name" value="${escAttrEnv(uc.name)}" onchange="updateUseCaseField(${idx}, 'name', this.value)" style="font-weight:600;font-size:12.5px;">
+        <button class="btn danger" onclick="removeUseCase(${idx})">Remove</button>
+      </div>
+      <div class="env-card-body collapsible-body ${collapsed}">
+        <div class="field"><label>Description</label><textarea onchange="updateUseCaseField(${idx}, 'description', this.value)">${escEnv(uc.description || '')}</textarea></div>
+        <div class="field-grid">
+          <div><label>Status</label><select onchange="updateUseCaseField(${idx}, 'status', this.value)">${statusOptions}</select></div>
+          <div><label>Go-live date</label><input type="date" value="${escAttrEnv(uc.go_live_date)}" onchange="updateUseCaseField(${idx}, 'go_live_date', this.value)"></div>
+          <div><label>Related environment</label><select onchange="updateUseCaseField(${idx}, 'environment_id', this.value)">${envOptions}</select></div>
+          <div><label>Related team</label><select onchange="updateUseCaseField(${idx}, 'team_id', this.value)">${teamOptions}</select></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function addUseCase() {
+  const id = 'usecase-' + Date.now();
+  STATE.customers[CURRENT].use_cases.push({
+    id, name: '', description: '', status: '', go_live_date: '', environment_id: '', team_id: '',
+  });
+  expandedIds.add(id);
+  saveExpandedIds();
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function removeUseCase(idx) {
+  const uc = STATE.customers[CURRENT].use_cases[idx];
+  if (!confirm(`Remove use case "${uc.name || '(unnamed)'}"?`)) return;
+  STATE.customers[CURRENT].use_cases.splice(idx, 1);
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function updateUseCaseField(idx, field, value) {
+  STATE.customers[CURRENT].use_cases[idx][field] = value;
+  markEnvironmentsDirty();
+}
+
+function datedListHtml(envIdx, key, rows, withTicket) {
+  const rowsHtml = (rows || []).map((row, rowIdx) => `
+    <div class="dated-list-row">
+      <input type="text" placeholder="Link" value="${escAttrEnv(row.link || '')}" onchange="updateDatedListField(${envIdx}, '${key}', ${rowIdx}, 'link', this.value)">
+      <input type="date" class="date-input" value="${escAttrEnv((withTicket ? row.generated_date : row.date) || '')}" onchange="updateDatedListField(${envIdx}, '${key}', ${rowIdx}, '${withTicket ? 'generated_date' : 'date'}', this.value)">
+      ${withTicket ? `<input type="text" class="ticket-input" placeholder="Ticket" value="${escAttrEnv(row.ticket || '')}" onchange="updateDatedListField(${envIdx}, '${key}', ${rowIdx}, 'ticket', this.value)">` : ''}
+      <button class="btn danger" onclick="removeDatedListRow(${envIdx}, '${key}', ${rowIdx})">Remove</button>
+    </div>
+  `).join('');
+  return rowsHtml + `<button class="btn" onclick="addDatedListRow(${envIdx}, '${key}', ${withTicket})">Add</button>`;
+}
+
+function addEnvironment() {
+  const label = prompt('Environment label (e.g. Production, Staging):');
+  if (!label || !label.trim()) return;
+  const id = 'env-' + Date.now();
+  STATE.customers[CURRENT].environments.push({
+    id,
+    label: label.trim(),
+    team_ids: [],
+    deployment: {model: 'SaaS', install_method: '', sizing: ''},
+    versions: {camunda_version: '', components: []},
+    infrastructure: {os: '', hosting_platform: '', kubectl_access: '', secondary_storage: ''},
+    cluster: {broker_count: '', partitions: '', replication: '', multi_region: ''},
+    observability: {kibana: '', prometheus: '', dashboard_links: []},
+    multi_tenant: {multi_tenancy: '', tenant_isolation: '', tenant_names: []},
+    links: {cluster_url: '', support_plan: '', runbook_links: []},
+    notes: '',
+    diagnostic_reports: [],
+    helm_values: [],
+  });
+  expandedIds.add(id);
+  expandedIds.add('group-unassigned');
+  saveExpandedIds();
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function removeEnvironment(idx) {
+  const env = STATE.customers[CURRENT].environments[idx];
+  if (!confirm(`Remove environment "${env.label}"?`)) return;
+  STATE.customers[CURRENT].environments.splice(idx, 1);
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function updateEnvField(idx, field, value) {
+  STATE.customers[CURRENT].environments[idx][field] = value;
+  markEnvironmentsDirty();
+}
+
+function updateEnvNested(idx, group, field, value) {
+  STATE.customers[CURRENT].environments[idx][group][field] = value;
+  markEnvironmentsDirty();
+}
+
+function updateEnvNestedAndRerender(idx, group, field, value) {
+  updateEnvNested(idx, group, field, value);
+  renderCustomer();
+}
+
+function updateDeploymentModel(idx, value) {
+  updateEnvNested(idx, 'deployment', 'model', value);
+  renderCustomer();
+}
+
+function updateMultiTenancy(idx, value) {
+  updateEnvNested(idx, 'multi_tenant', 'multi_tenancy', value);
+  renderCustomer();
+}
+
+function updateEnvListField(idx, group, field, textareaValue) {
+  STATE.customers[CURRENT].environments[idx][group][field] =
+    textareaValue.split('\n').map(s => s.trim()).filter(Boolean);
+  markEnvironmentsDirty();
+}
+
+// Whether a value looks like an http(s) URL — used to decide when to show
+// a clickable link icon next to an otherwise-freeform text field.
+function isLikelyUrl(value) {
+  return !!value && /^https?:\/\//i.test(value.trim());
+}
+
+function urlLinkIcon(value) {
+  if (!isLikelyUrl(value)) return '';
+  return `<a href="${escAttrEnv(value.trim())}" target="_blank" rel="noopener noreferrer" class="link-icon" title="Open link">&#8599;</a>`;
+}
+
+// Single-URL field: a text input plus a clickable link icon that appears
+// once the value looks like a URL. `onchange` is the raw JS expression for
+// the input's onchange attribute (caller wires it to rerender so the icon
+// reflects the latest value).
+function linkFieldHtml(value, onchange) {
+  return `<div class="link-field-row">
+    <input type="text" placeholder="https://..." value="${escAttrEnv(value)}" onchange="${onchange}">
+    ${urlLinkIcon(value)}
+  </div>`;
+}
+
+// Multi-URL field: one row per URL, each with its own clickable link icon,
+// plus add/remove controls. Used for fields that can hold several links
+// (runbook links, custom dashboard links).
+function urlListHtml(envIdx, group, key, rows) {
+  const rowsHtml = (rows || []).map((url, rowIdx) => `
+    <div class="dated-list-row">
+      <input type="text" placeholder="https://..." value="${escAttrEnv(url)}" onchange="updateUrlListItem(${envIdx}, '${group}', '${key}', ${rowIdx}, this.value)">
+      ${urlLinkIcon(url)}
+      <button class="btn danger" onclick="removeUrlListItem(${envIdx}, '${group}', '${key}', ${rowIdx})">Remove</button>
+    </div>
+  `).join('');
+  return rowsHtml + `<button class="btn" onclick="addUrlListItem(${envIdx}, '${group}', '${key}')">Add link</button>`;
+}
+
+function addUrlListItem(envIdx, group, key) {
+  const env = STATE.customers[CURRENT].environments[envIdx];
+  env[group][key] = env[group][key] || [];
+  env[group][key].push('');
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function removeUrlListItem(envIdx, group, key, rowIdx) {
+  STATE.customers[CURRENT].environments[envIdx][group][key].splice(rowIdx, 1);
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function updateUrlListItem(envIdx, group, key, rowIdx, value) {
+  STATE.customers[CURRENT].environments[envIdx][group][key][rowIdx] = value;
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+// Hosting platform is a fixed dropdown plus a free-text "Other" option.
+// A stored value that isn't one of the fixed options is treated as a
+// custom "Other" value and shown in the text box instead of the select.
+function hostingPlatformHtml(idx, env) {
+  const value = env.infrastructure.hosting_platform || '';
+  const isOther = value !== '' && !HOSTING_PLATFORM_OPTIONS.includes(value);
+  return `
+    <label>Hosting platform</label>
+    <select id="hosting-platform-select-${idx}" onchange="onHostingPlatformSelectChange(${idx}, this.value)">
+      <option value="" ${value===''?'selected':''}></option>
+      ${HOSTING_PLATFORM_OPTIONS.map(o => `<option value="${escAttrEnv(o)}" ${value===o?'selected':''}>${escEnv(o)}</option>`).join('')}
+      <option value="__other__" ${isOther?'selected':''}>Other</option>
+    </select>
+    <input type="text" id="hosting-platform-custom-${idx}" placeholder="Enter platform"
+      style="margin-top:4px;width:100%;${isOther ? '' : 'display:none;'}"
+      value="${escAttrEnv(isOther ? value : '')}"
+      onchange="updateEnvNested(${idx}, 'infrastructure', 'hosting_platform', this.value)">
+  `;
+}
+
+function onHostingPlatformSelectChange(idx, value) {
+  const customInput = document.getElementById('hosting-platform-custom-' + idx);
+  if (value === '__other__') {
+    customInput.style.display = '';
+    customInput.value = '';
+    customInput.focus();
+    updateEnvNested(idx, 'infrastructure', 'hosting_platform', '');
+  } else {
+    customInput.style.display = 'none';
+    updateEnvNested(idx, 'infrastructure', 'hosting_platform', value);
+  }
+}
+
+function toggleEnvTeam(idx, teamId, checked) {
+  const env = STATE.customers[CURRENT].environments[idx];
+  env.team_ids = env.team_ids || [];
+  if (checked) {
+    if (!env.team_ids.includes(teamId)) env.team_ids.push(teamId);
+  } else {
+    env.team_ids = env.team_ids.filter(id => id !== teamId);
+  }
+  markEnvironmentsDirty();
+}
+
+function toggleEnvComponent(idx, comp, checked) {
+  const env = STATE.customers[CURRENT].environments[idx];
+  env.versions.components = env.versions.components || [];
+  if (checked) {
+    if (!env.versions.components.includes(comp)) env.versions.components.push(comp);
+  } else {
+    env.versions.components = env.versions.components.filter(c => c !== comp);
+  }
+  markEnvironmentsDirty();
+}
+
+function addDatedListRow(envIdx, key, withTicket) {
+  const env = STATE.customers[CURRENT].environments[envIdx];
+  env[key] = env[key] || [];
+  env[key].push(withTicket ? {link: '', generated_date: '', ticket: ''} : {link: '', date: ''});
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function removeDatedListRow(envIdx, key, rowIdx) {
+  STATE.customers[CURRENT].environments[envIdx][key].splice(rowIdx, 1);
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function updateDatedListField(envIdx, key, rowIdx, field, value) {
+  STATE.customers[CURRENT].environments[envIdx][key][rowIdx][field] = value;
+  markEnvironmentsDirty();
+}
+
+function markEnvironmentsDirty() {
+  envDirty = true;
+  document.getElementById('env-save-btn').disabled = false;
+  document.getElementById('save-status').textContent = 'Unsaved changes';
+}
+
+async function saveAll() {
+  const btn = document.getElementById('env-save-btn');
+  const status = document.getElementById('save-status');
+  const c = STATE.customers[CURRENT];
+  btn.disabled = true;
+  status.textContent = 'Saving…';
+  try {
+    const r = await fetch(`api/environments/config/${encodeURIComponent(CURRENT)}`, {
+      method: 'PUT', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        teams: c.teams, environments: c.environments, use_cases: c.use_cases,
+        meetings: c.meetings, es_activities: c.es_activities,
+      }),
+    });
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    envDirty = false;
+    status.textContent = '';
+    showToast(`Saved ${CURRENT} to Drive`, 'ok', 4000);
+    // Health/rollup are computed server-side on GET, not stored — re-fetch
+    // so the badge, rollup strip, and health breakdown reflect what was
+    // just saved instead of the pre-save values still sitting in STATE.
+    const refreshed = await fetch(`api/environments/config/${encodeURIComponent(CURRENT)}`, {credentials: 'include'});
+    if (refreshed.ok) {
+      STATE.customers[CURRENT] = await refreshed.json();
+      ensureCustomer(CURRENT);
+      if (VIEW === 'team' && CURRENT_TEAM_ID) {
+        renderTeamDetail(CURRENT_TEAM_ID);
+      } else {
+        renderCustomer();
+      }
+    }
+  } catch(e) {
+    showToast('Save failed: ' + e.message, 'err', 5000);
+    status.textContent = 'Unsaved changes';
+    btn.disabled = false;
+  }
+}
+
+function escEnv(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+function escAttrEnv(s) { return escEnv(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+window.addEventListener('beforeunload', e => { if (envDirty) { e.preventDefault(); e.returnValue = ''; } });
+
 // ── Sidebar shell: client-side area router ─────────────────────
 // Brief is the only fully-wired area today; the other four are inert
 // "Coming soon" stubs (see <template id="tpl-..."> below) until Tasks 3-6
@@ -2894,7 +4354,7 @@ const AREAS = {
       clearStatus();
     },
   },
-  environments: { mount(signal) { /* Task 5 fills this in */ } },
+  environments: { mount(signal) { loadEnvironments(signal); } },
   tasks: { mount(signal) { loadTasks(signal); } },
   'day-plan': { mount(signal) { mountDayPlan(signal); } },
   'account-health': { mount(signal) { /* Task 6 fills this in */ } },
