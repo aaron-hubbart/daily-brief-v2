@@ -1193,16 +1193,43 @@ function updateTabProgress() {
   });
 }
 
-// Wires every checkable bucket-bullet checkbox (currently Account Updates'
-// FYI/Pending Action Items/Blockers-Risks bullets — see section_fragment.html's
-// customer-updates branch) within container. Each .subcheck label carries its
-// own data-section/data-item-key/data-subitem-key, so no ancestor lookup is
-// needed. Unlike toggle() above, this writes straight to the generic
-// item_subchecks table (db.set_subitem_checked) via a PATCH to the
-// section/item_key/subitem_key route, with the .done class toggled
-// optimistically — no localStorage mirroring, since that table always
-// upserts (no "not found" case the legacy items.checked path has to guard
-// against). Safe to call repeatedly: already-wired checkboxes are skipped.
+// Shared PATCH for one .subcheck label's checked state against the generic
+// item_subchecks table (db.set_subitem_checked), via the
+// section/item_key/subitem_key route. Used both by wireSubchecks' own
+// change handler and by the reset-all handler below, so the fetch/URL-
+// building logic lives in exactly one place. Returns the fetch() promise
+// (or undefined if the label is missing a required data-* attribute) so
+// callers can react to a failed save.
+function patchSubcheck(label, filename, checked) {
+  const section = label.dataset.section;
+  const itemKey = label.dataset.itemKey;
+  const subitemKey = label.dataset.subitemKey;
+  if (!section || !itemKey || !subitemKey) return undefined;
+  return fetch(
+    'api/items/' + encodeURIComponent(section) + '/' + encodeURIComponent(itemKey) +
+      '/subitems/' + encodeURIComponent(subitemKey) + '/checked?date=' + encodeURIComponent(filename),
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checked }),
+    }
+  );
+}
+
+// Wires every checkable bucket-bullet/sub-item checkbox (Account Updates'
+// FYI/Pending Action Items/Blockers-Risks bullets, account-recap's Action
+// Items list, and the Manager Update "drafted" box — see
+// section_fragment.html's customer-updates, account-recap, and
+// manager-update branches) within container. Each .subcheck label carries
+// its own data-section/data-item-key/data-subitem-key, so no ancestor
+// lookup is needed. Unlike toggle() above, this writes straight to the
+// generic item_subchecks table via patchSubcheck(), with the .done class
+// toggled optimistically — no localStorage mirroring, since that table
+// always upserts (no "not found" case the legacy items.checked path has to
+// guard against). If the save actually fails (network error, or a non-2xx
+// response), the optimistic UI update is rolled back rather than left
+// showing a checked box that never persisted. Safe to call repeatedly:
+// already-wired checkboxes are skipped.
 function wireSubchecks(container, filename) {
   container.querySelectorAll('.subcheck input[type=checkbox]').forEach(cb => {
     if (cb.dataset.subcheckWired) return;
@@ -1211,22 +1238,25 @@ function wireSubchecks(container, filename) {
     if (!label) return;
     cb.addEventListener('change', e => {
       e.stopPropagation();
-      const section = label.dataset.section;
-      const itemKey = label.dataset.itemKey;
-      const subitemKey = label.dataset.subitemKey;
-      if (!section || !itemKey || !subitemKey) return;
       const checked = cb.checked;
+      const previouslyChecked = !checked;
       label.classList.toggle('done', checked);
       updateTabProgress();
-      fetch(
-        'api/items/' + encodeURIComponent(section) + '/' + encodeURIComponent(itemKey) +
-          '/subitems/' + encodeURIComponent(subitemKey) + '/checked?date=' + encodeURIComponent(filename),
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ checked }),
-        }
-      ).catch(() => {});
+      const request = patchSubcheck(label, filename, checked);
+      if (!request) return;
+      request
+        .then(response => {
+          if (!response.ok) {
+            cb.checked = previouslyChecked;
+            label.classList.toggle('done', previouslyChecked);
+            updateTabProgress();
+          }
+        })
+        .catch(() => {
+          cb.checked = previouslyChecked;
+          label.classList.toggle('done', previouslyChecked);
+          updateTabProgress();
+        });
     });
   });
 }
@@ -1320,9 +1350,10 @@ function initBriefState(filename) {
     if (duebox) wireDueBox(duebox, filename);
   });
 
-  // Bucket-bullet checkboxes (Account Updates) live outside any .item[data-id]
-  // element entirely, so they're wired once over the whole container rather
-  // than per-item above.
+  // Bucket-bullet/sub-item checkboxes (Account Updates' bucket bullets,
+  // account-recap's Action Items, the Manager Update "drafted" box) live
+  // outside any .item[data-id] element entirely, so they're wired once
+  // over the whole container rather than per-item above.
   wireSubchecks(container, filename);
 
   // Wire reset button
@@ -1339,8 +1370,22 @@ function initBriefState(filename) {
         const section = sectionEl ? sectionEl.dataset.section : null;
         syncCheckedToServer(section, id, false);
       });
+      // Also reset every bucket-bullet/sub-item checkbox (.subcheck) --
+      // these live outside .item[data-id] entirely (see wireSubchecks), so
+      // the loop above never touches them. Without this, a "Reset all"
+      // left Account Update bullets, account-recap action items, and the
+      // Manager Update "drafted" box still checked both on-screen and in
+      // the database, so a tab could still show partial progress right
+      // after the user confirmed a full reset.
+      container.querySelectorAll('.subcheck.done').forEach(label => {
+        label.classList.remove('done');
+        const cb = label.querySelector('input[type=checkbox]');
+        if (cb) cb.checked = false;
+        const request = patchSubcheck(label, filename, false);
+        if (request) request.catch(() => {});
+      });
       saveBriefState(filename, state);
-      applyState();
+      applyState(); // applyState() calls updateTabProgress(), reflecting the reset
     });
   }
 

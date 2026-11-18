@@ -8,7 +8,7 @@ fixture in this suite yet (see template_test_utils.py's docstring: importing
 app.py needs Azure/Flask env vars and a live-ish db module), and this plan
 doesn't add one just for this one route. It was instead verified manually
 (see task-3-report.md for the request/response transcript)."""
-from template_test_utils import make_env
+from template_test_utils import make_env, subitem_hash
 
 
 def render_section_fragment(section_slug, section_items, checked_subitems=None):
@@ -37,16 +37,17 @@ BUCKET_TEXTAREA = (
 
 
 def test_customer_update_bucket_bullets_are_checkable():
+    key = 'sb-fyi:' + subitem_hash('Renewal signed')
     html = render_section_fragment(
         section_slug='customer-updates',
         section_items=[{'item_key': 'cust-update-acme', 'title': 'Acme Corp',
                          'content': {'textarea': BUCKET_TEXTAREA}}],
-        checked_subitems={'cust-update-acme': {'sb-fyi:0': True}},
+        checked_subitems={'cust-update-acme': {key: True}},
     )
-    assert 'data-subitem-key="sb-fyi:0"' in html
-    # Scoped to the sb-fyi:0 label specifically, not just "checked" appearing
+    assert f'data-subitem-key="{key}"' in html
+    # Scoped to that label specifically, not just "checked" appearing
     # anywhere in the document.
-    label_start = html.index('data-subitem-key="sb-fyi:0"')
+    label_start = html.index(f'data-subitem-key="{key}"')
     label_tag_end = html.index('>', label_start)
     label_tag = html[max(0, label_start - 80):label_tag_end]
     assert 'class="subcheck done"' in label_tag
@@ -56,13 +57,14 @@ def test_customer_update_bucket_bullets_are_checkable():
 
 
 def test_customer_update_bucket_bullet_unchecked_by_default():
+    key = 'sb-fyi:' + subitem_hash('Renewal signed')
     html = render_section_fragment(
         section_slug='customer-updates',
         section_items=[{'item_key': 'cust-update-acme', 'title': 'Acme Corp',
                          'content': {'textarea': BUCKET_TEXTAREA}}],
         checked_subitems={},
     )
-    label_start = html.index('data-subitem-key="sb-fyi:0"')
+    label_start = html.index(f'data-subitem-key="{key}"')
     label_tag_end = html.index('>', label_start)
     label_tag = html[max(0, label_start - 80):label_tag_end]
     assert 'class="subcheck"' in label_tag
@@ -78,14 +80,52 @@ def test_customer_update_bucket_bullets_have_distinct_subitem_keys_per_bucket():
         section_items=[{'item_key': 'cust-update-acme', 'title': 'Acme Corp',
                          'content': {'textarea': BUCKET_TEXTAREA}}],
     )
-    assert 'data-subitem-key="sb-fyi:0"' in html
-    assert 'data-subitem-key="sb-fyi:1"' in html
-    assert 'data-subitem-key="sb-action:0"' in html
+    fyi_key_0 = 'sb-fyi:' + subitem_hash('Renewal signed')
+    fyi_key_1 = 'sb-fyi:' + subitem_hash('Expansion conversation started')
+    action_key_0 = 'sb-action:' + subitem_hash('Send updated SOW')
+    assert f'data-subitem-key="{fyi_key_0}"' in html
+    assert f'data-subitem-key="{fyi_key_1}"' in html
+    assert f'data-subitem-key="{action_key_0}"' in html
     # Blockers/Risks collapses to a plain "None" div (no bullet, no checkbox)
     # for a single "None" bullet -- same as the existing format_status_buckets
     # behavior this mirrors.
-    assert 'data-subitem-key="sb-risk:0"' not in html
+    assert 'sb-risk:' not in html
     assert '<div class="status-bucket-none">None</div>' in html
+
+
+def test_customer_update_bucket_bullet_keys_follow_text_not_position():
+    """Content-derived keys (not loop.index0) -- see the final-review ruling
+    for brief-tabs-and-checkability: a same-day Refresh that reorders or
+    inserts a bucket bullet must not silently reattach a stale checked
+    state to whatever bullet now lands in that slot. Reordering the same
+    bullet text must produce the exact same per-bullet key regardless of
+    its position in the list."""
+    reordered_textarea = (
+        'Updates/FYI\n'
+        '- Expansion conversation started\n'
+        '- Renewal signed\n'
+        'Pending Action Items\n'
+        '- Send updated SOW\n'
+        'Blockers/Risks\n'
+        '- None'
+    )
+    original_html = render_section_fragment(
+        section_slug='customer-updates',
+        section_items=[{'item_key': 'cust-update-acme', 'title': 'Acme Corp',
+                         'content': {'textarea': BUCKET_TEXTAREA}}],
+    )
+    reordered_html = render_section_fragment(
+        section_slug='customer-updates',
+        section_items=[{'item_key': 'cust-update-acme', 'title': 'Acme Corp',
+                         'content': {'textarea': reordered_textarea}}],
+    )
+    renewal_key = 'sb-fyi:' + subitem_hash('Renewal signed')
+    expansion_key = 'sb-fyi:' + subitem_hash('Expansion conversation started')
+    assert renewal_key != expansion_key
+    assert f'data-subitem-key="{renewal_key}"' in original_html
+    assert f'data-subitem-key="{expansion_key}"' in original_html
+    assert f'data-subitem-key="{renewal_key}"' in reordered_html
+    assert f'data-subitem-key="{expansion_key}"' in reordered_html
 
 
 def test_customer_update_subcheck_carries_section_and_item_key():
@@ -120,7 +160,7 @@ def test_customer_update_textarea_stays_raw_and_untouched_by_checkboxes():
         section_slug='customer-updates',
         section_items=[{'item_key': 'cust-update-acme', 'title': 'Acme Corp',
                          'content': {'textarea': BUCKET_TEXTAREA}}],
-        checked_subitems={'cust-update-acme': {'sb-fyi:0': True}},
+        checked_subitems={'cust-update-acme': {'sb-fyi:' + subitem_hash('Renewal signed'): True}},
     )
     assert '<textarea class="update-textarea">' in html
     textarea_start = html.index('<textarea class="update-textarea">')

@@ -18,3 +18,16 @@ def test_parse_status_buckets_none_bucket_yields_empty_bullets():
     text = "Updates/FYI\n- None\nPending Action Items\n- None\nBlockers/Risks\n- None"
     result = parse_status_buckets(text)
     assert all(b['bullets'] == [] for b in result)
+
+
+def test_parse_status_buckets_drops_none_bullet_alongside_real_bullets():
+    """A "None" bullet can appear alongside real bullets in the same bucket
+    (not just as the bucket's sole line) -- it must still be dropped, not
+    rendered as a checkable row or counted toward the bucket's total."""
+    text = (
+        "Updates/FYI\n- Real thing\n- None\n- Another real thing\n"
+        "Pending Action Items\n- None\n"
+        "Blockers/Risks\n- None"
+    )
+    result = parse_status_buckets(text)
+    assert result[0]['bullets'] == ['Real thing', 'Another real thing']

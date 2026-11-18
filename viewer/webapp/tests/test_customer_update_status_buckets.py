@@ -55,6 +55,10 @@ def test_customer_update_preview_renders_three_labeled_buckets():
     assert '<span>QBR held 11/6, Gainsight health score reviewed and agreed at 82.</span>' in html
     assert '<span>Send updated SOW — due 11/13</span>' in html
     assert '<span>Renewal at risk: budget freeze flagged by economic buyer.</span>' in html
+    # Pending Action Items has a "None" bullet alongside a real one -- it
+    # must be dropped, not rendered as its own checkable row or counted
+    # toward the bucket's total (see parse_status_buckets).
+    assert '<span>None</span>' not in html
 
 
 def test_customer_update_preview_drops_tam_update_wrapper_preamble_in_bucket_mode():

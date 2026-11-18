@@ -73,7 +73,7 @@
           {% else %}
           <ul class="status-bucket-list">
             {% for bullet in bucket.bullets %}
-            {% set subitem_key = bucket.key ~ ':' ~ loop.index0 %}
+            {% set subitem_key = bucket.key ~ ':' ~ (bullet|subitem_hash) %}
             {% set bullet_checked = item_checks.get(subitem_key, false) %}
             <li>
               <label class="subcheck{% if bullet_checked %} done{% endif %}" data-subitem-key="{{ subitem_key }}" data-item-key="{{ item.item_key }}" data-section="{{ section_slug }}">
@@ -163,7 +163,7 @@
         <div style="font-size:10px;font-weight:700;color:var(--accent-t);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Action Items</div>
         <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--t2);line-height:1.5;">
           {% for action in item.get('content', {}).get('action_items', []) %}
-          {% set subitem_key = 'action_items:' ~ loop.index0 %}
+          {% set subitem_key = 'action_items:' ~ (action|subitem_hash) %}
           {% set action_checked = item_checks.get(subitem_key, false) %}
           <li>
             <label class="subcheck{% if action_checked %} done{% endif %}" data-subitem-key="{{ subitem_key }}" data-item-key="{{ item.item_key }}" data-section="{{ section_slug }}">

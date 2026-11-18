@@ -5,6 +5,7 @@ psycopg2 (via `import db`), neither of which this test environment has.
 Template-only tests render the real template files through a standalone
 Jinja2 Environment instead, with the same custom filters app.py registers
 (kept in sync by hand with app.py's @app.template_filter functions)."""
+import hashlib
 import re
 from pathlib import Path
 
@@ -113,14 +114,19 @@ def parse_status_buckets(text):
             for line in lines[pos + 1:end]
             if line
         ]
-        if len(bullets) == 1 and bullets[0].strip().lower() == 'none':
-            bullets = []
+        bullets = [b for b in bullets if b.strip().lower() != 'none']
         buckets.append({
             'key': STATUS_BUCKET_CSS_CLASS[header],
             'label': header,
             'bullets': bullets,
         })
     return buckets
+
+
+def subitem_hash(text):
+    """Mirrors app.py's `subitem_hash` Jinja2 filter (kept in sync by hand,
+    same as the rest of this module's filter mirrors)."""
+    return hashlib.sha1((text or '').strip().encode('utf-8')).hexdigest()[:10]
 
 
 def make_env():
@@ -139,4 +145,5 @@ def make_env():
     env.filters['resolve_link_url'] = _resolve_link_url
     env.filters['format_status_buckets'] = _format_status_buckets
     env.filters['parse_status_buckets'] = parse_status_buckets
+    env.filters['subitem_hash'] = subitem_hash
     return env
