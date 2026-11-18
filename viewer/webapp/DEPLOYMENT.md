@@ -114,6 +114,12 @@ Get-Content -Raw viewer/webapp/db/migrations/011_add_schema_migrations.sql | kub
 Get-Content -Raw viewer/webapp/db/migrations/012_add_max_briefs_to_load.sql | kubectl exec -i -n daily-brief-v2 postgres-0 -- psql -U dailybrief -d dailybrief
 ```
 
+**Migration 013 (`item_subchecks`)** adds a table for checked state on things *inside* an item -- bucket bullets inside an Account Update card, Action Items list entries, the Manager Update "drafted" checkbox -- a no-op for existing rows until the frontend starts writing to it:
+
+```powershell
+Get-Content -Raw viewer/webapp/db/migrations/013_add_item_subchecks.sql | kubectl exec -i -n daily-brief-v2 postgres-0 -- psql -U dailybrief -d dailybrief
+```
+
 **Going forward, every new migration file must end with an `INSERT INTO schema_migrations (version) VALUES ('<its own filename>') ON CONFLICT (version) DO NOTHING;`** (see `db/migrations/011_add_schema_migrations.sql` or any migration after it for the pattern) — the app checks this table against the files in `db/migrations/` on startup and refuses to boot if any file is missing, so a migration applied by hand with `kubectl exec` (as above) registers itself in the same command instead of needing a separate step.
 
 

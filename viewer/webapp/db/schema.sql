@@ -86,6 +86,26 @@ CREATE TABLE IF NOT EXISTS items (
 
 CREATE INDEX IF NOT EXISTS idx_items_brief_day ON items (brief_day_id, section, display_order);
 
+-- Checked state for things *inside* an item that are individually
+-- checkable but don't warrant their own items row -- a bucket bullet
+-- inside an Account Update card, an Action Items list entry, the Manager
+-- Update "drafted" checkbox. See migrations/013_add_item_subchecks.sql:
+-- deliberately its own table (upsert-on-first-toggle, no FK into items.id)
+-- rather than reusing items.checked, since items' own checked-state
+-- persistence (db.upsert_item) is dead code and never actually runs.
+CREATE TABLE IF NOT EXISTS item_subchecks (
+    id            SERIAL PRIMARY KEY,
+    brief_day_id  INTEGER NOT NULL REFERENCES brief_days(id) ON DELETE CASCADE,
+    section       TEXT NOT NULL,
+    item_key      TEXT NOT NULL,
+    subitem_key   TEXT NOT NULL,
+    checked       BOOLEAN NOT NULL DEFAULT false,
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (brief_day_id, section, item_key, subitem_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_item_subchecks_lookup ON item_subchecks (brief_day_id, section, item_key);
+
 -- Shared cross-app SSO session store — see migrations/008_add_sso_sessions.sql
 -- for why this exists (lets the TAM Dashboard's Express proxy recognize a
 -- signed-in user via /internal/sso/verify instead of replicating Flask's
@@ -125,6 +145,7 @@ INSERT INTO schema_migrations (version) VALUES
     ('009_add_notification_prefs.sql'),
     ('010_add_last_active_at.sql'),
     ('011_add_schema_migrations.sql'),
-    ('012_add_max_briefs_to_load.sql')
+    ('012_add_max_briefs_to_load.sql'),
+    ('013_add_item_subchecks.sql')
 ON CONFLICT (version) DO NOTHING;
 
