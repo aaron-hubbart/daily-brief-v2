@@ -1154,6 +1154,45 @@ function wireDueBox(duebox, filename) {
   });
 }
 
+// Updates each section tab's "x of y" progress count and red/amber/green
+// class. Counts checkable elements (.item[data-id] -- top-level schedule/
+// action items -- plus .subcheck -- Account Update bucket bullets and the
+// Manager Update "drafted" box, see Tasks 3-4) within that section's
+// .sec-panel, whether or not the panel is currently the visible/active one.
+// Re-queries the live DOM every call, so it's safe (and necessary) to call
+// repeatedly: once after initBriefState's initial wiring, and again from
+// every place a .done class changes afterward (toggle(), wireSubchecks).
+function updateTabProgress() {
+  const container = document.getElementById('brief-content');
+  if (!container) return;
+  container.querySelectorAll('.sec-panel[data-section]').forEach(panel => {
+    const slug = panel.dataset.section;
+    const total = panel.querySelectorAll('.item[data-id], .subcheck').length;
+    const done = panel.querySelectorAll('.item.done[data-id], .subcheck.done').length;
+    const label = container.querySelector('.tab-progress[data-section="' + slug + '"]');
+    if (!label) return;
+    label.textContent = done + ' of ' + total;
+    let cls = 'tab-progress';
+    if (total === 0) {
+      // A section can legitimately have nothing to do today -- show "0 of 0"
+      // with no color, not an error.
+      cls += ' tab-progress-empty';
+    } else if (done === 0) {
+      // True "not started" reads as neutral rather than alarming -- red is
+      // reserved for some-but-little progress (accepted risk + suggested
+      // mitigation in the design doc: a flat 0% bucket would otherwise look
+      // identical to "something's wrong").
+      cls += ' tab-progress-zero';
+    } else {
+      const ratio = done / total;
+      if (ratio < 0.4) cls += ' tab-progress-low';
+      else if (ratio < 1) cls += ' tab-progress-mid';
+      else cls += ' tab-progress-done';
+    }
+    label.className = cls;
+  });
+}
+
 // Wires every checkable bucket-bullet checkbox (currently Account Updates'
 // FYI/Pending Action Items/Blockers-Risks bullets — see section_fragment.html's
 // customer-updates branch) within container. Each .subcheck label carries its
@@ -1178,6 +1217,7 @@ function wireSubchecks(container, filename) {
       if (!section || !itemKey || !subitemKey) return;
       const checked = cb.checked;
       label.classList.toggle('done', checked);
+      updateTabProgress();
       fetch(
         'api/items/' + encodeURIComponent(section) + '/' + encodeURIComponent(itemKey) +
           '/subitems/' + encodeURIComponent(subitemKey) + '/checked?date=' + encodeURIComponent(filename),
@@ -1202,7 +1242,6 @@ function initBriefState(filename) {
 
   function applyState() {
     const items = liveItems();
-    let done = 0;
     items.forEach(el => {
       const id = el.dataset.id;
       // No local record for this item yet (first load on this device, or it
@@ -1214,20 +1253,18 @@ function initBriefState(filename) {
       el.classList.toggle('done', on);
       const cb = el.querySelector('input[type=checkbox]');
       if (cb) cb.checked = on;
-      if (on) done++;
     });
-    const total = items.length;
-    const pct = total ? Math.round(done / total * 100) : 0;
-    const lbl = container.querySelector('#prog-label');
-    const fill = container.querySelector('#prog-fill');
-    if (lbl) lbl.textContent = done + ' of ' + total + ' done';
-    if (fill) fill.style.width = pct + '%';
+    // Per-tab x-of-y progress (replaces the old single combined prog-label/
+    // prog-fill bar -- see updateTabProgress(), which counts both this
+    // function's .item[data-id] elements and the .subcheck bucket-bullet/
+    // Manager-Update checkboxes wireSubchecks owns).
+    updateTabProgress();
   }
 
   function toggle(id, section) {
     state[id] = !state[id];
     saveBriefState(filename, state);
-    applyState();
+    applyState(); // applyState() itself calls updateTabProgress()
     syncCheckedToServer(section, id, state[id]);
   }
 
@@ -1307,7 +1344,12 @@ function initBriefState(filename) {
     });
   }
 
-  // Restore persisted state against the now-live cloned elements
+  // Restore persisted state against the now-live cloned elements. This also
+  // performs the initial per-tab progress count (applyState() calls
+  // updateTabProgress()) now that this pass's items/subchecks are live in
+  // the DOM -- safe even before every section has progressively loaded, since
+  // it just counts whatever's there right now, and re-runs each time
+  // initBriefState is re-invoked as more sections arrive.
   applyState();
 
   // Add "Run in Claude" button to each Schedule item (items with a time column)
