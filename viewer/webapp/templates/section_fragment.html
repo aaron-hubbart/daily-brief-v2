@@ -51,14 +51,43 @@
   {% endfor %}
 
 {% elif section_slug == 'customer-updates' %}
+  {% set checked_subitems = checked_subitems or {} %}
   {% for item in section_items %}
+  {% set buckets = item.get('content', {}).get('textarea', '')|parse_status_buckets %}
   <details class="acct-card" data-id="{{ item.item_key }}">
     <summary>
       <span class="acct-card-name">{{ item.title or 'Unnamed account' }}</span>
       <span class="acct-card-meta">{{ item.get('content', {}).get('last_posted_label', 'No previous update found') }}</span>
     </summary>
     <div class="acct-card-body">
+      {% if buckets is none %}
       <div class="update-preview">{{ item.get('content', {}).get('textarea', '')|format_status_buckets }}</div>
+      {% else %}
+      <div class="update-preview">
+        {% set item_checks = checked_subitems.get(item.item_key, {}) %}
+        {% for bucket in buckets %}
+        <div class="status-bucket {{ bucket.key }}">
+          <div class="status-bucket-label">{{ bucket.label }}</div>
+          {% if not bucket.bullets %}
+          <div class="status-bucket-none">None</div>
+          {% else %}
+          <ul class="status-bucket-list">
+            {% for bullet in bucket.bullets %}
+            {% set subitem_key = bucket.key ~ ':' ~ loop.index0 %}
+            {% set bullet_checked = item_checks.get(subitem_key, false) %}
+            <li>
+              <label class="subcheck{% if bullet_checked %} done{% endif %}" data-subitem-key="{{ subitem_key }}" data-item-key="{{ item.item_key }}" data-section="{{ section_slug }}">
+                <input type="checkbox" {% if bullet_checked %}checked{% endif %}>
+                <span>{{ bullet|autolink_jira }}</span>
+              </label>
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
       <textarea class="update-textarea">{{ item.get('content', {}).get('textarea', '') }}</textarea>
       <div class="update-row" data-item-key="{{ item.item_key }}" data-section="{{ section_slug }}">
         <input class="channel-input" type="text" value="{{ item.get('content', {}).get('channel_id', '') }}" readonly>

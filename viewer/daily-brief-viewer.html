@@ -160,6 +160,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 /* ── Checked-item strikethrough (viewer-owned, loads before fragment CSS) ── */
 .item.done{opacity:.35;}
 .item.done .ititle,.item.done .isub,.item.done .iboard{text-decoration:line-through;}
+.subcheck{display:flex;align-items:flex-start;gap:6px;cursor:pointer;-webkit-user-select:none;user-select:none;}
+.subcheck input[type=checkbox]{margin-top:2px;flex-shrink:0;cursor:pointer;}
+.subcheck.done{opacity:.35;}
+.subcheck.done span{text-decoration:line-through;}
 .brief-content{display:none;}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:.5rem;color:var(--t3);font-size:13px;padding:2rem;text-align:center;}
 .empty-state svg{opacity:.25;margin-bottom:.5rem;}
@@ -1150,6 +1154,43 @@ function wireDueBox(duebox, filename) {
   });
 }
 
+// Wires every checkable bucket-bullet checkbox (currently Account Updates'
+// FYI/Pending Action Items/Blockers-Risks bullets — see section_fragment.html's
+// customer-updates branch) within container. Each .subcheck label carries its
+// own data-section/data-item-key/data-subitem-key, so no ancestor lookup is
+// needed. Unlike toggle() above, this writes straight to the generic
+// item_subchecks table (db.set_subitem_checked) via a PATCH to the
+// section/item_key/subitem_key route, with the .done class toggled
+// optimistically — no localStorage mirroring, since that table always
+// upserts (no "not found" case the legacy items.checked path has to guard
+// against). Safe to call repeatedly: already-wired checkboxes are skipped.
+function wireSubchecks(container, filename) {
+  container.querySelectorAll('.subcheck input[type=checkbox]').forEach(cb => {
+    if (cb.dataset.subcheckWired) return;
+    cb.dataset.subcheckWired = '1';
+    const label = cb.closest('.subcheck');
+    if (!label) return;
+    cb.addEventListener('change', e => {
+      e.stopPropagation();
+      const section = label.dataset.section;
+      const itemKey = label.dataset.itemKey;
+      const subitemKey = label.dataset.subitemKey;
+      if (!section || !itemKey || !subitemKey) return;
+      const checked = cb.checked;
+      label.classList.toggle('done', checked);
+      fetch(
+        'api/items/' + encodeURIComponent(section) + '/' + encodeURIComponent(itemKey) +
+          '/subitems/' + encodeURIComponent(subitemKey) + '/checked?date=' + encodeURIComponent(filename),
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ checked }),
+        }
+      ).catch(() => {});
+    });
+  });
+}
+
 function initBriefState(filename) {
   const container = document.getElementById('brief-content');
   const state = loadBriefState(filename);
@@ -1241,6 +1282,11 @@ function initBriefState(filename) {
     const duebox = fresh.querySelector('.duebox');
     if (duebox) wireDueBox(duebox, filename);
   });
+
+  // Bucket-bullet checkboxes (Account Updates) live outside any .item[data-id]
+  // element entirely, so they're wired once over the whole container rather
+  // than per-item above.
+  wireSubchecks(container, filename);
 
   // Wire reset button
   const resetBtn = container.querySelector('.reset-btn');

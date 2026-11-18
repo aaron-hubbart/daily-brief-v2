@@ -30,6 +30,11 @@ SLACK_FORMATTED_TEXTAREA = (
 
 
 def test_customer_update_preview_renders_three_labeled_buckets():
+    """Since Task 3 (brief-tabs-and-checkability), each bucket bullet renders
+    as an individually-checkable .subcheck label instead of a plain <li>text</li>
+    -- see test_account_updates_checkable_buckets.py for the checkbox-specific
+    assertions (data-subitem-key, checked state, etc). This test just confirms
+    the three bucket labels and bullet text still show up."""
     items = [{
         'item_key': 'cust-update-acme',
         'item_type': 'card',
@@ -47,12 +52,21 @@ def test_customer_update_preview_renders_three_labeled_buckets():
     assert '<div class="status-bucket-label">Updates/FYI</div>' in html
     assert '<div class="status-bucket-label">Pending Action Items</div>' in html
     assert '<div class="status-bucket-label">Blockers/Risks</div>' in html
-    assert '<li>QBR held 11/6, Gainsight health score reviewed and agreed at 82.</li>' in html
-    assert '<li>Send updated SOW — due 11/13</li>' in html
-    assert '<li>Renewal at risk: budget freeze flagged by economic buyer.</li>' in html
+    assert '<span>QBR held 11/6, Gainsight health score reviewed and agreed at 82.</span>' in html
+    assert '<span>Send updated SOW — due 11/13</span>' in html
+    assert '<span>Renewal at risk: budget freeze flagged by economic buyer.</span>' in html
 
 
-def test_customer_update_preview_keeps_tam_update_wrapper_as_raw_preamble():
+def test_customer_update_preview_drops_tam_update_wrapper_preamble_in_bucket_mode():
+    """Since Task 3, the pretty update-preview div is driven by
+    parse_status_buckets (structured bucket data for the checkable bullets),
+    which -- unlike format_status_buckets -- doesn't carry the free-text
+    preamble before the first bucket header (the '[TAM-UPDATE] ...' wrapper
+    and the '*Account -- TAM Update*' / date-range lines). That preamble is
+    no longer duplicated in the pretty view; it's still fully present in the
+    raw, untouched <textarea> below (see
+    test_customer_update_textarea_stays_raw_and_editable), so nothing is
+    actually lost."""
     items = [{
         'item_key': 'cust-update-acme',
         'item_type': 'card',
@@ -62,10 +76,13 @@ def test_customer_update_preview_keeps_tam_update_wrapper_as_raw_preamble():
 
     html = render_customer_updates(items)
 
-    assert '<div class="status-bucket-preamble">' in html
-    assert '[TAM-UPDATE] #claude-brief-skill' in html
-    assert '*Acme Financial — TAM Update*' in html
-    assert 'Nov 4 – Nov 11, 2026' in html
+    assert '<div class="status-bucket-preamble">' not in html
+    preview_start = html.index('<div class="update-preview">')
+    preview_end = html.index('<textarea class="update-textarea">')
+    preview_html = html[preview_start:preview_end]
+    assert '[TAM-UPDATE] #claude-brief-skill' not in preview_html
+    assert '*Acme Financial — TAM Update*' not in preview_html
+    assert 'Nov 4 – Nov 11, 2026' not in preview_html
 
 
 def test_customer_update_preview_none_bucket_renders_plain_not_bullet():

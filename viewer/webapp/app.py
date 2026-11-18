@@ -1945,6 +1945,16 @@ def api_section(date_str, slug):
 
     today_iso = date.today().isoformat()
 
+    # Per-bullet/sub-item checked state (bucket bullets, etc.) — keyed by
+    # item_key then subitem_key. Only customer-updates uses this today;
+    # every other slug gets an empty dict (no-op for templates that don't
+    # look at it).
+    checked_subitems = {}
+    if slug == 'customer-updates':
+        brief_day = db.get_brief_day(request.brief_user['id'], date_str)
+        if brief_day:
+            checked_subitems = db.get_subitem_checks(brief_day['id'], slug)
+
     # Action Items gets special handling — the brief-file items render
     # immediately; the live Asana pull is a separate async call.
     if slug == 'action-items':
@@ -1959,6 +1969,7 @@ def api_section(date_str, slug):
             asana_pat_configured=bool(asana_pat),
             brief_date=date_str,
             today_iso=today_iso,
+            checked_subitems=checked_subitems,
         )
         count = sum(len(g['items']) for g in action_subsections)
     else:
@@ -1970,6 +1981,7 @@ def api_section(date_str, slug):
             asana_pat_configured=False,
             brief_date=date_str,
             today_iso=today_iso,
+            checked_subitems=checked_subitems,
         )
         count = len(items)
 
@@ -2067,6 +2079,35 @@ def set_item_due_date(section, item_key):
     if attempted:
         result['asana_synced'] = ok
     return jsonify(result)
+
+
+@app.route('/api/items/<section>/<item_key>/subitems/<subitem_key>/checked', methods=['PATCH'])
+@login_required
+def set_subitem_checked(section, item_key, subitem_key):
+    """
+    Generic PATCH for one sub-item's checked state inside a parent item —
+    a bucket bullet inside an Account Update card (customer-updates) today,
+    with other section/item shapes reusing this same route later. Deliberately
+    not hardcoded to any one section, unlike set_item_checked above.
+
+    Unlike set_item_checked, db.set_subitem_checked always upserts into
+    item_subchecks (see its docstring) rather than matching an existing
+    items row, so there's no "not found" item branch here — any valid
+    date whose brief day exists always returns 200.
+    """
+    date_str = request.args.get('date', '')
+    if not DATE_RE.match(date_str):
+        abort(400, 'date query param (YYYY-MM-DD) is required')
+    body = request.get_json(silent=True) or {}
+    if 'checked' not in body:
+        abort(400, 'checked (bool) is required')
+    checked = bool(body['checked'])
+
+    brief_day = db.get_brief_day(request.brief_user['id'], date_str)
+    if not brief_day:
+        abort(404)
+    db.set_subitem_checked(brief_day['id'], section, item_key, subitem_key, checked)
+    return jsonify({'status': 'ok'})
 
 
 @app.route('/api/items/<section>/<item_key>/post-to-slack', methods=['POST'])
