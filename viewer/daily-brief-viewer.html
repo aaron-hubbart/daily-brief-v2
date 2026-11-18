@@ -4830,6 +4830,13 @@ let currentArea = null, currentAbort = null;
 function navigateTo(areaSlug, { push = true, query = '' } = {}) {
   if (!AREAS[areaSlug]) areaSlug = 'brief';
 
+  // Re-clicking the already-active sidebar item is a no-op: without this,
+  // it would duplicate a history entry and re-run the full unmount/mount
+  // cycle (re-fetching everything) while skipping the canLeave() check
+  // below (areaSlug !== currentArea is false), silently discarding any
+  // unsaved edit in the area the user is already looking at.
+  if (areaSlug === currentArea && push) return true;
+
   if (
     currentArea && areaSlug !== currentArea &&
     AREAS[currentArea] && typeof AREAS[currentArea].canLeave === 'function' &&
