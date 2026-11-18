@@ -160,6 +160,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 /* ── Checked-item strikethrough (viewer-owned, loads before fragment CSS) ── */
 .item.done{opacity:.35;}
 .item.done .ititle,.item.done .isub,.item.done .iboard{text-decoration:line-through;}
+.subcheck{display:flex;align-items:flex-start;gap:6px;cursor:pointer;-webkit-user-select:none;user-select:none;}
+.subcheck input[type=checkbox]{margin-top:2px;flex-shrink:0;cursor:pointer;}
+.subcheck.done{opacity:.35;}
+.subcheck.done span{text-decoration:line-through;}
 .brief-content{display:none;}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:.5rem;color:var(--t3);font-size:13px;padding:2rem;text-align:center;}
 .empty-state svg{opacity:.25;margin-bottom:.5rem;}
@@ -170,8 +174,32 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
   .topbar>*{flex-shrink:0;}
   .selector-wrap{flex-basis:100%;flex-grow:0;order:1;}
   .topbar-title,.sep{order:0;}
-  #google-connect-btn,#settings-btn,.mode-btn{order:2;}
+  #google-connect-btn,.mode-btn{order:2;}
 }
+
+/* ── Sidebar shell ── */
+#shell-body{display:flex;flex:1;min-height:0;}
+#sidebar{display:flex;flex-direction:column;width:168px;flex-shrink:0;gap:4px;padding:.75rem .5rem;background:var(--surface);border-right:1px solid var(--border-strong);}
+.sidebar-item{display:flex;align-items:center;height:34px;padding:0 10px;width:100%;font-family:var(--font);font-size:12.5px;font-weight:500;color:var(--t2);background:none;border:1px solid transparent;border-radius:var(--r);cursor:pointer;text-align:left;white-space:nowrap;transition:background .1s,color .1s;}
+.sidebar-item:hover{background:var(--surface2);color:var(--t1);}
+.sidebar-item.active{border-color:var(--accent);color:var(--t1);}
+#sidebar-settings{margin-top:auto;}
+
+/* Sidebar: collapse to an always-visible icon rail below 640px (same breakpoint as the
+   topbar reflow). Must come after the base sidebar rules above so it wins the cascade.
+   Labels are hidden (font-size:0); each item shows its one-letter glyph from data-glyph via ::before. */
+@media(max-width:640px){
+  #sidebar{width:48px;padding:.75rem .25rem;align-items:center;}
+  .sidebar-item{font-size:0;justify-content:center;padding:0;width:34px;}
+  .sidebar-item::before{content:attr(data-glyph);font-size:14px;font-weight:600;line-height:1;}
+}
+#shell-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;}
+/* Matches .viewer-wrap's own scroll handling above -- without this, long
+   areas (Environments, Account Health) scroll the whole document instead of
+   just their own content pane, taking the sidebar and sticky topbar with
+   them off-screen. */
+#area-content{flex:1;overflow-y:auto;min-height:0;}
+#area-content:empty{display:none;}
 
 /* ── Settings modal: tabs ── */
 .settings-modal{width:90vw;max-width:none;}
@@ -182,43 +210,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 .tab-panel{display:none;}
 .tab-panel.active{display:block;}
 
-/* ── Customers tab (migrated from templates/customers.html) ── */
-/* Day Planning reuses the same cust-* classes (its panel was migrated */
-/* from the same markup), so every selector here also matches #tab-day-planning. */
-#tab-customers,#tab-day-planning{font-size:14px;}
-#tab-customers .cust-internal-gid{font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
-#tab-customers .cust-internal-gid label{font-weight:500;font-size:12px;color:var(--t2);}
-#tab-customers .cust-panel,#tab-day-planning .cust-panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);overflow:hidden;}
-#tab-customers .cust-panel-head,#tab-day-planning .cust-panel-head{padding:10px 14px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
-#tab-customers .cust-panel-body,#tab-day-planning .cust-panel-body{padding:12px 14px;}
-#tab-customers table,#tab-day-planning table{width:100%;border-collapse:collapse;font-size:12.5px;}
-#tab-customers th,#tab-day-planning th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
-#tab-customers td,#tab-day-planning td{padding:7px 8px;border-bottom:.5px solid var(--border);vertical-align:middle;}
-#tab-customers tr:last-child td,#tab-day-planning tr:last-child td{border-bottom:none;}
-#tab-customers tr.editing td{background:var(--accent-bg);}
-#tab-customers .cust-acct-name{font-weight:500;}
-#tab-customers .cust-mono{font-family:var(--mono);font-size:11px;color:var(--t3);}
-#tab-customers .cust-sub{display:block;font-size:10px;opacity:.6;}
-#tab-customers .cust-pill{font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:2px 7px;border-radius:99px;display:inline-block;}
-#tab-customers .cust-pill.primary{background:var(--accent-bg);color:var(--accent-t);}
-#tab-customers .cust-pill.secondary{background:var(--surface2);color:var(--t2);}
-#tab-customers .cust-day-tag{font-size:11px;color:var(--t2);}
-#tab-customers select,#tab-customers input[type="text"],#tab-day-planning select,#tab-day-planning input[type="text"]{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
-#tab-customers select{cursor:pointer;}
-#tab-customers .cust-btn,#tab-day-planning .cust-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
-#tab-customers .cust-btn:hover,#tab-day-planning .cust-btn:hover{filter:brightness(.95);}
-#tab-customers .cust-btn.primary,#tab-day-planning .cust-btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
-#tab-customers .cust-btn.danger,#tab-day-planning .cust-btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
-#tab-customers .cust-btn.save,#tab-day-planning .cust-btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
-#tab-customers .cust-btn:disabled,#tab-day-planning .cust-btn:disabled{opacity:.4;cursor:default;}
-#tab-customers .cust-actions,#tab-day-planning .cust-actions{display:flex;gap:6px;}
-#tab-customers .cust-msg,#tab-day-planning .cust-msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
-#tab-customers .cust-msg.ok,#tab-day-planning .cust-msg.ok{color:var(--good-t);}
-#tab-customers .cust-msg.err,#tab-day-planning .cust-msg.err{color:var(--bad-t);}
-#tab-customers .cust-empty,#tab-day-planning .cust-empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
-#tab-customers .cust-section-head td{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t2);background:var(--surface2);padding:8px 8px;border-bottom:1px solid var(--border-strong);}
-#tab-customers .cust-add-row,#tab-day-planning .cust-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
-#tab-customers .cust-add-row input,#tab-day-planning .cust-add-row input{flex:1;min-width:120px;}
 #cust-toast-container{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;}
 .cust-toast{padding:10px 20px;border-radius:var(--r);font-size:13px;font-weight:500;pointer-events:auto;opacity:0;transform:translateY(-12px);animation:cust-toast-in .25s ease forwards;}
 .cust-toast.ok{background:var(--good-bg);color:var(--good-t);border:1px solid var(--good-t);}
@@ -261,9 +252,321 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 #tab-admin .adm-empty{color:var(--t3);font-size:12px;padding:8px 0;}
 #tab-admin input[type="text"]{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
 
+/* ── Tasks area (migrated from templates/tasks.html) ── */
+#area-content .head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1.5px solid var(--border-strong);}
+#area-content .head h1{font-size:19px;font-weight:600;letter-spacing:-.025em;}
+#area-content .head .sub{font-size:12px;color:var(--t3);}
+#area-content .hint{font-size:12.5px;color:var(--t3);padding:12px 0;}
+#area-content .empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
+#area-content details.group{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);margin-bottom:12px;overflow:hidden;}
+#area-content details.group summary{padding:10px 14px;background:var(--surface2);font-size:12px;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center;list-style:none;}
+#area-content details.group summary::-webkit-details-marker{display:none;}
+#area-content .group-count{font-size:10.5px;font-weight:500;color:var(--t3);}
+#area-content .group-body{padding:4px 14px 8px;}
+#area-content details.board-group{border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);margin:6px 0;overflow:hidden;}
+#area-content details.board-group summary{padding:6px 10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;list-style:none;}
+#area-content details.board-group summary::-webkit-details-marker{display:none;}
+#area-content .board-name{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);}
+#area-content .board-count{font-size:10.5px;font-weight:500;color:var(--t3);}
+#area-content .board-body{padding:2px 10px 6px;background:var(--surface);}
+#area-content .task-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:.5px solid var(--border);}
+#area-content .task-row:last-child{border-bottom:none;}
+#area-content .task-row.removing{opacity:.4;}
+#area-content .task-check{margin-top:3px;cursor:pointer;}
+#area-content .task-body{flex:1;font-size:12.5px;}
+#area-content .task-title{color:var(--t1);}
+#area-content .task-links{flex-shrink:0;}
+#area-content .duebox{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:6px;}
+#area-content .duebox input[type=date]{font-family:var(--font);font-size:11px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+#area-content .duebox input[type=date].overdue{color:var(--bad-t);border-color:var(--bad-t);}
+#area-content .duebtn{font-size:10.5px;padding:2px 7px;background:transparent;color:var(--t2);border:1px solid var(--border-strong);border-radius:var(--r);cursor:pointer;white-space:nowrap;font-family:var(--font);}
+#area-content .duebtn:hover{background:var(--accent-bg);color:var(--accent-t);border-color:var(--accent);}
+#area-content .due-sync-note{font-size:9.5px;color:var(--t3);margin-left:2px;}
+#area-content .lbtn{font-size:10.5px;color:var(--accent-t);text-decoration:none;white-space:nowrap;}
+#area-content .lbtn:hover{text-decoration:underline;}
+#area-content .badge{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:99px;background:var(--surface2);color:var(--t2);}
+#area-content .badge.bwarn{background:var(--bad-bg);color:var(--bad-t);}
+
+/* ── Day Plan area (migrated from templates/day_plan.html) ── */
+/* .empty is already covered by the Tasks rule above (identical rule); .lbtn
+   gets an extra, more specific override below rather than editing the
+   shared #area-content .lbtn rule, since Day Plan needs margin-left:auto
+   but Tasks' own .lbtn usage doesn't live in a flex container, so touching
+   the shared rule isn't necessary and would risk future fights per Task 3's
+   carried-forward collision note. */
+#area-content .toggle{display:flex;gap:8px;margin-bottom:16px;}
+#area-content .toggle-btn{font-size:12px;font-weight:500;padding:5px 12px;background:var(--surface);color:var(--t2);border:1px solid var(--border-strong);border-radius:var(--r);cursor:pointer;font-family:var(--font);}
+#area-content .toggle-btn.active{background:var(--accent-bg);color:var(--accent-t);border-color:var(--accent);}
+#area-content .ssub{font-size:10.5px;font-weight:700;color:var(--accent-t);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border);}
+#area-content .dp-empty{color:var(--t3);font-size:12.5px;padding:24px 0;text-align:center;}
+#area-content .dp-empty-inline{color:var(--t3);font-size:12px;padding:6px 0;}
+#area-content .dp-stats{display:flex;gap:10px;margin-bottom:8px;}
+#area-content .dp-stat{flex:1;background:var(--surface2);border-radius:var(--r);padding:10px 12px;}
+#area-content .dp-stat-label{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);}
+#area-content .dp-stat-value{font-size:18px;font-weight:600;color:var(--t1);margin-top:2px;}
+#area-content .dp-callout{background:var(--accent-bg);border-radius:var(--r);padding:12px 14px;}
+#area-content .dp-callout-list{list-style:none;}
+#area-content .dp-callout-list li{padding:3px 0;font-size:12.5px;color:var(--t1);}
+#area-content .dp-schedule,#area-content .dp-done-list,#area-content .dp-carried-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:4px 12px;}
+#area-content .dp-sched-item,#area-content .dp-done-item,#area-content .dp-carried-item{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:.5px solid var(--border);}
+#area-content .dp-sched-item:last-child,#area-content .dp-done-item:last-child,#area-content .dp-carried-item:last-child{border-bottom:none;}
+#area-content .dp-done-item,#area-content .dp-carried-item{display:block;}
+#area-content .itime{font-size:11px;color:var(--t3);font-family:var(--mono);width:60px;flex-shrink:0;}
+#area-content .ititle{font-size:13px;font-weight:500;color:var(--t1);}
+#area-content .isub{font-size:11.5px;color:var(--t2);margin-top:2px;}
+#area-content .dp-sched-item .lbtn{margin-left:auto;}
+#area-content .dp-qa-columns{display:flex;gap:10px;flex-wrap:wrap;}
+#area-content .dp-qa-col{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;}
+#area-content .dp-qa-col-name{font-size:12px;font-weight:600;margin-bottom:4px;}
+#area-content .dp-qa-col-list{list-style:none;font-size:12px;color:var(--t2);}
+#area-content .dp-qa-col-list li{padding:2px 0;}
+#area-content .dp-cp-row{display:flex;gap:10px;flex-wrap:wrap;}
+#area-content .dp-cp-card{flex:1;min-width:150px;background:var(--bad-bg);border-left:3px solid var(--bad-t);border-radius:var(--r);padding:10px 12px;}
+#area-content .dp-cp-title{font-size:12.5px;font-weight:600;color:var(--t1);}
+#area-content .dp-cp-detail,#area-content .dp-cp-amount,#area-content .dp-cp-due{font-size:11.5px;color:var(--t2);margin-top:2px;}
+#area-content .dp-wins-blocking{display:flex;gap:16px;}
+#area-content .dp-wins,#area-content .dp-blocking{flex:1;}
+#area-content .dp-wins ul,#area-content .dp-blocking ul{list-style:none;font-size:12.5px;}
+#area-content .dp-wins li,#area-content .dp-blocking li{padding:3px 0;}
+
+/* Day Planning categories panel — relocated here from the Settings modal's
+   #tab-day-planning tab (see the removed #tab-customers,#tab-day-planning
+   cust-* rules above, now #tab-customers-only). Scoped to .dp-categories
+   rather than bare #area-content selectors so a future area that happens
+   to reuse table/cust-btn/cust-msg generically won't fight this one. */
+#area-content .dp-categories-head{display:flex;justify-content:space-between;align-items:center;margin:20px 0 8px;}
+#area-content .dp-categories-head h2{font-size:14.5px;font-weight:600;}
+#area-content .dp-categories table{width:100%;border-collapse:collapse;font-size:12.5px;}
+#area-content .dp-categories th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
+#area-content .dp-categories td{padding:7px 8px;border-bottom:.5px solid var(--border);vertical-align:middle;}
+#area-content .dp-categories tr:last-child td{border-bottom:none;}
+#area-content .dp-categories tr.editing td{background:var(--accent-bg);}
+#area-content .dp-categories input[type="text"]{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+#area-content .dp-categories .cust-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+#area-content .dp-categories .cust-btn:hover{filter:brightness(.95);}
+#area-content .dp-categories .cust-btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
+#area-content .dp-categories .cust-btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
+#area-content .dp-categories .cust-btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
+#area-content .dp-categories .cust-btn:disabled{opacity:.4;cursor:default;}
+#area-content .dp-categories .cust-actions{display:flex;gap:6px;}
+#area-content .dp-categories .cust-msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
+#area-content .dp-categories .cust-msg.ok{color:var(--good-t);}
+#area-content .dp-categories .cust-msg.err{color:var(--bad-t);}
+#area-content .dp-categories .cust-empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
+#area-content .dp-categories .cust-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+#area-content .dp-categories .cust-add-row input{flex:1;min-width:120px;}
+
+/* ── Environments area (migrated from templates/environments.html) ──
+   .head/.hint/.empty are identical to the rules Tasks already added above
+   and are reused as-is (same reasoning as Day Plan's note below). .toggle-btn,
+   .badge, and .group-body collided with different-looking rules Tasks/Day
+   Plan already defined under #area-content, so Environments' versions are
+   scoped under env- prefixed names instead of silently overriding them.
+   Environments' own toast-container/.toast CSS and showToast()/esc()/escAttr()
+   JS were dropped/renamed the same way -- see the JS section below. a.back's
+   own top-of-page "Back to briefs" link was dropped (the sidebar replaces
+   it), but the class is still used by the in-app "← Portfolio"/"← <customer>"
+   links inside renderCustomer()/renderTeamDetail(), so the rule stays. */
+#area-content a.back{font-size:12px;color:var(--accent-t);text-decoration:none;}
+#area-content a.back:hover{text-decoration:underline;}
+#area-content select,#area-content input[type="text"],#area-content input[type="date"],#area-content input[type="number"],#area-content textarea{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+#area-content textarea{width:100%;min-height:52px;resize:vertical;}
+#area-content .btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+#area-content .btn:hover{filter:brightness(.95);}
+#area-content .btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
+#area-content .btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
+#area-content .btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
+#area-content .btn:disabled{opacity:.4;cursor:default;}
+#area-content input:disabled,#area-content select:disabled{opacity:.5;cursor:not-allowed;background:var(--surface2);}
+#area-content .link-field-row{display:flex;gap:6px;align-items:center;}
+#area-content .link-field-row input{flex:1;}
+#area-content .link-icon{font-size:13px;color:var(--accent-t);text-decoration:none;flex:0 0 auto;padding:2px 4px;}
+#area-content .link-icon:hover{text-decoration:underline;}
+#area-content .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+#area-content .customer-select{min-width:260px;}
+#area-content .region-select{min-width:140px;}
+#area-content .env-toggle-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+#area-content .env-toggle-btn:hover{filter:brightness(.95);}
+#area-content .env-toggle-btn.active{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
+#area-content .panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);margin-bottom:16px;overflow:hidden;}
+#area-content .panel-head{padding:10px 14px;background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
+#area-content .panel-body{padding:12px 14px;}
+#area-content table{width:100%;border-collapse:collapse;font-size:12.5px;}
+#area-content th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
+#area-content td{padding:7px 8px;border-bottom:.5px solid var(--border);vertical-align:top;}
+#area-content tr:last-child td{border-bottom:none;}
+#area-content .add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+#area-content .add-row input{flex:1;min-width:120px;}
+#area-content .env-card{border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
+#area-content .env-card-head{padding:8px 12px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:600;}
+#area-content .env-card-body{padding:10px 12px;}
+#area-content .env-subsection{border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden;}
+#area-content .env-subsection-head{padding:6px 10px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
+#area-content .env-subsection-body{padding:10px;}
+#area-content .meeting-row{display:flex;flex-wrap:wrap;align-items:center;column-gap:18px;row-gap:6px;padding:8px 0;border-bottom:.5px solid var(--border);}
+#area-content .meeting-row:last-child{border-bottom:none;}
+#area-content .meeting-row .mtg-name{flex:1 1 170px;font-weight:500;font-size:12.5px;}
+#area-content .meeting-row .mtg-field{display:flex;align-items:center;gap:6px;flex:0 0 auto;}
+#area-content .meeting-row .mtg-field>span{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);white-space:nowrap;}
+#area-content .meeting-row select{width:auto;min-width:112px;}
+#area-content .meeting-row input[type="date"]{width:auto;}
+#area-content .meeting-row input[type="text"]{width:auto;min-width:150px;}
+#area-content .env-badge{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--t3);background:var(--surface2);border:1px solid var(--border-strong);border-radius:99px;padding:1px 7px;margin-left:8px;}
+#area-content .env-group{border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
+#area-content .group-head{padding:8px 12px;background:var(--surface2);display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);}
+#area-content .env-group-body{padding:10px 12px;}
+#area-content .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+#area-content .field-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;}
+#area-content .field-grid label,#area-content .field label,#area-content .field-grid-3 label{display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);margin-bottom:3px;}
+#area-content .field-grid input,#area-content .field-grid select,#area-content .field-grid-3 input,#area-content .field-grid-3 select{width:100%;}
+#area-content .field{margin-bottom:10px;}
+#area-content .team-checks label{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--t1);margin-right:12px;margin-bottom:4px;}
+#area-content .dated-list-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;}
+#area-content .dated-list-row input{flex:1;}
+#area-content .dated-list-row input.date-input{flex:0 0 130px;}
+#area-content .dated-list-row input.ticket-input{flex:0 0 110px;}
+#area-content .team-card{border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
+#area-content .team-card-head{padding:8px 12px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;gap:8px;}
+#area-content .team-card-head input{flex:1;font-weight:600;font-size:12.5px;}
+#area-content .team-card-body{padding:10px 12px;}
+#area-content .caret-btn{border:none;background:none;cursor:pointer;font-size:11px;color:var(--t3);padding:2px 4px;line-height:1;}
+#area-content .caret-btn:hover{color:var(--t1);}
+#area-content .collapsible-body.collapsed{display:none;}
+#area-content .member-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}
+#area-content .member-row input{flex:1;min-width:100px;}
+#area-content .add-team-panel{border-top:1px solid var(--border);margin-top:10px;padding-top:10px;}
+#area-content .env-pick-list{display:flex;flex-direction:column;gap:4px;margin:6px 0;}
+#area-content .env-pick-list label{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--t1);}
+#area-content .pending-env-list{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;}
+#area-content .pending-env-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;background:var(--accent-bg);color:var(--accent-t);border:1px solid var(--accent);border-radius:99px;padding:2px 8px 2px 10px;}
+#area-content .pending-env-chip button{border:none;background:none;color:inherit;cursor:pointer;font-size:13px;line-height:1;padding:0;}
+#area-content .save-status{font-size:11.5px;color:var(--t3);}
+
+/* ── Account Health area (migrated from templates/account_health.html) ──
+   .head/.empty are identical to the rules Tasks already added above and are
+   reused as-is (same reasoning as Day Plan's/Environments' own notes).
+   a.back's own top-of-page "Back to briefs" link was dropped (the sidebar
+   replaces it, same as every other migrated area) and Account Health's own
+   JS never used a.back anywhere else, so the class isn't carried over at
+   all this time. .badge, .group-head, .field-grid, and .panel/.panel-head
+   collided with different-looking rules Tasks/Day Plan/Environments already
+   defined under #area-content, so Account Health's versions are scoped
+   under ah- prefixed names instead of silently overriding them -- the
+   stat-tile drill-down panel's whole small component (backdrop/panel/head/
+   close/rows) was renamed together for naming consistency with its already
+   ah-prefixed element ids, even though only .panel and .panel-head were a
+   genuine collision. The Customers tab's own roster + Key Contacts markup
+   (cut from the Settings modal, see Step 2) is relocated below the health
+   cards; its cust-* rules are duplicated and rescoped under .ah-customers
+   rather than reusing the now-stale #tab-customers selector or bare
+   #area-content selectors, the same choice Day Plan made for its own
+   relocated categories panel (see the .dp-categories note above). */
+#area-content .stat-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+#area-content .stat{flex:1;min-width:150px;background:var(--surface2);border-radius:var(--r);padding:10px 12px;cursor:pointer;border:1px solid transparent;}
+#area-content .stat:hover{border-color:var(--border-strong);}
+#area-content .stat-label{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);}
+#area-content .stat-value{font-size:18px;font-weight:600;color:var(--t1);margin-top:2px;}
+#area-content .stat-note{font-size:11px;color:var(--t3);margin-top:2px;}
+#area-content .callout{background:var(--accent-bg);border-radius:var(--r);padding:12px 14px;margin-bottom:20px;}
+#area-content .callout h2{font-size:11px;font-weight:700;color:var(--accent-t);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+#area-content .callout ol{list-style:decimal;padding-left:18px;}
+#area-content .callout li{padding:3px 0;font-size:12.5px;color:var(--t1);}
+#area-content .hidden{display:none !important;}
+#area-content .group{margin-bottom:22px;}
+#area-content .ah-group-head{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;padding-bottom:4px;margin-bottom:10px;border-bottom:1px solid var(--border);}
+#area-content .ah-group-head .ghead-sub{font-weight:500;text-transform:none;letter-spacing:0;color:var(--t3);}
+#area-content .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;transition:box-shadow .2s, border-color .2s;}
+#area-content .card.jump-highlight{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg);}
+#area-content .card-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+#area-content .card-name{font-size:13.5px;font-weight:600;}
+#area-content .ah-badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:999px;white-space:nowrap;}
+#area-content .ah-badge-needs_attention{background:var(--bad-bg);color:var(--bad-t);}
+#area-content .ah-badge-watch{background:var(--warn-bg);color:var(--warn-t);}
+#area-content .ah-badge-healthy{background:var(--good-bg);color:var(--good-t);}
+#area-content .ah-badge-no_health_data{background:var(--surface2);color:var(--t2);border:1px solid var(--border-strong);}
+#area-content .pill{font-size:10.5px;color:var(--t2);background:var(--surface2);padding:2px 7px;border-radius:999px;}
+#area-content .swept-pill{font-size:10.5px;color:var(--t2);margin-left:auto;}
+#area-content .ah-field-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px;margin-bottom:8px;}
+#area-content .field-label{font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);}
+#area-content .field-value{font-size:12.5px;color:var(--t1);margin-top:1px;}
+#area-content .field-value.placeholder{color:var(--t2);font-style:italic;}
+#area-content .field-note{font-size:11px;color:var(--bad-t);margin-top:2px;}
+#area-content .risks{margin-bottom:8px;}
+#area-content .risks-label{font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);margin-bottom:3px;}
+#area-content .risks ul{list-style:none;}
+#area-content .risks li{font-size:12px;color:var(--t1);padding:2px 0;}
+#area-content .risk-tag{color:var(--t3);font-size:10.5px;}
+#area-content .action-items{font-size:12.5px;color:var(--t1);background:var(--surface2);border-radius:var(--r);padding:7px 10px;margin-bottom:8px;}
+#area-content .action-items-label{font-weight:600;color:var(--t2);font-size:10px;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:3px;}
+#area-content .action-items.placeholder{color:var(--t2);font-style:italic;}
+#area-content .action-items ul{list-style:none;}
+#area-content .action-items li{padding:2px 0;}
+#area-content .action-items a.asana-link{margin-left:6px;font-size:10.5px;color:var(--accent-t);text-decoration:none;white-space:nowrap;}
+#area-content .action-items a.asana-link:hover{text-decoration:underline;}
+#area-content .card-footer{display:flex;gap:14px;}
+#area-content .card-footer a{font-size:11px;color:var(--accent-t);text-decoration:none;}
+#area-content .card-footer a:hover{text-decoration:underline;}
+#area-content .ah-panel-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50;}
+#area-content .ah-panel{background:var(--surface);border-radius:var(--r);max-width:560px;width:100%;max-height:80vh;overflow-y:auto;padding:16px;}
+#area-content .ah-panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+#area-content .ah-panel-head h2{font-size:14px;font-weight:600;}
+#area-content .ah-panel-close{font-size:12px;color:var(--t3);cursor:pointer;background:none;border:none;font-family:var(--font);}
+#area-content .ah-panel-row{display:flex;flex-direction:column;gap:2px;padding:9px 8px;border-radius:var(--r);cursor:pointer;}
+#area-content .ah-panel-row:hover{background:var(--surface2);}
+#area-content .ah-panel-row-top{display:flex;align-items:center;gap:8px;}
+#area-content .ah-panel-row-name{font-size:12.5px;font-weight:600;}
+#area-content .ah-panel-row-step{font-size:11.5px;color:var(--t2);}
+#area-content .ah-panel-row-note{font-size:11px;color:var(--t3);}
+#area-content .ah-customers-head{display:flex;justify-content:space-between;align-items:center;margin:20px 0 8px;}
+#area-content .ah-customers-head h2{font-size:14.5px;font-weight:600;}
+#area-content .ah-customers{font-size:14px;}
+#area-content .ah-customers .cust-internal-gid{font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+#area-content .ah-customers .cust-internal-gid label{font-weight:500;font-size:12px;color:var(--t2);}
+#area-content .ah-customers .cust-panel{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);overflow:hidden;}
+#area-content .ah-customers .cust-panel-head{padding:10px 14px;background:var(--surface2);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);display:flex;justify-content:space-between;align-items:center;}
+#area-content .ah-customers .cust-panel-body{padding:12px 14px;}
+#area-content .ah-customers table{width:100%;border-collapse:collapse;font-size:12.5px;}
+#area-content .ah-customers th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px;border-bottom:1px solid var(--border-strong);}
+#area-content .ah-customers td{padding:7px 8px;border-bottom:.5px solid var(--border);vertical-align:middle;}
+#area-content .ah-customers tr:last-child td{border-bottom:none;}
+#area-content .ah-customers tr.editing td{background:var(--accent-bg);}
+#area-content .ah-customers .cust-acct-name{font-weight:500;}
+#area-content .ah-customers .cust-mono{font-family:var(--mono);font-size:11px;color:var(--t3);}
+#area-content .ah-customers .cust-sub{display:block;font-size:10px;opacity:.6;}
+#area-content .ah-customers .cust-pill{font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:2px 7px;border-radius:99px;display:inline-block;}
+#area-content .ah-customers .cust-pill.primary{background:var(--accent-bg);color:var(--accent-t);}
+#area-content .ah-customers .cust-pill.secondary{background:var(--surface2);color:var(--t2);}
+#area-content .ah-customers .cust-day-tag{font-size:11px;color:var(--t2);}
+#area-content .ah-customers select,#area-content .ah-customers input[type="text"]{font-family:var(--font);font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--t1);}
+#area-content .ah-customers select{cursor:pointer;}
+#area-content .ah-customers .cust-btn{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r);border:.5px solid var(--border-strong);background:var(--surface);color:var(--t2);cursor:pointer;}
+#area-content .ah-customers .cust-btn:hover{filter:brightness(.95);}
+#area-content .ah-customers .cust-btn.primary{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-t);}
+#area-content .ah-customers .cust-btn.danger{border-color:var(--bad-t);color:var(--bad-t);background:var(--bad-bg);}
+#area-content .ah-customers .cust-btn.save{background:var(--good-bg);border-color:var(--good-t);color:var(--good-t);}
+#area-content .ah-customers .cust-btn:disabled{opacity:.4;cursor:default;}
+#area-content .ah-customers .cust-actions{display:flex;gap:6px;}
+#area-content .ah-customers .cust-msg{font-size:11.5px;color:var(--t3);margin-top:10px;min-height:1.2em;}
+#area-content .ah-customers .cust-msg.ok{color:var(--good-t);}
+#area-content .ah-customers .cust-msg.err{color:var(--bad-t);}
+#area-content .ah-customers .cust-empty{color:var(--t3);font-size:12px;padding:16px 0;text-align:center;}
+#area-content .ah-customers .cust-section-head td{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t2);background:var(--surface2);padding:8px 8px;border-bottom:1px solid var(--border-strong);}
+#area-content .ah-customers .cust-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+#area-content .ah-customers .cust-add-row input{flex:1;min-width:120px;}
 </style>
 </head>
 <body>
+
+<div id="shell-body" style="display:flex;">
+  <nav id="sidebar">
+    <button class="sidebar-item active" data-area="brief" data-glyph="B" title="Brief" aria-label="Brief">Brief</button>
+    <button class="sidebar-item" data-area="environments" data-glyph="E" title="Environments" aria-label="Environments">Environments</button>
+    <button class="sidebar-item" data-area="tasks" data-glyph="T" title="Tasks" aria-label="Tasks">Tasks</button>
+    <button class="sidebar-item" data-area="day-plan" data-glyph="D" title="Day Plan" aria-label="Day Plan">Day Plan</button>
+    <button class="sidebar-item" data-area="account-health" data-glyph="A" title="Account Health" aria-label="Account Health">Account Health</button>
+    <button id="sidebar-settings" class="sidebar-item" data-glyph="&#9881;" title="Settings" aria-label="Settings">&#9881; Settings</button>
+  </nav>
+  <div id="shell-main">
 
 <div class="topbar">
   <span class="topbar-title">Daily Briefs</span>
@@ -272,13 +575,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
     <select class="brief-select" id="brief-select" disabled><option value="">Loading…</option></select>
     <button class="icon-btn" id="refresh-btn" onclick="loadBriefList()">Refresh</button>
     <span class="brief-count" id="brief-count"></span>
+    <button class="icon-btn" id="day-plan-view-btn" onclick="viewDayPlanForSelectedBrief()" title="View the Day Plan for this brief's date">View Day Plan</button>
   </div>
   <button class="icon-btn" id="google-connect-btn" onclick="connectGoogleDrive()" style="display:none;" title="Connect Google Drive to view briefs">Connect Google Drive</button>
-  <a class="icon-btn" href="environments" style="text-decoration:none;display:inline-flex;align-items:center;">Environments</a>
-  <a class="icon-btn" href="tasks" style="text-decoration:none;display:inline-flex;align-items:center;">Tasks</a>
-  <a class="icon-btn" id="day-plan-link" href="day-plan" style="text-decoration:none;display:inline-flex;align-items:center;">Day Plan</a>
-  <a class="icon-btn" href="account-health" style="text-decoration:none;display:inline-flex;align-items:center;">Account Health</a>
-  <button class="icon-btn" id="settings-btn" onclick="openSettings('account')" title="Settings">&#9881; Settings</button>
   <button class="mode-btn" id="mode-btn" onclick="toggleMode()" title="Toggle light/dark mode">☀</button>
 </div>
 
@@ -296,8 +595,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
     <div class="settings-tabs" id="settings-tabs">
       <button class="settings-tab active" data-tab="setup" onclick="switchSettingsTab('setup')">Setup</button>
       <button class="settings-tab" data-tab="account" onclick="switchSettingsTab('account')">Account</button>
-      <button class="settings-tab" data-tab="customers" onclick="switchSettingsTab('customers')">Customers</button>
-      <button class="settings-tab" data-tab="day-planning" onclick="switchSettingsTab('day-planning')">Day Planning</button>
       <button class="settings-tab" id="settings-tab-admin" data-tab="admin" onclick="switchSettingsTab('admin')" style="display:none;">Admin</button>
     </div>
     <div class="modal-body settings-body">
@@ -401,108 +698,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
         <button class="icon-btn" onclick="openSetup(true)">Replay setup guide</button>
       </div>
 
-      <div class="tab-panel" id="tab-customers">
-        <div class="cust-internal-gid">
-          <label>Internal Asana Project:</label>
-          <input type="text" id="internal-name" placeholder="Project name" style="width:170px">
-          <input type="text" id="internal-gid" placeholder="Project GID" class="cust-mono" style="width:170px">
-          <label>Default Section:</label>
-          <input type="text" id="internal-section" placeholder="Section name" style="width:150px">
-        </div>
-
-        <div class="cust-panel">
-          <div class="cust-panel-head">
-            <span>Account List</span>
-            <div style="display:flex;gap:8px">
-              <button class="cust-btn" id="scan-btn" onclick="scanForAccounts()">Scan for Accounts</button>
-              <button class="cust-btn save" id="save-btn" onclick="saveConfig()" disabled>Save to Drive</button>
-            </div>
-          </div>
-          <div class="cust-panel-body">
-            <table>
-              <thead>
-                <tr>
-                  <th>Account Name</th>
-                  <th>Tier</th>
-                  <th>Run Day</th>
-                  <th>Slack Channel</th>
-                  <th>Asana Project</th>
-                  <th>Default Section</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="acct-body">
-                <tr><td colspan="7" class="cust-empty">Loading…</td></tr>
-              </tbody>
-            </table>
-            <div class="cust-add-row">
-              <input type="text" id="new-name" placeholder="Account name">
-              <select id="new-tier">
-                <option value="primary">Primary</option>
-                <option value="secondary">Secondary</option>
-              </select>
-              <select id="new-day" disabled>
-                <option value="">—</option>
-                <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
-                <option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
-              </select>
-              <input type="text" id="new-slack-name" placeholder="Slack channel name"><input type="text" id="new-slack" placeholder="Slack Channel ID" class="cust-mono">
-              <input type="text" id="new-asana-name" placeholder="Asana project name"><input type="text" id="new-gid" placeholder="Asana Project GID" class="cust-mono">
-              <input type="text" id="new-section" placeholder="Default section name">
-              <button class="cust-btn primary" onclick="addAccount()">Add account</button>
-            </div>
-            <div class="cust-msg" id="msg"></div>
-          </div>
-        </div>
-
-        <div class="cust-panel" style="margin-top:16px">
-          <div class="cust-panel-head">
-            <span>Key Contacts</span>
-            <button class="cust-btn save" id="kc-save-btn" onclick="saveKeyContacts()" disabled>Save to Drive</button>
-          </div>
-          <div class="cust-panel-body">
-            <table>
-              <thead>
-                <tr><th>Name</th><th>Actions</th></tr>
-              </thead>
-              <tbody id="kc-body">
-                <tr><td colspan="2" class="cust-empty">Loading…</td></tr>
-              </tbody>
-            </table>
-            <div class="cust-add-row">
-              <input type="text" id="kc-new-name" placeholder="Full name" onkeydown="if(event.key==='Enter'){event.preventDefault();addKeyContact();}">
-              <button class="cust-btn primary" onclick="addKeyContact()">Add contact</button>
-            </div>
-            <div class="cust-msg" id="kc-msg"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="tab-panel" id="tab-day-planning">
-        <div class="cust-panel">
-          <div class="cust-panel-head">
-            <span>Quick Action Categories</span>
-            <button class="cust-btn save" id="dpc-save-btn" onclick="saveDayPlanningCategories()" disabled>Save to Drive</button>
-          </div>
-          <div class="cust-panel-body">
-            <table>
-              <thead>
-                <tr><th>Name</th><th>Description</th><th>Actions</th></tr>
-              </thead>
-              <tbody id="dpc-body">
-                <tr><td colspan="3" class="cust-empty">Loading…</td></tr>
-              </tbody>
-            </table>
-            <div class="cust-add-row">
-              <input type="text" id="dpc-new-name" placeholder="Category name">
-              <input type="text" id="dpc-new-description" placeholder="Description (used to classify items into this category)">
-              <button class="cust-btn primary" id="dpc-add-btn" onclick="addDayPlanningCategory()">Add category</button>
-            </div>
-            <div class="cust-msg" id="dpc-msg"></div>
-          </div>
-        </div>
-      </div>
-
       <div class="tab-panel" id="tab-admin">
         <div class="adm-panel">
           <div class="adm-panel-head">Deployment status</div>
@@ -591,7 +786,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
   <span id="status-msg"></span>
 </div>
 
-<div class="viewer-wrap" id="viewer-wrap">
+<div class="viewer-wrap" id="viewer-wrap" style="display:none;">
   <div class="empty-state" id="empty-state">
     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -605,6 +800,197 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
   <!-- Brief HTML injected here directly — same document, no iframe, no sandbox -->
   <div class="brief-content" id="brief-content"></div>
 </div>
+
+<div id="area-content"></div>
+
+  </div>
+</div>
+
+<!-- These must come before the inline script block below: it runs
+     synchronously during parsing (no defer/async/module), and its initial
+     bootstrap call (navigateTo(areaFromPathname(location.pathname), ...))
+     needs them to already exist in the DOM for a fresh load of a
+     non-root path. -->
+<template id="tpl-environments">
+<div class="head">
+  <div>
+    <h1>Environments</h1>
+    <div class="sub">Signed in as <span id="environments-user-email"></span></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span class="save-status" id="save-status"></span>
+    <button class="btn save" id="env-save-btn" onclick="saveAll()" disabled>Save to Drive</button>
+  </div>
+</div>
+
+<div class="toolbar">
+  <label for="customer-select" style="font-size:12px;font-weight:500;">Customer:</label>
+  <select class="customer-select" id="customer-select" onchange="onCustomerChange()">
+    <option value="">Loading…</option>
+  </select>
+  <label for="region-filter" style="font-size:12px;font-weight:500;">Region:</label>
+  <select class="region-select" id="region-filter" onchange="onRegionFilterChange()">
+    <option value="">All regions</option>
+  </select>
+  <button type="button" class="env-toggle-btn" id="my-customers-toggle" onclick="toggleMyCustomers()">My Customers</button>
+  <button type="button" class="btn" id="discover-btn" onclick="openDiscoverySkill()" disabled>Discover via Claude</button>
+</div>
+
+<div id="content"><div class="empty">Loading&hellip;</div></div>
+</template>
+<template id="tpl-tasks">
+<div class="head">
+  <div>
+    <h1>Tasks</h1>
+    <div class="sub">Signed in as <span id="tasks-user-email"></span></div>
+  </div>
+</div>
+
+<div id="tasks-body"><div class="empty">Loading&hellip;</div></div>
+</template>
+<template id="tpl-day-plan">
+<div class="head">
+  <div>
+    <h1>Day Plan</h1>
+    <div class="sub">Signed in as <span id="day-plan-user-email"></span> &middot; Viewing <span id="dp-date-label"></span></div>
+  </div>
+</div>
+
+<div class="toggle">
+  <button type="button" class="toggle-btn" id="toggle-morning" onclick="setView('morning')">Morning</button>
+  <button type="button" class="toggle-btn" id="toggle-evening" onclick="setView('evening')">Evening</button>
+  <a class="toggle-btn" id="dp-refresh-link" href="#" target="_blank">Refresh</a>
+</div>
+
+<div id="day-plan-body"><div class="empty">Loading&hellip;</div></div>
+
+<div class="dp-categories">
+  <div class="dp-categories-head">
+    <h2>Quick Action Categories</h2>
+    <button class="cust-btn save" id="dpc-save-btn" onclick="saveDayPlanningCategories()" disabled>Save to Drive</button>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Description</th><th>Actions</th></tr>
+    </thead>
+    <tbody id="dpc-body">
+      <tr><td colspan="3" class="cust-empty">Loading…</td></tr>
+    </tbody>
+  </table>
+  <div class="cust-add-row">
+    <input type="text" id="dpc-new-name" placeholder="Category name">
+    <input type="text" id="dpc-new-description" placeholder="Description (used to classify items into this category)">
+    <button class="cust-btn primary" id="dpc-add-btn" onclick="addDayPlanningCategory()">Add category</button>
+  </div>
+  <div class="cust-msg" id="dpc-msg"></div>
+</div>
+</template>
+<template id="tpl-account-health">
+<div class="head">
+  <div>
+    <h1>Account Health</h1>
+    <div class="sub">Signed in as <span id="account-health-user-email"></span> &middot; <span id="ah-count">Loading&hellip;</span></div>
+  </div>
+</div>
+
+<div class="stat-row" id="ah-stats"></div>
+<div class="callout hidden" id="ah-callout">
+  <h2>This week</h2>
+  <ol id="ah-callout-list"></ol>
+</div>
+
+<div id="ah-body"><div class="empty">Loading&hellip;</div></div>
+
+<div class="ah-panel-backdrop hidden" id="ah-panel-backdrop">
+  <div class="ah-panel">
+    <div class="ah-panel-head">
+      <h2 id="ah-panel-title"></h2>
+      <button type="button" class="ah-panel-close" id="ah-panel-close">Close</button>
+    </div>
+    <div id="ah-panel-rows"></div>
+  </div>
+</div>
+
+<div class="ah-customers-head">
+  <h2>Customers</h2>
+</div>
+<div class="ah-customers">
+  <div class="cust-internal-gid">
+    <label>Internal Asana Project:</label>
+    <input type="text" id="internal-name" placeholder="Project name" style="width:170px">
+    <input type="text" id="internal-gid" placeholder="Project GID" class="cust-mono" style="width:170px">
+    <label>Default Section:</label>
+    <input type="text" id="internal-section" placeholder="Section name" style="width:150px">
+  </div>
+
+  <div class="cust-panel">
+    <div class="cust-panel-head">
+      <span>Account List</span>
+      <div style="display:flex;gap:8px">
+        <button class="cust-btn" id="scan-btn" onclick="scanForAccounts()">Scan for Accounts</button>
+        <button class="cust-btn save" id="save-btn" onclick="saveConfig()" disabled>Save to Drive</button>
+      </div>
+    </div>
+    <div class="cust-panel-body">
+      <table>
+        <thead>
+          <tr>
+            <th>Account Name</th>
+            <th>Tier</th>
+            <th>Run Day</th>
+            <th>Slack Channel</th>
+            <th>Asana Project</th>
+            <th>Default Section</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="acct-body">
+          <tr><td colspan="7" class="cust-empty">Loading…</td></tr>
+        </tbody>
+      </table>
+      <div class="cust-add-row">
+        <input type="text" id="new-name" placeholder="Account name">
+        <select id="new-tier">
+          <option value="primary">Primary</option>
+          <option value="secondary">Secondary</option>
+        </select>
+        <select id="new-day" disabled>
+          <option value="">—</option>
+          <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+          <option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+        </select>
+        <input type="text" id="new-slack-name" placeholder="Slack channel name"><input type="text" id="new-slack" placeholder="Slack Channel ID" class="cust-mono">
+        <input type="text" id="new-asana-name" placeholder="Asana project name"><input type="text" id="new-gid" placeholder="Asana Project GID" class="cust-mono">
+        <input type="text" id="new-section" placeholder="Default section name">
+        <button class="cust-btn primary" onclick="addAccount()">Add account</button>
+      </div>
+      <div class="cust-msg" id="msg"></div>
+    </div>
+  </div>
+
+  <div class="cust-panel" style="margin-top:16px">
+    <div class="cust-panel-head">
+      <span>Key Contacts</span>
+      <button class="cust-btn save" id="kc-save-btn" onclick="saveKeyContacts()" disabled>Save to Drive</button>
+    </div>
+    <div class="cust-panel-body">
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="kc-body">
+          <tr><td colspan="2" class="cust-empty">Loading…</td></tr>
+        </tbody>
+      </table>
+      <div class="cust-add-row">
+        <input type="text" id="kc-new-name" placeholder="Full name" onkeydown="if(event.key==='Enter'){event.preventDefault();addKeyContact();}">
+        <button class="cust-btn primary" onclick="addKeyContact()">Add contact</button>
+      </div>
+      <div class="cust-msg" id="kc-msg"></div>
+    </div>
+  </div>
+</div>
+</template>
 
 <script>
 // ── Configuration ── Set these to match your environment
@@ -768,6 +1154,113 @@ function wireDueBox(duebox, filename) {
   });
 }
 
+// Updates each section tab's "x of y" progress count and red/amber/green
+// class. Counts checkable elements (.item[data-id] -- top-level schedule/
+// action items -- plus .subcheck -- Account Update bucket bullets and the
+// Manager Update "drafted" box, see Tasks 3-4) within that section's
+// .sec-panel, whether or not the panel is currently the visible/active one.
+// Re-queries the live DOM every call, so it's safe (and necessary) to call
+// repeatedly: once after initBriefState's initial wiring, and again from
+// every place a .done class changes afterward (toggle(), wireSubchecks).
+function updateTabProgress() {
+  const container = document.getElementById('brief-content');
+  if (!container) return;
+  container.querySelectorAll('.sec-panel[data-section]').forEach(panel => {
+    const slug = panel.dataset.section;
+    const total = panel.querySelectorAll('.item[data-id], .subcheck').length;
+    const done = panel.querySelectorAll('.item.done[data-id], .subcheck.done').length;
+    const label = container.querySelector('.tab-progress[data-section="' + slug + '"]');
+    if (!label) return;
+    label.textContent = done + ' of ' + total;
+    let cls = 'tab-progress';
+    if (total === 0) {
+      // A section can legitimately have nothing to do today -- show "0 of 0"
+      // with no color, not an error.
+      cls += ' tab-progress-empty';
+    } else if (done === 0) {
+      // True "not started" reads as neutral rather than alarming -- red is
+      // reserved for some-but-little progress (accepted risk + suggested
+      // mitigation in the design doc: a flat 0% bucket would otherwise look
+      // identical to "something's wrong").
+      cls += ' tab-progress-zero';
+    } else {
+      const ratio = done / total;
+      if (ratio < 0.4) cls += ' tab-progress-low';
+      else if (ratio < 1) cls += ' tab-progress-mid';
+      else cls += ' tab-progress-done';
+    }
+    label.className = cls;
+  });
+}
+
+// Shared PATCH for one .subcheck label's checked state against the generic
+// item_subchecks table (db.set_subitem_checked), via the
+// section/item_key/subitem_key route. Used both by wireSubchecks' own
+// change handler and by the reset-all handler below, so the fetch/URL-
+// building logic lives in exactly one place. Returns the fetch() promise
+// (or undefined if the label is missing a required data-* attribute) so
+// callers can react to a failed save.
+function patchSubcheck(label, filename, checked) {
+  const section = label.dataset.section;
+  const itemKey = label.dataset.itemKey;
+  const subitemKey = label.dataset.subitemKey;
+  if (!section || !itemKey || !subitemKey) return undefined;
+  return fetch(
+    'api/items/' + encodeURIComponent(section) + '/' + encodeURIComponent(itemKey) +
+      '/subitems/' + encodeURIComponent(subitemKey) + '/checked?date=' + encodeURIComponent(filename),
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checked }),
+    }
+  );
+}
+
+// Wires every checkable bucket-bullet/sub-item checkbox (Account Updates'
+// FYI/Pending Action Items/Blockers-Risks bullets, account-recap's Action
+// Items list, and the Manager Update "drafted" box — see
+// section_fragment.html's customer-updates, account-recap, and
+// manager-update branches) within container. Each .subcheck label carries
+// its own data-section/data-item-key/data-subitem-key, so no ancestor
+// lookup is needed. Unlike toggle() above, this writes straight to the
+// generic item_subchecks table via patchSubcheck(), with the .done class
+// toggled optimistically — no localStorage mirroring, since that table
+// always upserts (no "not found" case the legacy items.checked path has to
+// guard against). If the save actually fails (network error, or a non-2xx
+// response), the optimistic UI update is rolled back rather than left
+// showing a checked box that never persisted. Safe to call repeatedly:
+// already-wired checkboxes are skipped.
+function wireSubchecks(container, filename) {
+  container.querySelectorAll('.subcheck input[type=checkbox]').forEach(cb => {
+    if (cb.dataset.subcheckWired) return;
+    cb.dataset.subcheckWired = '1';
+    const label = cb.closest('.subcheck');
+    if (!label) return;
+    cb.addEventListener('change', e => {
+      e.stopPropagation();
+      const checked = cb.checked;
+      const previouslyChecked = !checked;
+      label.classList.toggle('done', checked);
+      updateTabProgress();
+      const request = patchSubcheck(label, filename, checked);
+      if (!request) return;
+      request
+        .then(response => {
+          if (!response.ok) {
+            cb.checked = previouslyChecked;
+            label.classList.toggle('done', previouslyChecked);
+            updateTabProgress();
+          }
+        })
+        .catch(() => {
+          cb.checked = previouslyChecked;
+          label.classList.toggle('done', previouslyChecked);
+          updateTabProgress();
+        });
+    });
+  });
+}
+
 function initBriefState(filename) {
   const container = document.getElementById('brief-content');
   const state = loadBriefState(filename);
@@ -779,7 +1272,6 @@ function initBriefState(filename) {
 
   function applyState() {
     const items = liveItems();
-    let done = 0;
     items.forEach(el => {
       const id = el.dataset.id;
       // No local record for this item yet (first load on this device, or it
@@ -791,20 +1283,18 @@ function initBriefState(filename) {
       el.classList.toggle('done', on);
       const cb = el.querySelector('input[type=checkbox]');
       if (cb) cb.checked = on;
-      if (on) done++;
     });
-    const total = items.length;
-    const pct = total ? Math.round(done / total * 100) : 0;
-    const lbl = container.querySelector('#prog-label');
-    const fill = container.querySelector('#prog-fill');
-    if (lbl) lbl.textContent = done + ' of ' + total + ' done';
-    if (fill) fill.style.width = pct + '%';
+    // Per-tab x-of-y progress (replaces the old single combined prog-label/
+    // prog-fill bar -- see updateTabProgress(), which counts both this
+    // function's .item[data-id] elements and the .subcheck bucket-bullet/
+    // Manager-Update checkboxes wireSubchecks owns).
+    updateTabProgress();
   }
 
   function toggle(id, section) {
     state[id] = !state[id];
     saveBriefState(filename, state);
-    applyState();
+    applyState(); // applyState() itself calls updateTabProgress()
     syncCheckedToServer(section, id, state[id]);
   }
 
@@ -860,6 +1350,12 @@ function initBriefState(filename) {
     if (duebox) wireDueBox(duebox, filename);
   });
 
+  // Bucket-bullet/sub-item checkboxes (Account Updates' bucket bullets,
+  // account-recap's Action Items, the Manager Update "drafted" box) live
+  // outside any .item[data-id] element entirely, so they're wired once
+  // over the whole container rather than per-item above.
+  wireSubchecks(container, filename);
+
   // Wire reset button
   const resetBtn = container.querySelector('.reset-btn');
   if (resetBtn) {
@@ -874,12 +1370,31 @@ function initBriefState(filename) {
         const section = sectionEl ? sectionEl.dataset.section : null;
         syncCheckedToServer(section, id, false);
       });
+      // Also reset every bucket-bullet/sub-item checkbox (.subcheck) --
+      // these live outside .item[data-id] entirely (see wireSubchecks), so
+      // the loop above never touches them. Without this, a "Reset all"
+      // left Account Update bullets, account-recap action items, and the
+      // Manager Update "drafted" box still checked both on-screen and in
+      // the database, so a tab could still show partial progress right
+      // after the user confirmed a full reset.
+      container.querySelectorAll('.subcheck.done').forEach(label => {
+        label.classList.remove('done');
+        const cb = label.querySelector('input[type=checkbox]');
+        if (cb) cb.checked = false;
+        const request = patchSubcheck(label, filename, false);
+        if (request) request.catch(() => {});
+      });
       saveBriefState(filename, state);
-      applyState();
+      applyState(); // applyState() calls updateTabProgress(), reflecting the reset
     });
   }
 
-  // Restore persisted state against the now-live cloned elements
+  // Restore persisted state against the now-live cloned elements. This also
+  // performs the initial per-tab progress count (applyState() calls
+  // updateTabProgress()) now that this pass's items/subchecks are live in
+  // the DOM -- safe even before every section has progressively loaded, since
+  // it just counts whatever's there right now, and re-runs each time
+  // initBriefState is re-invoked as more sections arrive.
   applyState();
 
   // Add "Run in Claude" button to each Schedule item (items with a time column)
@@ -1406,9 +1921,12 @@ async function selectBrief(idx) {
   const content = document.getElementById('brief-content');
   const empty = document.getElementById('empty-state');
 
-  // Set immediately (not after the fetch below) so Day Plan stays clickable
-  // for the newly-selected date even while this brief is still loading.
-  document.getElementById('day-plan-link').href = 'day-plan?date=' + encodeURIComponent(brief.name);
+  // Set immediately (not after the fetch below) so "View Day Plan" targets
+  // the newly-selected date even while this brief is still loading. (The
+  // old topbar nav link this used to set directly was replaced by the
+  // sidebar in the nav redesign; this module-level variable is what
+  // mountDayPlan() falls back to now — see its own comment.)
+  selectedBriefDate = brief.name;
 
   setStatus('Loading ' + formatLabel(brief) + '…');
   content.style.display = 'none';
@@ -1466,6 +1984,15 @@ document.getElementById('brief-select').addEventListener('change', function() {
   const i = parseInt(this.value, 10);
   if (!isNaN(i)) selectBrief(i);
 });
+
+// Restores the "view this date's plan" control that used to be the topbar's
+// own day-plan-link (dropped when the sidebar redesign replaced the topbar
+// nav links — see mountDayPlan()'s comment on where the date itself is
+// threaded through). Falls back to today if no brief has loaded yet.
+function viewDayPlanForSelectedBrief() {
+  const date = selectedBriefDate || dpTodayLocalIso();
+  navigateTo('day-plan', { query: '?date=' + encodeURIComponent(date) });
+}
 
 // ── Setup walkthrough + Account panel ──────────────────────────────
 
@@ -1680,9 +2207,7 @@ async function openSetup(fromReplay) {
 }
 
 // ── Settings modal (tabs) ───────────────────────────────────────
-let custLoaded = false;
 let adminLoaded = false;
-let dayPlanningLoaded = false;
 
 function openSettings(tab) {
   document.getElementById('settings-overlay').classList.add('show');
@@ -1699,8 +2224,6 @@ function switchSettingsTab(tab) {
   const foot = document.getElementById('setup-foot');
   if (foot) foot.style.display = tab === 'setup' ? 'flex' : 'none';
   if (tab === 'account') initAccountTab();
-  if (tab === 'customers' && !custLoaded) { custLoaded = true; load(); loadKeyContacts(); }
-  if (tab === 'day-planning' && !dayPlanningLoaded) { dayPlanningLoaded = true; loadDayPlanningCategories(); }
   if (tab === 'admin' && !adminLoaded) { adminLoaded = true; loadConfig(); loadUsers(); loadTestUsers(); }
 }
 
@@ -1838,33 +2361,56 @@ async function saveMaxBriefsToLoad() {
 }
 
 // ── Customers tab (migrated from templates/customers.html) ─────
+// load() -> loadCustomersConfig(signal) (collides with Tasks'/Day Plan's/
+// Environments' own bootstrap load()s, and now also with Account Health's
+// own load() below -- this is the fourth and last bare load() collision;
+// since the roster markup itself is relocated onto the Account Health page
+// below, this is where it ends up living). Called from
+// AREAS['account-health'].mount (with the mount signal).
 let CONFIG = null;
 let dirty = false;
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
-document.getElementById('new-tier').addEventListener('change', function() {
-  document.getElementById('new-day').disabled = this.value !== 'secondary';
-});
+async function loadCustomersConfig(signal) {
+  // This markup (and the listeners below) only exist in the live DOM while
+  // Account Health is the mounted area -- it lives inside <template
+  // id="tpl-account-health"> now, not as always-present (if hidden) Settings
+  // modal markup. Bail out silently rather than throwing on a null element if
+  // this runs while Account Health is not mounted.
+  const tierEl = document.getElementById('new-tier');
+  if (!tierEl) return;
 
-document.getElementById('internal-gid').addEventListener('input', () => markDirty());
-document.getElementById('internal-name').addEventListener('input', () => markDirty());
-document.getElementById('internal-section').addEventListener('input', () => markDirty());
+  // These listener attachments used to run once at top-level script-parse
+  // time, back when this markup was always present (if hidden) in the
+  // Settings modal. Now that it's only cloned into the live DOM fresh on
+  // every Account Health mount, they're re-attached here instead, every
+  // time this loads.
+  tierEl.addEventListener('change', function() {
+    document.getElementById('new-day').disabled = this.value !== 'secondary';
+  });
+  document.getElementById('internal-gid').addEventListener('input', () => markDirty());
+  document.getElementById('internal-name').addEventListener('input', () => markDirty());
+  document.getElementById('internal-section').addEventListener('input', () => markDirty());
 
-async function load() {
   try {
-    const r = await fetch('api/customers/config', {credentials:'include'});
+    const r = await fetch('api/customers/config', {credentials:'include', signal});
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     CONFIG = await r.json();
     CONFIG.accounts = (CONFIG.accounts || []).sort((a,b) =>
       (a.account_name||'').localeCompare(b.account_name||'', undefined, {sensitivity:'base'})
     );
+    // Bail if the user navigated away while this fetch was in flight -- the
+    // Account Health template (and these elements) may already be gone.
+    if ((signal && signal.aborted) || !document.getElementById('acct-body')) return;
     document.getElementById('internal-gid').value = CONFIG.internal_project_gid || '';
     document.getElementById('internal-name').value = CONFIG.internal_project_name || '';
     document.getElementById('internal-section').value = CONFIG.internal_default_section_name || '';
     render();
   } catch(e) {
-    document.getElementById('acct-body').innerHTML =
+    if (signal && signal.aborted) return; // navigated away mid-fetch — bail out silently
+    const body = document.getElementById('acct-body');
+    if (body) body.innerHTML =
       `<tr><td colspan="7" class="cust-empty" style="color:var(--bad-t)">Failed to load: ${e.message}</td></tr>`;
   }
 }
@@ -2105,17 +2651,24 @@ function addScannedAccounts() {
 let KEY_CONTACTS = [];
 let kcDirty = false;
 
-async function loadKeyContacts() {
+async function loadKeyContacts(signal) {
+  // Same reasoning as loadCustomersConfig above: this markup only exists
+  // while Account Health is mounted, so bail out if it is not.
+  if (!document.getElementById('kc-body')) return;
   try {
-    const r = await fetch('api/key-contacts', {credentials:'include'});
+    const r = await fetch('api/key-contacts', {credentials:'include', signal});
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     const data = await r.json();
     KEY_CONTACTS = (data.key_contacts || []).slice().sort((a,b) =>
       a.localeCompare(b, undefined, {sensitivity:'base'})
     );
+    // Bail if the user navigated away while this fetch was in flight.
+    if ((signal && signal.aborted) || !document.getElementById('kc-body')) return;
     renderKeyContacts();
   } catch(e) {
-    document.getElementById('kc-body').innerHTML =
+    if (signal && signal.aborted) return; // navigated away mid-fetch — bail out silently
+    const body = document.getElementById('kc-body');
+    if (body) body.innerHTML =
       `<tr><td colspan="2" class="cust-empty" style="color:var(--bad-t)">Failed to load: ${e.message}</td></tr>`;
   }
 }
@@ -2185,161 +2738,6 @@ async function saveKeyContacts() {
     msg.textContent = '';
     msg.className = 'cust-msg';
     showToast('Save failed: ' + e.message, 'err', 5000);
-    btn.disabled = false;
-  }
-}
-
-const DAY_PLANNING_CATEGORIES_MAX = 3;
-const DAY_PLANNING_CATEGORIES_DEFAULT = [
-  {name: 'Account Follow-Ups', description: 'Tasks tied to a specific customer account that need follow-up.'},
-  {name: 'Internal / Strategic', description: 'Internal meetings, planning, and work not tied to a specific account.'},
-  {name: 'Personal / Admin', description: 'Administrative tasks, scheduling, and other personal to-dos.'}
-];
-let DAY_PLANNING_CATEGORIES = [];
-let dpcDirty = false;
-
-async function loadDayPlanningCategories() {
-  try {
-    const r = await fetch('api/settings/day-planning-categories', {credentials:'include'});
-    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
-    const data = await r.json();
-    DAY_PLANNING_CATEGORIES = data.day_planning_categories || [];
-    if (!DAY_PLANNING_CATEGORIES.length) {
-      DAY_PLANNING_CATEGORIES = DAY_PLANNING_CATEGORIES_DEFAULT.map(c => ({...c}));
-      renderDayPlanningCategories();
-      markDayPlanningCategoriesDirty();
-      document.getElementById('dpc-msg').textContent = 'Suggested defaults — edit as needed, then Save to Drive.';
-      return;
-    }
-    renderDayPlanningCategories();
-  } catch(e) {
-    document.getElementById('dpc-body').innerHTML =
-      `<tr><td colspan="3" class="cust-empty" style="color:var(--bad-t)">Failed to load: ${e.message}</td></tr>`;
-  }
-}
-
-function renderDayPlanningCategories() {
-  const tbody = document.getElementById('dpc-body');
-  if (!DAY_PLANNING_CATEGORIES.length) {
-    tbody.innerHTML = '<tr><td colspan="3" class="cust-empty">No categories configured</td></tr>';
-  } else {
-    tbody.innerHTML = DAY_PLANNING_CATEGORIES.map((cat, i) => `
-      <tr data-idx="${i}">
-        <td class="cust-acct-name">${esc(cat.name)}</td>
-        <td>${esc(cat.description)}</td>
-        <td class="cust-actions">
-          <button class="cust-btn" onclick="editDayPlanningCategory(${i})">Edit</button>
-          <button class="cust-btn danger" onclick="removeDayPlanningCategory(${i})">Remove</button>
-        </td>
-      </tr>
-    `).join('');
-  }
-  const atMax = DAY_PLANNING_CATEGORIES.length >= DAY_PLANNING_CATEGORIES_MAX;
-  document.getElementById('dpc-new-name').disabled = atMax;
-  document.getElementById('dpc-new-description').disabled = atMax;
-  document.getElementById('dpc-add-btn').disabled = atMax;
-}
-
-function dayPlanningNameTaken(name, excludeIdx) {
-  return DAY_PLANNING_CATEGORIES.some((c, i) => i !== excludeIdx && c.name.toLowerCase() === name.toLowerCase());
-}
-
-function addDayPlanningCategory() {
-  const nameInput = document.getElementById('dpc-new-name');
-  const descInput = document.getElementById('dpc-new-description');
-  const name = nameInput.value.trim();
-  const description = descInput.value.trim();
-  const msg = document.getElementById('dpc-msg');
-  if (!name || !description) return;
-  if (DAY_PLANNING_CATEGORIES.length >= DAY_PLANNING_CATEGORIES_MAX) return;
-  if (dayPlanningNameTaken(name, -1)) {
-    msg.textContent = `Category "${name}" already exists`;
-    msg.className = 'cust-msg';
-    return;
-  }
-  DAY_PLANNING_CATEGORIES.push({name, description});
-  nameInput.value = '';
-  descInput.value = '';
-  markDayPlanningCategoriesDirty();
-  renderDayPlanningCategories();
-}
-
-function removeDayPlanningCategory(idx) {
-  const cat = DAY_PLANNING_CATEGORIES[idx];
-  const msg = document.getElementById('dpc-msg');
-  if (DAY_PLANNING_CATEGORIES.length <= 1) {
-    msg.textContent = 'At least one category is required — add a replacement before removing this one.';
-    msg.className = 'cust-msg';
-    return;
-  }
-  if (!confirm(`Remove "${cat.name}" from Day Planning categories?`)) return;
-  DAY_PLANNING_CATEGORIES.splice(idx, 1);
-  markDayPlanningCategoriesDirty();
-  renderDayPlanningCategories();
-}
-
-function editDayPlanningCategory(idx) {
-  const cat = DAY_PLANNING_CATEGORIES[idx];
-  const tbody = document.getElementById('dpc-body');
-  const tr = tbody.querySelector(`tr[data-idx="${idx}"]`);
-  tr.className = 'editing';
-  tr.innerHTML = `
-    <td><input type="text" id="dpc-e-name" value="${esc(cat.name)}" style="width:100%"></td>
-    <td><input type="text" id="dpc-e-description" value="${esc(cat.description)}" style="width:100%"></td>
-    <td class="cust-actions">
-      <button class="cust-btn save" onclick="saveDayPlanningCategoryRow(${idx})">OK</button>
-      <button class="cust-btn" onclick="renderDayPlanningCategories()">Cancel</button>
-    </td>
-  `;
-}
-
-function saveDayPlanningCategoryRow(idx) {
-  const name = document.getElementById('dpc-e-name').value.trim();
-  const description = document.getElementById('dpc-e-description').value.trim();
-  const msg = document.getElementById('dpc-msg');
-  if (!name || !description) {
-    msg.textContent = 'A category needs both a name and a description.';
-    msg.className = 'cust-msg';
-    return;
-  }
-  if (dayPlanningNameTaken(name, idx)) {
-    msg.textContent = `Category "${name}" already exists`;
-    msg.className = 'cust-msg';
-    return;
-  }
-  DAY_PLANNING_CATEGORIES[idx] = {name, description};
-  markDayPlanningCategoriesDirty();
-  renderDayPlanningCategories();
-}
-
-function markDayPlanningCategoriesDirty() {
-  dpcDirty = true;
-  document.getElementById('dpc-save-btn').disabled = false;
-  document.getElementById('dpc-msg').textContent = 'Unsaved changes';
-  document.getElementById('dpc-msg').className = 'cust-msg';
-}
-
-async function saveDayPlanningCategories() {
-  const btn = document.getElementById('dpc-save-btn');
-  const msg = document.getElementById('dpc-msg');
-  btn.disabled = true;
-  msg.textContent = 'Saving…';
-  msg.className = 'cust-msg';
-  try {
-    const r = await fetch('api/settings/day-planning-categories', {
-      method: 'PUT', credentials: 'include',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({day_planning_categories: DAY_PLANNING_CATEGORIES})
-    });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error || r.statusText);
-    dpcDirty = false;
-    msg.textContent = '';
-    msg.className = 'cust-msg';
-    showToast('Day Planning categories saved to Drive', 'ok', 5000);
-  } catch(e) {
-    msg.textContent = e.message;
-    msg.className = 'cust-msg';
     btn.disabled = false;
   }
 }
@@ -2540,16 +2938,2148 @@ async function stopImpersonating() {
 function openSettingsFromQuery() {
   const tab = new URLSearchParams(window.location.search).get('openSettings');
   if (tab) {
-    openSettings(tab);
+    if (['setup', 'account', 'admin'].includes(tab)) openSettings(tab);
     history.replaceState(null, '', window.location.pathname);
   }
 }
 
+// ── Tasks area (migrated from templates/tasks.html) ─────────────
+// load() -> loadTasks() (collides with the Customers tab's bootstrap
+// load() above). wireDueBox()/wireDueBoxes() -> wireTaskDueBox()/
+// wireTaskDueBoxes() (the shell already has its own 2-arg wireDueBox()
+// for Brief's Postgres-backed action-items due dates, above). dateOffset()
+// and showToast() are reused from their existing definitions above rather
+// than redefined here — both already do exactly what this page needs.
+async function loadTasks(signal) {
+  const body = document.getElementById('tasks-body');
+  const emailEl = document.getElementById('tasks-user-email');
+  fetch('api/whoami', { signal }).then(r => r.json()).then(d => {
+    if (!signal.aborted && emailEl) emailEl.textContent = d.email || '';
+  }).catch(() => {});
+
+  try {
+    const r = await fetch('api/tasks', { credentials: 'include', signal });
+    if (!r.ok) throw new Error(r.statusText);
+    const data = await r.json();
+    body.innerHTML = data.html || '<div class="empty">Nothing open — you\'re all caught up.</div>';
+    wireCheckboxes();
+    wireTaskDueBoxes();
+  } catch (e) {
+    if (signal.aborted) return; // navigated away mid-fetch — bail out silently
+    body.innerHTML = `<div class="empty" style="color:var(--bad-t)">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function wireCheckboxes() {
+  document.querySelectorAll('#tasks-body .task-check').forEach(cb => {
+    cb.addEventListener('change', onCheck);
+  });
+}
+
+async function onCheck(e) {
+  const checkbox = e.target;
+  const row = checkbox.closest('.task-row');
+  const itemKey = row.dataset.itemKey;
+  const checked = checkbox.checked;
+
+  // Optimistic: remove immediately rather than waiting for a full refetch,
+  // per the Tasks tab design spec's "Marking complete" section.
+  row.classList.add('removing');
+  checkbox.disabled = true;
+
+  try {
+    const r = await fetch('api/tasks/' + encodeURIComponent(itemKey) + '/checked', {
+      method: 'PATCH', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({checked}),
+    });
+    if (!r.ok) throw new Error(r.statusText);
+    const data = await r.json();
+    if (!data.asana_synced) throw new Error('Asana sync failed');
+    setTimeout(() => row.remove(), 200);
+  } catch(err) {
+    row.classList.remove('removing');
+    checkbox.disabled = false;
+    checkbox.checked = !checked;
+    showToast("Couldn't sync to Asana — try again", 'err', 5000);
+  }
+}
+
+const DUE_SHORTCUTS = {today: 0, tomorrow: 1, 'next-week': 7, 'next-month': 30};
+
+function wireTaskDueBoxes() {
+  document.querySelectorAll('#tasks-body .duebox').forEach(wireTaskDueBox);
+}
+
+function wireTaskDueBox(duebox) {
+  const itemKey = duebox.dataset.itemKey;
+  const input = duebox.querySelector('.due-input');
+  const note = duebox.querySelector('[data-role="sync-status"]');
+
+  function commit(newValue) {
+    input.value = newValue || '';
+    input.classList.toggle('overdue', !!newValue && newValue < dateOffset(0));
+    if (note) note.textContent = 'Syncing…';
+    fetch('api/tasks/' + encodeURIComponent(itemKey) + '/due-date', {
+      method: 'PATCH', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({due_on: newValue || null}),
+    }).then(async r => {
+      if (!r.ok) throw new Error(r.statusText);
+      const data = await r.json();
+      if (note) note.textContent = data.asana_synced === false ? 'Saved (Asana sync failed)' : 'Saved';
+    }).catch(() => {
+      if (note) note.textContent = 'Save failed — retry';
+    }).finally(() => {
+      setTimeout(() => { if (note) note.textContent = ''; }, 3000);
+    });
+  }
+
+  input.addEventListener('change', e => { e.stopPropagation(); commit(input.value); });
+  duebox.querySelectorAll('.duebtn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      commit(dateOffset(DUE_SHORTCUTS[btn.dataset.shortcut]));
+    });
+  });
+}
+
+// ── Day Plan area (migrated from templates/day_plan.html) ───────
+// load() -> loadDayPlanView() (collides with the Customers tab's bootstrap
+// load() above, the same reason Task 3 renamed Tasks' own load() to
+// loadTasks()). setView(view) doesn't collide with any existing global, so
+// it keeps its name, same as day_plan.html had it. mountDayPlan(signal) is
+// the area's own bootstrap (called from AREAS['day-plan'].mount below) —
+// it wires up both the schedule (setView -> loadDayPlanView) and the Quick
+// Action Categories panel (loadDayPlanningCategories, moved below from the
+// Settings modal's former Day Planning tab — its functions are otherwise
+// unchanged and still use the same dpc-* element ids).
+function dpTodayLocalIso() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Slug each view's Drive file is stored under (see the Day Planning design
+// doc §2) -- used to build the per-view Refresh deep link, same claude://
+// pattern brief_fragment.html's per-section Refresh links use.
+const DP_VIEW_SLUG = {morning: 'morning-plan', evening: 'evening-wrapup'};
+
+let dpViewDate = null, dpIsToday = false, currentView = 'evening', dpMountSignal = null;
+// Set by selectBrief() whenever a brief date is picked (timeline dot or the
+// brief-select dropdown) — lets mountDayPlan() below fall back to "the date
+// of the brief currently being viewed" when it's reached without an
+// explicit ?date= query param (e.g. via the sidebar rather than the
+// "View Day Plan" control next to the brief picker).
+let selectedBriefDate = null;
+
+function updateDateAndRefreshLink() {
+  document.getElementById('dp-date-label').textContent = dpIsToday ? `Today (${dpViewDate})` : dpViewDate;
+  const query = `/daily-brief Refresh section:${DP_VIEW_SLUG[currentView]} date:${dpViewDate}`;
+  document.getElementById('dp-refresh-link').href = `claude://claude.ai/new?q=${encodeURIComponent(query)}`;
+}
+
+function setView(view) {
+  currentView = view;
+  document.getElementById('toggle-morning').classList.toggle('active', view === 'morning');
+  document.getElementById('toggle-evening').classList.toggle('active', view === 'evening');
+  updateDateAndRefreshLink();
+  loadDayPlanView();
+}
+
+async function loadDayPlanView() {
+  const signal = dpMountSignal;
+  const body = document.getElementById('day-plan-body');
+  body.innerHTML = '<div class="empty">Loading&hellip;</div>';
+  try {
+    const r = await fetch(`api/day-plan/${encodeURIComponent(dpViewDate)}/${currentView}`, {credentials:'include', signal});
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    const data = await r.json();
+    body.innerHTML = data.available ? data.html : '<div class="dp-empty">Not generated yet — run the daily brief skill for this date, or hit Refresh above.</div>';
+  } catch(e) {
+    if (signal && signal.aborted) return; // navigated away mid-fetch — bail out silently
+    body.innerHTML = `<div class="empty" style="color:var(--bad-t)">Failed to load: ${e.message}</div>`;
+  }
+}
+
+const DAY_PLANNING_CATEGORIES_MAX = 3;
+const DAY_PLANNING_CATEGORIES_DEFAULT = [
+  {name: 'Account Follow-Ups', description: 'Tasks tied to a specific customer account that need follow-up.'},
+  {name: 'Internal / Strategic', description: 'Internal meetings, planning, and work not tied to a specific account.'},
+  {name: 'Personal / Admin', description: 'Administrative tasks, scheduling, and other personal to-dos.'}
+];
+let DAY_PLANNING_CATEGORIES = [];
+let dpcDirty = false;
+
+async function loadDayPlanningCategories() {
+  try {
+    const r = await fetch('api/settings/day-planning-categories', {credentials:'include'});
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    const data = await r.json();
+    DAY_PLANNING_CATEGORIES = data.day_planning_categories || [];
+    if (!DAY_PLANNING_CATEGORIES.length) {
+      DAY_PLANNING_CATEGORIES = DAY_PLANNING_CATEGORIES_DEFAULT.map(c => ({...c}));
+      renderDayPlanningCategories();
+      markDayPlanningCategoriesDirty();
+      document.getElementById('dpc-msg').textContent = 'Suggested defaults — edit as needed, then Save to Drive.';
+      return;
+    }
+    renderDayPlanningCategories();
+  } catch(e) {
+    document.getElementById('dpc-body').innerHTML =
+      `<tr><td colspan="3" class="cust-empty" style="color:var(--bad-t)">Failed to load: ${e.message}</td></tr>`;
+  }
+}
+
+function renderDayPlanningCategories() {
+  const tbody = document.getElementById('dpc-body');
+  if (!DAY_PLANNING_CATEGORIES.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="cust-empty">No categories configured</td></tr>';
+  } else {
+    tbody.innerHTML = DAY_PLANNING_CATEGORIES.map((cat, i) => `
+      <tr data-idx="${i}">
+        <td class="cust-acct-name">${esc(cat.name)}</td>
+        <td>${esc(cat.description)}</td>
+        <td class="cust-actions">
+          <button class="cust-btn" onclick="editDayPlanningCategory(${i})">Edit</button>
+          <button class="cust-btn danger" onclick="removeDayPlanningCategory(${i})">Remove</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+  const atMax = DAY_PLANNING_CATEGORIES.length >= DAY_PLANNING_CATEGORIES_MAX;
+  document.getElementById('dpc-new-name').disabled = atMax;
+  document.getElementById('dpc-new-description').disabled = atMax;
+  document.getElementById('dpc-add-btn').disabled = atMax;
+}
+
+function dayPlanningNameTaken(name, excludeIdx) {
+  return DAY_PLANNING_CATEGORIES.some((c, i) => i !== excludeIdx && c.name.toLowerCase() === name.toLowerCase());
+}
+
+function addDayPlanningCategory() {
+  const nameInput = document.getElementById('dpc-new-name');
+  const descInput = document.getElementById('dpc-new-description');
+  const name = nameInput.value.trim();
+  const description = descInput.value.trim();
+  const msg = document.getElementById('dpc-msg');
+  if (!name || !description) return;
+  if (DAY_PLANNING_CATEGORIES.length >= DAY_PLANNING_CATEGORIES_MAX) return;
+  if (dayPlanningNameTaken(name, -1)) {
+    msg.textContent = `Category "${name}" already exists`;
+    msg.className = 'cust-msg';
+    return;
+  }
+  DAY_PLANNING_CATEGORIES.push({name, description});
+  nameInput.value = '';
+  descInput.value = '';
+  markDayPlanningCategoriesDirty();
+  renderDayPlanningCategories();
+}
+
+function removeDayPlanningCategory(idx) {
+  const cat = DAY_PLANNING_CATEGORIES[idx];
+  const msg = document.getElementById('dpc-msg');
+  if (DAY_PLANNING_CATEGORIES.length <= 1) {
+    msg.textContent = 'At least one category is required — add a replacement before removing this one.';
+    msg.className = 'cust-msg';
+    return;
+  }
+  if (!confirm(`Remove "${cat.name}" from Day Planning categories?`)) return;
+  DAY_PLANNING_CATEGORIES.splice(idx, 1);
+  markDayPlanningCategoriesDirty();
+  renderDayPlanningCategories();
+}
+
+function editDayPlanningCategory(idx) {
+  const cat = DAY_PLANNING_CATEGORIES[idx];
+  const tbody = document.getElementById('dpc-body');
+  const tr = tbody.querySelector(`tr[data-idx="${idx}"]`);
+  tr.className = 'editing';
+  tr.innerHTML = `
+    <td><input type="text" id="dpc-e-name" value="${esc(cat.name)}" style="width:100%"></td>
+    <td><input type="text" id="dpc-e-description" value="${esc(cat.description)}" style="width:100%"></td>
+    <td class="cust-actions">
+      <button class="cust-btn save" onclick="saveDayPlanningCategoryRow(${idx})">OK</button>
+      <button class="cust-btn" onclick="renderDayPlanningCategories()">Cancel</button>
+    </td>
+  `;
+}
+
+function saveDayPlanningCategoryRow(idx) {
+  const name = document.getElementById('dpc-e-name').value.trim();
+  const description = document.getElementById('dpc-e-description').value.trim();
+  const msg = document.getElementById('dpc-msg');
+  if (!name || !description) {
+    msg.textContent = 'A category needs both a name and a description.';
+    msg.className = 'cust-msg';
+    return;
+  }
+  if (dayPlanningNameTaken(name, idx)) {
+    msg.textContent = `Category "${name}" already exists`;
+    msg.className = 'cust-msg';
+    return;
+  }
+  DAY_PLANNING_CATEGORIES[idx] = {name, description};
+  markDayPlanningCategoriesDirty();
+  renderDayPlanningCategories();
+}
+
+function markDayPlanningCategoriesDirty() {
+  dpcDirty = true;
+  document.getElementById('dpc-save-btn').disabled = false;
+  document.getElementById('dpc-msg').textContent = 'Unsaved changes';
+  document.getElementById('dpc-msg').className = 'cust-msg';
+}
+
+async function saveDayPlanningCategories() {
+  const btn = document.getElementById('dpc-save-btn');
+  const msg = document.getElementById('dpc-msg');
+  btn.disabled = true;
+  msg.textContent = 'Saving…';
+  msg.className = 'cust-msg';
+  try {
+    const r = await fetch('api/settings/day-planning-categories', {
+      method: 'PUT', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({day_planning_categories: DAY_PLANNING_CATEGORIES})
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || r.statusText);
+    dpcDirty = false;
+    msg.textContent = '';
+    msg.className = 'cust-msg';
+    showToast('Day Planning categories saved to Drive', 'ok', 5000);
+  } catch(e) {
+    msg.textContent = e.message;
+    msg.className = 'cust-msg';
+    btn.disabled = false;
+  }
+}
+
+function mountDayPlan(signal) {
+  dpMountSignal = signal;
+  const emailEl = document.getElementById('day-plan-user-email');
+  fetch('api/whoami', { signal }).then(r => r.json()).then(d => {
+    if (!signal.aborted && emailEl) emailEl.textContent = d.email || '';
+  }).catch(() => {});
+
+  // Reads location.search at mount time — navigateTo() now pushes the new
+  // URL (including this area's query string, if any) *before* calling
+  // mount(), so this sees the just-navigated-to URL rather than whatever
+  // the previously-mounted area's query string happened to be.
+  const params = new URLSearchParams(window.location.search);
+  dpViewDate = params.get('date') || selectedBriefDate || dpTodayLocalIso();
+  dpIsToday = dpViewDate === dpTodayLocalIso();
+  // Default view: today uses the time-of-day split (local hour >= 12 is
+  // evening); any other date always defaults to evening, since a past day
+  // is presumably over — see the Day Planning design doc's Global
+  // Constraints.
+  currentView = (dpIsToday && new Date().getHours() < 12) ? 'morning' : 'evening';
+  setView(currentView);
+  loadDayPlanningCategories();
+}
+
+
+// ── Environments area (migrated from templates/environments.html) ──
+// load() -> loadEnvironments(signal) (collides with the Customers tab's
+// bootstrap load() above, the same reason Tasks/Day Plan renamed their own
+// load()s) -- now takes the mount AbortController signal, threaded into all
+// three of its fetches. dirty -> envDirty and markDirty() ->
+// markEnvironmentsDirty() (collide with the Customers tab's own dirty flag
+// and markDirty()). esc()/escAttr() -> escEnv()/escAttrEnv() (collide with
+// the Customers tab's own esc()/escAttr(), but with different behavior --
+// null-safe, and escAttr() also escapes single quotes -- so renamed rather
+// than reused). showToast() is reused from the Customers tab's existing
+// definition above rather than redefined here (same decision Tasks/Day Plan
+// made; the two implementations were otherwise identical). id="save-btn" ->
+// id="env-save-btn" (the Customers tab's Settings-modal panel already owns
+// id="save-btn", always present in the DOM even when hidden).
+let STATE = null;
+let CURRENT = null;
+let envDirty = false;
+let VIEW = 'portfolio';
+let CURRENT_TEAM_ID = null;
+// Set from the mount AbortController signal (AREAS.environments.mount,
+// same pattern mountDayPlan's dpMountSignal already used) -- threaded into
+// renderPortfolio/selectCustomer/saveAll's fetches below so navigating away
+// mid-fetch aborts them instead of letting a stale response land after a
+// different area (or no area) is mounted.
+let envMountSignal = null;
+
+const COMPONENT_OPTIONS = ['Connectors', 'Operate', 'Optimize', 'Tasklist', 'Zeebe'];
+const STANDARD_ENV_NAMES = ['Development', 'DR/Failover', 'Production', 'QA/Test', 'Sandbox', 'Staging'];
+const OBSERVABILITY_OPTIONS = ['External to cluster', 'Not Used', 'Within cluster'];
+const HOSTING_PLATFORM_OPTIONS = ['AWS', 'Azure', 'Customer Data Center', 'GCP'];
+const YES_NO_OPTIONS = ['No', 'Yes'];
+const SECONDARY_STORAGE_OPTIONS = ['Amazon Aurora PostgreSQL', 'ElasticSearch', 'MariaDB', 'MSSQL', 'MySQL', 'Open Search', 'Oracle', 'PostgreSQL'];
+const USE_CASE_STATUS_OPTIONS = ['Discovery', 'In Progress', 'Live', 'On Hold', 'Retired'];
+
+let MY_CUSTOMER_NORMALIZED = new Set();
+let filterRegion = localStorage.getItem('env-tab:region') || '';
+// Always starts true -- the Environments tab should land on "My Customers"
+// every time, regardless of how a previous visit left this toggle.
+let filterMyCustomers = true;
+const MY_CUSTOMERS_FUZZY_THRESHOLD = 0.72;
+
+// Normalizes a customer name for comparison: lowercase, trim, collapse
+// whitespace, and drop common legal-entity suffixes/punctuation, so
+// "Acme Corp." and "acme corp" are treated as the same customer.
+function normalizeCustomerName(name) {
+  return (name || '')
+    .toLowerCase()
+    .replace(/[.,]/g, '')
+    .replace(/\b(inc|llc|ltd|corp|corporation|co)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Dice's coefficient over character bigrams — a cheap, dependency-free
+// string-similarity score in [0, 1], used only as a fallback when two
+// normalized names aren't exactly equal (e.g. abbreviations or reordered
+// words) so the "My Customers" toggle doesn't undercount its own list.
+function bigramSimilarity(a, b) {
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+  const bigrams = s => {
+    const set = new Map();
+    for (let i = 0; i < s.length - 1; i++) {
+      const bg = s.slice(i, i + 2);
+      set.set(bg, (set.get(bg) || 0) + 1);
+    }
+    return set;
+  };
+  const bgA = bigrams(a);
+  const bgB = bigrams(b);
+  let overlap = 0;
+  bgA.forEach((count, bg) => {
+    if (bgB.has(bg)) overlap += Math.min(count, bgB.get(bg));
+  });
+  const totalA = Array.from(bgA.values()).reduce((s, c) => s + c, 0);
+  const totalB = Array.from(bgB.values()).reduce((s, c) => s + c, 0);
+  return (2 * overlap) / (totalA + totalB);
+}
+
+// Whether `name` (an Environments-portfolio project name) is one of the
+// signed-in user's own accounts. Tries an exact normalized match first,
+// then falls back to fuzzy similarity — the portfolio and
+// account-config.json are independently maintained name lists, so exact
+// byte-for-byte matches understate the real overlap.
+function isMyCustomer(name) {
+  const normalized = normalizeCustomerName(name);
+  if (MY_CUSTOMER_NORMALIZED.has(normalized)) return true;
+  let best = 0;
+  MY_CUSTOMER_NORMALIZED.forEach(candidate => {
+    best = Math.max(best, bigramSimilarity(normalized, candidate));
+  });
+  return best >= MY_CUSTOMERS_FUZZY_THRESHOLD;
+}
+let addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
+
+let expandedIds = new Set();
+
+function expandedStorageKey(name) {
+  return `env-tab:expanded:${name}`;
+}
+
+function loadExpandedIds(name) {
+  try {
+    const raw = localStorage.getItem(expandedStorageKey(name));
+    expandedIds = new Set(raw ? JSON.parse(raw) : []);
+  } catch(e) {
+    expandedIds = new Set();
+  }
+}
+
+function saveExpandedIds() {
+  try {
+    localStorage.setItem(expandedStorageKey(CURRENT), JSON.stringify(Array.from(expandedIds)));
+  } catch(e) { /* localStorage unavailable — collapse state just won't persist */ }
+}
+
+function isExpanded(id) {
+  return expandedIds.has(id);
+}
+
+function toggleExpanded(id) {
+  if (expandedIds.has(id)) expandedIds.delete(id);
+  else expandedIds.add(id);
+  saveExpandedIds();
+  renderCustomer();
+}
+
+function caretHtml(id) {
+  return `<button type="button" class="caret-btn" data-toggle-id="${escAttrEnv(id)}" aria-label="Toggle">${isExpanded(id) ? '▾' : '▸'}</button>`;
+}
+
+function wireCarets() {
+  document.querySelectorAll('.caret-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleExpanded(this.dataset.toggleId);
+    });
+  });
+}
+
+// Date.now() alone isn't unique when normalizeTeam/normalizeEnvironment/normalizeUseCase
+// run back-to-back in a .map() over items that are all missing an id (e.g. environments
+// with a blank/duplicate name from discovery) — same-millisecond calls returned the same
+// value, so those items collided on one id and shared expand/collapse state via expandedIds.
+let _fallbackIdSeq = 0;
+function nextFallbackId(prefix) {
+  _fallbackIdSeq += 1;
+  return prefix + '-' + Date.now() + '-' + _fallbackIdSeq;
+}
+
+function normalizeTeam(team) {
+  team.id = team.id || nextFallbackId('team');
+  team.notes = team.notes || '';
+  team.members = team.members || [];
+  team.exempt = team.exempt || false;
+  team.sentiment = team.sentiment || '';
+  team.sentiment_updated = team.sentiment_updated || '';
+  team.open_issues = (team.open_issues === undefined) ? null : team.open_issues;
+  team.open_issues_updated = team.open_issues_updated || '';
+  team.inapplicable_meeting_types = team.inapplicable_meeting_types || [];
+  team.onboarding_date = team.onboarding_date || '';
+  team.renewal_date = team.renewal_date || '';
+  return team;
+}
+
+function normalizeMeeting(m) {
+  m.id = m.id || nextFallbackId('mtg');
+  m.team_id = m.team_id || '';
+  m.meeting_type_id = m.meeting_type_id || '';
+  m.status = m.status || 'not_scheduled';
+  m.scheduled_date = m.scheduled_date || '';
+  m.occurred_date = m.occurred_date || '';
+  m.last_held_date = m.last_held_date || '';
+  m.standing_schedule = m.standing_schedule || '';
+  m.notes = m.notes || '';
+  return m;
+}
+
+function normalizeEsActivity(a) {
+  a.id = a.id || nextFallbackId('act');
+  a.team_id = a.team_id || '';
+  a.label = a.label || '';
+  a.status = a.status || 'not_done';
+  a.last_updated = a.last_updated || '';
+  a.notes = a.notes || '';
+  return a;
+}
+
+function normalizeEnvironment(env) {
+  env.id = env.id || nextFallbackId('env');
+  env.label = env.label || '(unlabeled environment)';
+  env.team_ids = env.team_ids || [];
+  env.deployment = env.deployment || {};
+  env.deployment.model = env.deployment.model || 'SaaS';
+  env.deployment.install_method = env.deployment.install_method || '';
+  env.deployment.sizing = env.deployment.sizing || '';
+  env.versions = env.versions || {};
+  env.versions.camunda_version = env.versions.camunda_version || '';
+  env.versions.components = env.versions.components || [];
+  env.infrastructure = env.infrastructure || {};
+  env.infrastructure.os = env.infrastructure.os || '';
+  env.infrastructure.hosting_platform = env.infrastructure.hosting_platform || '';
+  env.infrastructure.kubectl_access = env.infrastructure.kubectl_access || '';
+  env.infrastructure.secondary_storage = env.infrastructure.secondary_storage || '';
+  env.cluster = env.cluster || {};
+  env.cluster.broker_count = env.cluster.broker_count || '';
+  env.cluster.partitions = env.cluster.partitions || '';
+  env.cluster.replication = env.cluster.replication || '';
+  env.cluster.multi_region = env.cluster.multi_region || '';
+  env.observability = env.observability || {};
+  env.observability.kibana = env.observability.kibana || '';
+  env.observability.prometheus = env.observability.prometheus || '';
+  env.observability.dashboard_links = env.observability.dashboard_links || [];
+  env.multi_tenant = env.multi_tenant || {};
+  env.multi_tenant.multi_tenancy = env.multi_tenant.multi_tenancy || env.deployment.multi_tenancy || '';
+  env.multi_tenant.tenant_isolation = env.multi_tenant.tenant_isolation || '';
+  env.multi_tenant.tenant_names = env.multi_tenant.tenant_names || [];
+  delete env.deployment.multi_tenancy;
+  delete env.deployment.region;
+  env.links = env.links || {};
+  env.links.cluster_url = env.links.cluster_url || (Array.isArray(env.links.cluster_urls) ? (env.links.cluster_urls[0] || '') : '');
+  env.links.support_plan = env.links.support_plan || '';
+  env.links.runbook_links = env.links.runbook_links || [];
+  delete env.links.cluster_urls;
+  delete env.links.console_url;
+  env.notes = env.notes || '';
+  env.diagnostic_reports = env.diagnostic_reports || [];
+  env.helm_values = env.helm_values || [];
+  return env;
+}
+
+function normalizeUseCase(uc) {
+  uc.id = uc.id || nextFallbackId('usecase');
+  uc.name = uc.name || '';
+  uc.description = uc.description || '';
+  uc.status = uc.status || '';
+  uc.go_live_date = uc.go_live_date || '';
+  uc.environment_id = uc.environment_id || '';
+  uc.team_id = uc.team_id || '';
+  return uc;
+}
+
+async function loadEnvironments(signal) {
+  const emailEl = document.getElementById('environments-user-email');
+  fetch('api/whoami', { signal }).then(r => r.json()).then(d => {
+    if (!signal.aborted && emailEl) emailEl.textContent = d.email || '';
+  }).catch(() => {});
+
+  try {
+    const [envResp, custResp, catalogResp] = await Promise.all([
+      fetch('api/environments/config', {credentials:'include', signal}),
+      fetch('api/customers/config', {credentials:'include', signal}).catch(() => null),
+      fetch('api/environments/meeting-catalog', {credentials:'include', signal}).catch(() => null),
+    ]);
+    if (!envResp.ok) throw new Error((await envResp.json()).error || envResp.statusText);
+    STATE = await envResp.json();
+    STATE.customers = {};      // per-account data, fetched lazily on selection
+    STATE.loadError = {};      // name -> error message, when that account's file couldn't be read
+    STATE.meeting_catalog = (catalogResp && catalogResp.ok) ? (await catalogResp.json()).meeting_catalog : [];
+    if (custResp && custResp.ok) {
+      const custConfig = await custResp.json();
+      MY_CUSTOMER_NORMALIZED = new Set(
+        (custConfig.accounts || []).map(a => normalizeCustomerName(a.account_name))
+      );
+    }
+    renderCustomerSelect();
+  } catch(e) {
+    if (signal.aborted) return; // navigated away mid-fetch — bail out silently
+    document.getElementById('content').innerHTML =
+      `<div class="empty" style="color:var(--bad-t)">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function allRegions() {
+  const regions = new Set();
+  (STATE.in_scope_customers || []).forEach(c => {
+    if (c.theater) regions.add(c.theater);
+  });
+  return Array.from(regions).sort();
+}
+
+function customerTheater(name) {
+  const match = (STATE.in_scope_customers || []).find(c => c.name === name);
+  return match ? match.theater : null;
+}
+
+function visibleCustomerNames() {
+  let names = (STATE.in_scope_customers || []).map(c => c.name);
+  if (filterMyCustomers) names = names.filter(isMyCustomer);
+  if (filterRegion) names = names.filter(n => customerTheater(n) === filterRegion);
+  return names.sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'}));
+}
+
+function onRegionFilterChange() {
+  filterRegion = document.getElementById('region-filter').value;
+  localStorage.setItem('env-tab:region', filterRegion);
+  renderCustomerSelect();
+}
+
+function toggleMyCustomers() {
+  filterMyCustomers = !filterMyCustomers;
+  renderCustomerSelect();
+}
+
+function renderCustomerSelect() {
+  const select = document.getElementById('customer-select');
+  const regionSelect = document.getElementById('region-filter');
+  const myCustomersBtn = document.getElementById('my-customers-toggle');
+  const content = document.getElementById('content');
+
+  myCustomersBtn.classList.toggle('active', filterMyCustomers);
+  document.getElementById('discover-btn').disabled = true;
+
+  if (STATE.needs_pat) {
+    select.innerHTML = '<option value="">—</option>';
+    content.innerHTML = '<div class="hint">Add your Asana PAT in Settings to load the customer list.</div>';
+    return;
+  }
+  if (STATE.in_scope_customers === null) {
+    select.innerHTML = '<option value="">—</option>';
+    content.innerHTML = `<div class="hint" style="color:var(--bad-t)">${escEnv(STATE.error || 'Could not determine the customer list.')}</div>`;
+    return;
+  }
+  if (!STATE.in_scope_customers.length) {
+    select.innerHTML = '<option value="">—</option>';
+    content.innerHTML = '<div class="empty">No customers found in the Environments portfolio.</div>';
+    return;
+  }
+
+  const regions = allRegions();
+  if (filterRegion && !regions.includes(filterRegion)) {
+    filterRegion = '';
+    localStorage.setItem('env-tab:region', '');
+  }
+  regionSelect.innerHTML = '<option value="">All regions</option>' +
+    regions.map(r => `<option value="${escAttrEnv(r)}" ${r === filterRegion ? 'selected' : ''}>${escEnv(r)}</option>`).join('');
+
+  const names = visibleCustomerNames();
+  if (!names.length) {
+    select.innerHTML = '<option value="">—</option>';
+    content.innerHTML = '<div class="empty">No customers match the current filters.</div>';
+    CURRENT = null;
+    return;
+  }
+
+  select.innerHTML = names.map(name =>
+    `<option value="${escAttrEnv(name)}">${escEnv(name)}</option>`
+  ).join('');
+  if (!CURRENT || !names.includes(CURRENT)) CURRENT = names[0];
+  if (VIEW === 'portfolio') {
+    renderPortfolio();
+  } else {
+    selectCustomer(CURRENT);
+  }
+}
+
+async function onCustomerChange() {
+  VIEW = 'customer';
+  const select = document.getElementById('customer-select');
+  const next = select.value;
+  if (envDirty && !confirm('You have unsaved changes for ' + CURRENT + '. Discard them and switch customer?')) {
+    select.value = CURRENT;
+    return;
+  }
+  envDirty = false;
+  await selectCustomer(next);
+}
+
+async function renderPortfolio() {
+  // Reaching the Portfolio table is the only way to leave a envDirty
+  // customer/team view without going through onCustomerChange's own
+  // guard (e.g. clicking the "<- Portfolio" link) -- same unsaved-changes
+  // confirmation as switching customers via the dropdown.
+  if (envDirty && !confirm('You have unsaved changes for ' + CURRENT + '. Discard them and go to the Portfolio?')) {
+    return;
+  }
+  envDirty = false;
+  document.getElementById('env-save-btn').disabled = true;
+  document.getElementById('save-status').textContent = '';
+  VIEW = 'portfolio';
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="empty">Loading&hellip;</div>';
+  try {
+    const r = await fetch(`api/environments/portfolio-health`, {credentials:'include', signal: envMountSignal});
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.error || r.statusText);
+    const visible = new Set(visibleCustomerNames());
+    const rows = body.customers.filter(c => visible.has(c.name)).map(c => `
+      <tr style="cursor:pointer;" data-customer-name="${escAttrEnv(c.name)}" onclick="onCustomerChange_fromPortfolio(this.dataset.customerName)">
+        <td>${escEnv(c.name)}</td>
+        <td>${c.error ? `<span style="color:var(--bad-t)">${escEnv(c.error)}</span>` : healthBadgeHtml({level: c.level})}</td>
+        <td>${c.team_count}</td>
+        <td>${c.overdue_count} overdue</td>
+        <td>${escEnv(c.sentiment_level || '—')}</td>
+        <td>${c.open_issues_total}</td>
+      </tr>`).join('');
+    content.innerHTML = `
+      <table class="portfolio-table">
+        <thead><tr><th>Customer</th><th>Health</th><th>Teams</th><th>Meetings</th><th>Sentiment</th><th>Open issues</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch(e) {
+    if (envMountSignal && envMountSignal.aborted) return; // navigated away mid-fetch — bail out silently
+    content.innerHTML = `<div class="empty" style="color:var(--bad-t)">Failed to load portfolio: ${escEnv(e.message)}</div>`;
+  }
+}
+
+function onCustomerChange_fromPortfolio(name) {
+  VIEW = 'customer';
+  document.getElementById('customer-select').value = name;
+  selectCustomer(name);
+}
+
+async function selectCustomer(name) {
+  CURRENT = name;
+  document.getElementById('customer-select').value = name;
+  document.getElementById('env-save-btn').disabled = true;
+  document.getElementById('save-status').textContent = '';
+
+  if (!STATE.customers[name] && !STATE.loadError[name]) {
+    document.getElementById('content').innerHTML = '<div class="empty">Loading&hellip;</div>';
+    try {
+      const r = await fetch(`api/environments/config/${encodeURIComponent(name)}`, {credentials:'include', signal: envMountSignal});
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || r.statusText);
+      STATE.customers[name] = body;
+    } catch(e) {
+      if (envMountSignal && envMountSignal.aborted) return; // navigated away mid-fetch — bail out silently
+      STATE.loadError[name] = e.message;
+    }
+  }
+
+  if (STATE.loadError[name]) {
+    document.getElementById('content').innerHTML =
+      `<div class="hint" style="color:var(--bad-t)">${escEnv(STATE.loadError[name])}</div>`;
+    return;
+  }
+
+  ensureCustomer(name);
+  renderCustomer();
+  document.getElementById('env-save-btn').disabled = !envDirty;
+  document.getElementById('discover-btn').disabled = false;
+}
+
+function openDiscoverySkill() {
+  if (!CURRENT) return;
+  const url = 'claude://claude.ai/new?q=' +
+    encodeURIComponent('/account-environments-discovery ' + CURRENT);
+  window.open(url, '_blank');
+}
+
+function ensureCustomer(name) {
+  if (!STATE.customers[name]) {
+    STATE.customers[name] = {teams: [], environments: [], use_cases: [], meetings: [], es_activities: []};
+  }
+  const c = STATE.customers[name];
+  c.teams = (c.teams || []).map(normalizeTeam);
+  c.environments = (c.environments || []).map(normalizeEnvironment);
+  c.use_cases = (c.use_cases || []).map(normalizeUseCase);
+  c.meetings = (c.meetings || []).map(normalizeMeeting);
+  c.es_activities = (c.es_activities || []).map(normalizeEsActivity);
+}
+
+function rollupStripHtml(c) {
+  const r = c.rollup || {level: 'Green', team_count: 0, overdue_count: 0, sentiment_level: '', open_issues_total: 0};
+  return `
+    <div class="rollup-strip" style="display:flex;gap:16px;margin-bottom:12px;">
+      <div>Health: ${healthBadgeHtml({level: r.level})}</div>
+      <div>${r.team_count} team${r.team_count === 1 ? '' : 's'}</div>
+      <div>${r.overdue_count} overdue</div>
+      <div>Sentiment: ${escEnv(r.sentiment_level || '—')}</div>
+      <div>Open issues: ${r.open_issues_total}</div>
+    </div>`;
+}
+
+function renderCustomer() {
+  loadExpandedIds(CURRENT);
+  addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
+  const c = STATE.customers[CURRENT];
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <a class="back" href="#" onclick="renderPortfolio(); return false;">&larr; Portfolio</a>
+    ${rollupStripHtml(c)}
+    <div class="panel">
+      <div class="panel-head"><span>Teams</span></div>
+      <div class="panel-body" id="teams-body">${teamCardsHtml(c)}</div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <span>Environments</span>
+        <button class="btn primary" onclick="addEnvironment()">Add environment</button>
+      </div>
+      <div class="panel-body" id="envs-body">${environmentsHtml(c)}</div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <span>Use Cases</span>
+        <button class="btn primary" onclick="addUseCase()">Add use case</button>
+      </div>
+      <div class="panel-body" id="use-cases-body">${useCasesHtml(c)}</div>
+    </div>
+  `;
+  wireTeamCheckboxes();
+  wireNewEnvSelect();
+  wireCarets();
+}
+
+function wireTeamCheckboxes() {
+  // Delegated via data-* attributes rather than an inline onchange with an
+  // interpolated team id: HTML-entity-escaping a value that lands inside a
+  // single-quoted JS string in an inline handler doesn't actually protect
+  // it, since the browser decodes entities before compiling the handler as
+  // JS. A plain data attribute only needs standard HTML-attribute escaping.
+  document.querySelectorAll('.team-check').forEach(cb => {
+    cb.addEventListener('change', function() {
+      toggleEnvTeam(parseInt(this.dataset.envIdx, 10), this.dataset.teamId, this.checked);
+    });
+  });
+}
+
+const HEALTH_COLORS = {Green: '#2e7d32', Yellow: '#f9a825', Red: '#c62828', Exempt: '#888'};
+function healthBadgeHtml(health) {
+  if (!health) return '';
+  const color = HEALTH_COLORS[health.level] || '#888';
+  return `<span class="health-badge" style="color:${color};font-weight:700;">${escEnv(health.level)}</span>`;
+}
+
+function teamCardsHtml(c) {
+  const cards = c.teams.map((t, i) => teamCardHtml(t, i)).join('') ||
+    '<div class="empty" style="padding:8px 0;">No teams yet</div>';
+  return cards + addTeamPanelHtml(c);
+}
+
+function teamCardHtml(team, idx) {
+  const collapsed = isExpanded(team.id) ? '' : 'collapsed';
+  const exemptNote = team.exempt ? '<div class="empty" style="padding:4px 0;">Exempt — membership only, not tracked for meetings/health</div>' : '';
+  return `
+    <div class="team-card">
+      <div class="team-card-head">
+        ${caretHtml(team.id)}
+        <input type="text" value="${escAttrEnv(team.name)}" onchange="updateTeamField(${idx}, 'name', this.value)">
+        ${healthBadgeHtml(team.health)}
+        <label style="font-size:11.5px;font-weight:500;"><input type="checkbox" ${team.exempt ? 'checked' : ''} onchange="updateTeamField(${idx}, 'exempt', this.checked)"> Exempt</label>
+        <label style="font-size:11.5px;font-weight:500;">Sentiment
+          <select onchange="updateTeamField(${idx}, 'sentiment', this.value)">
+            ${['', 'Green', 'Yellow', 'Red'].map(v => `<option value="${v}" ${team.sentiment === v ? 'selected' : ''}>${v || '—'}</option>`).join('')}
+          </select>
+        </label>
+        <label style="font-size:11.5px;font-weight:500;">Open issues
+          <input type="number" min="0" style="width:60px;" value="${team.open_issues === null ? '' : team.open_issues}" onchange="updateTeamField(${idx}, 'open_issues', this.value === '' ? null : parseInt(this.value, 10))">
+        </label>
+        ${team.exempt ? '' : `<button type="button" class="btn" data-team-id="${escAttrEnv(team.id)}" onclick="renderTeamDetail(this.dataset.teamId)">View meetings &amp; health</button>`}
+        <button class="btn danger" onclick="removeTeam(${idx})">Remove</button>
+      </div>
+      <div class="team-card-body collapsible-body ${collapsed}">
+        ${exemptNote}
+        <div class="field"><label>Notes</label><textarea onchange="updateTeamField(${idx}, 'notes', this.value)">${escEnv(team.notes || '')}</textarea></div>
+        <div class="field">
+          <label>Members</label>
+          ${memberRowsHtml(idx, team.members)}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function memberRowsHtml(teamIdx, members) {
+  const rows = (members || []).map((m, i) => `
+    <div class="member-row">
+      <input type="text" placeholder="Name" value="${escAttrEnv(m.name || '')}" onchange="updateMemberField(${teamIdx}, ${i}, 'name', this.value)">
+      <input type="text" placeholder="Title" value="${escAttrEnv(m.title || '')}" onchange="updateMemberField(${teamIdx}, ${i}, 'title', this.value)">
+      <input type="text" placeholder="Email" value="${escAttrEnv(m.email || '')}" onchange="updateMemberField(${teamIdx}, ${i}, 'email', this.value)">
+      <input type="text" placeholder="Notes" value="${escAttrEnv(m.notes || '')}" onchange="updateMemberField(${teamIdx}, ${i}, 'notes', this.value)">
+      <button class="btn danger" onclick="removeMember(${teamIdx}, ${i})">Remove</button>
+    </div>
+  `).join('');
+  return rows + `<button class="btn" onclick="addMember(${teamIdx})">Add member</button>`;
+}
+
+function addMember(teamIdx) {
+  const team = STATE.customers[CURRENT].teams[teamIdx];
+  team.members = team.members || [];
+  team.members.push({name: '', title: '', email: '', notes: ''});
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function updateMemberField(teamIdx, memberIdx, field, value) {
+  STATE.customers[CURRENT].teams[teamIdx].members[memberIdx][field] = value;
+  markEnvironmentsDirty();
+}
+
+function removeMember(teamIdx, memberIdx) {
+  STATE.customers[CURRENT].teams[teamIdx].members.splice(memberIdx, 1);
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function addTeamPanelHtml(c) {
+  return `<div class="add-team-panel" id="add-team-panel">${addTeamPanelInnerHtml(c)}</div>`;
+}
+
+function addTeamPanelInnerHtml(c) {
+  const existingChecks = c.environments.length
+    ? `<div class="env-pick-list">${c.environments.map(env => `
+        <label><input type="checkbox" class="add-team-env-check" data-env-id="${escAttrEnv(env.id)}" ${addTeamDraft.existingEnvIds.has(env.id) ? 'checked' : ''}> ${escEnv(env.label)}</label>
+      `).join('')}</div>`
+    : '<div class="hint" style="padding:0;">No existing environments for this customer yet</div>';
+
+  const pendingChips = addTeamDraft.newEnvs.length
+    ? `<div class="pending-env-list">${addTeamDraft.newEnvs.map((name, i) => `
+        <span class="pending-env-chip">${escEnv(name)}<button type="button" onclick="removePendingNewEnv(${i})">&times;</button></span>
+      `).join('')}</div>`
+    : '';
+
+  return `
+    <div class="add-row">
+      <input type="text" id="new-team-name" placeholder="Team name">
+      <input type="text" id="new-team-notes" placeholder="Notes (optional)">
+    </div>
+    <div class="field" style="margin-top:8px;">
+      <label>Link existing environments</label>
+      ${existingChecks}
+    </div>
+    <div class="field">
+      <label>Create new environments for this team</label>
+      <div class="add-row" style="border-top:none;margin-top:0;padding-top:0;">
+        <select id="new-env-standard-select">
+          ${STANDARD_ENV_NAMES.map(n => `<option value="${escAttrEnv(n)}">${escEnv(n)}</option>`).join('')}
+          <option value="__custom__">Custom…</option>
+        </select>
+        <input type="text" id="new-env-custom-name" placeholder="Custom environment name" style="display:none;">
+        <button type="button" class="btn" onclick="queuePendingNewEnv()">+ Add</button>
+      </div>
+      ${pendingChips}
+    </div>
+    <div class="add-row">
+      <button class="btn primary" onclick="addTeam()">Add team</button>
+    </div>
+  `;
+}
+
+function renderAddTeamPanel() {
+  const c = STATE.customers[CURRENT];
+  document.getElementById('add-team-panel').innerHTML = addTeamPanelInnerHtml(c);
+  wireNewEnvSelect();
+}
+
+function wireNewEnvSelect() {
+  const sel = document.getElementById('new-env-standard-select');
+  const custom = document.getElementById('new-env-custom-name');
+  if (sel) {
+    sel.addEventListener('change', () => {
+      custom.style.display = sel.value === '__custom__' ? '' : 'none';
+    });
+  }
+  document.querySelectorAll('.add-team-env-check').forEach(cb => {
+    cb.addEventListener('change', function() {
+      toggleAddTeamExistingEnv(this.dataset.envId, this.checked);
+    });
+  });
+}
+
+function toggleAddTeamExistingEnv(envId, checked) {
+  if (checked) addTeamDraft.existingEnvIds.add(envId);
+  else addTeamDraft.existingEnvIds.delete(envId);
+}
+
+function queuePendingNewEnv() {
+  const sel = document.getElementById('new-env-standard-select');
+  const custom = document.getElementById('new-env-custom-name');
+  const name = sel.value === '__custom__' ? custom.value.trim() : sel.value;
+  if (!name) return;
+  addTeamDraft.newEnvs.push(name);
+  custom.value = '';
+  renderAddTeamPanel();
+}
+
+function removePendingNewEnv(idx) {
+  addTeamDraft.newEnvs.splice(idx, 1);
+  renderAddTeamPanel();
+}
+
+function addTeam() {
+  const nameInput = document.getElementById('new-team-name');
+  const notesInput = document.getElementById('new-team-notes');
+  const name = nameInput.value.trim();
+  if (!name) return;
+  const id = 'team-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
+  const team = {id, name, notes: notesInput.value.trim(), members: []};
+  const c = STATE.customers[CURRENT];
+  c.teams.push(team);
+  expandedIds.add(id);
+  expandedIds.add('group-' + id);
+
+  c.environments.forEach(env => {
+    if (addTeamDraft.existingEnvIds.has(env.id)) {
+      env.team_ids = env.team_ids || [];
+      if (!env.team_ids.includes(id)) env.team_ids.push(id);
+    }
+  });
+
+  addTeamDraft.newEnvs.forEach((label, i) => {
+    const envId = 'env-' + Date.now() + '-' + i;
+    c.environments.push({
+      id: envId,
+      label,
+      team_ids: [id],
+      deployment: {model: 'SaaS', install_method: '', sizing: ''},
+      versions: {camunda_version: '', components: []},
+      infrastructure: {os: '', hosting_platform: '', kubectl_access: '', secondary_storage: ''},
+      cluster: {broker_count: '', partitions: '', replication: '', multi_region: ''},
+      observability: {kibana: '', prometheus: '', dashboard_links: []},
+      multi_tenant: {multi_tenancy: '', tenant_isolation: '', tenant_names: []},
+      links: {cluster_url: '', support_plan: '', runbook_links: []},
+      notes: '',
+      diagnostic_reports: [],
+      helm_values: [],
+    });
+    expandedIds.add(envId);
+  });
+
+  addTeamDraft = {existingEnvIds: new Set(), newEnvs: []};
+  saveExpandedIds();
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function updateTeamField(idx, field, value) {
+  STATE.customers[CURRENT].teams[idx][field] = value;
+  markEnvironmentsDirty();
+}
+
+function removeTeam(idx) {
+  const team = STATE.customers[CURRENT].teams[idx];
+  if (!confirm(`Remove team "${team.name}"? It will also be unlinked from any environment.`)) return;
+  STATE.customers[CURRENT].teams.splice(idx, 1);
+  STATE.customers[CURRENT].environments.forEach(env => {
+    env.team_ids = (env.team_ids || []).filter(id => id !== team.id);
+  });
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function getOrCreateMeetingRow(teamId, meetingTypeId) {
+  const c = STATE.customers[CURRENT];
+  let row = c.meetings.find(m => m.team_id === teamId && m.meeting_type_id === meetingTypeId);
+  if (!row) {
+    row = normalizeMeeting({team_id: teamId, meeting_type_id: meetingTypeId});
+    c.meetings.push(row);
+  }
+  return row;
+}
+
+function updateMeetingField(teamId, meetingTypeId, field, value) {
+  const row = getOrCreateMeetingRow(teamId, meetingTypeId);
+  row[field] = value;
+  markEnvironmentsDirty();
+  renderTeamDetail(teamId);
+}
+
+function toggleMeetingApplicable(teamId, meetingTypeId, inapplicable) {
+  const team = STATE.customers[CURRENT].teams.find(t => t.id === teamId);
+  const set = new Set(team.inapplicable_meeting_types);
+  if (inapplicable) set.add(meetingTypeId); else set.delete(meetingTypeId);
+  team.inapplicable_meeting_types = Array.from(set);
+  markEnvironmentsDirty();
+  renderTeamDetail(teamId);
+}
+
+function addEsActivity(teamId) {
+  const activity = normalizeEsActivity({team_id: teamId, label: 'New activity'});
+  STATE.customers[CURRENT].es_activities.push(activity);
+  markEnvironmentsDirty();
+  renderTeamDetail(teamId);
+}
+
+function updateEsActivityField(activityId, field, value) {
+  const activity = STATE.customers[CURRENT].es_activities.find(a => a.id === activityId);
+  activity[field] = value;
+  markEnvironmentsDirty();
+  renderTeamDetail(CURRENT_TEAM_ID);
+}
+
+function removeEsActivity(activityId) {
+  const c = STATE.customers[CURRENT];
+  c.es_activities = c.es_activities.filter(a => a.id !== activityId);
+  markEnvironmentsDirty();
+  renderTeamDetail(CURRENT_TEAM_ID);
+}
+
+function renderTeamDetail(teamId) {
+  VIEW = 'team';
+  CURRENT_TEAM_ID = teamId;
+  const c = STATE.customers[CURRENT];
+  const idx = c.teams.findIndex(t => t.id === teamId);
+  const team = c.teams[idx];
+  const content = document.getElementById('content');
+
+  const health = team.health || {level: 'Green', reasons: []};
+  const reasonsHtml = health.reasons.length
+    ? `<ul>${health.reasons.map(r => `<li>${escEnv(r)}</li>`).join('')}</ul>`
+    : '<div class="empty" style="padding:4px 0;">No issues</div>';
+
+  // Interpolating an id into a quoted JS-string argument inside an
+  // onclick/onchange attribute is unsafe: the browser decodes HTML
+  // entities in attribute values *before* compiling the handler as JS, so
+  // escAttrEnv()'s entity-encoding of a quote doesn't protect against a
+  // value that itself contains one (see wireTeamCheckboxes' comment for
+  // the same issue elsewhere in this file). Every id below is instead
+  // passed via a data-* attribute and read back with this.dataset.
+  const oneTimeRowsHtml = (STATE.meeting_catalog || []).filter(m => m.category === 'one_time').map(entry => {
+    const row = getOrCreateMeetingRow(teamId, entry.id);
+    const ids = `data-team-id="${escAttrEnv(teamId)}" data-meeting-type-id="${escAttrEnv(entry.id)}"`;
+    return `
+      <div class="meeting-row">
+        <div class="mtg-name">${escEnv(entry.name)}</div>
+        <div class="mtg-field"><span>Status</span><select ${ids} onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'status', this.value)">
+          ${['not_scheduled', 'scheduled', 'occurred'].map(v => `<option value="${v}" ${row.status === v ? 'selected' : ''}>${v}</option>`).join('')}
+        </select></div>
+        <div class="mtg-field"><span>Scheduled</span><input type="date" ${ids} value="${escAttrEnv(row.scheduled_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'scheduled_date', this.value)"></div>
+        <div class="mtg-field"><span>Occurred</span><input type="date" ${ids} value="${escAttrEnv(row.occurred_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'occurred_date', this.value)"></div>
+      </div>`;
+  }).join('') || '<div class="empty" style="padding:4px 0;">No one-time meetings defined</div>';
+
+  const recurringRowsHtml = (STATE.meeting_catalog || []).filter(m => m.category === 'recurring').map(entry => {
+    const row = getOrCreateMeetingRow(teamId, entry.id);
+    const ids = `data-team-id="${escAttrEnv(teamId)}" data-meeting-type-id="${escAttrEnv(entry.id)}"`;
+    const inapplicable = (team.inapplicable_meeting_types || []).includes(entry.id);
+    const applicableField = entry.default_requirement !== 'required'
+      ? `<div class="mtg-field"><span>Applicable</span><input type="checkbox" ${ids} ${inapplicable ? '' : 'checked'} onchange="toggleMeetingApplicable(this.dataset.teamId, this.dataset.meetingTypeId, !this.checked)"></div>`
+      : '';
+    return `
+      <div class="meeting-row">
+        <div class="mtg-name">${escEnv(entry.name)}<span class="env-badge">${escEnv(entry.default_requirement)}</span></div>
+        ${applicableField}
+        <div class="mtg-field"><span>Standing schedule</span><input type="text" ${ids} value="${escAttrEnv(row.standing_schedule)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'standing_schedule', this.value)"></div>
+        <div class="mtg-field"><span>Last held</span><input type="date" ${ids} value="${escAttrEnv(row.last_held_date)}" onchange="updateMeetingField(this.dataset.teamId, this.dataset.meetingTypeId, 'last_held_date', this.value)"></div>
+      </div>`;
+  }).join('') || '<div class="empty" style="padding:4px 0;">No recurring meetings defined</div>';
+
+  const activitiesHtml = c.es_activities.filter(a => a.team_id === teamId).map(a => `
+    <div class="field" data-activity-id="${escAttrEnv(a.id)}">
+      <input type="text" value="${escAttrEnv(a.label)}" onchange="updateEsActivityField(this.closest('[data-activity-id]').dataset.activityId, 'label', this.value)">
+      <select onchange="updateEsActivityField(this.closest('[data-activity-id]').dataset.activityId, 'status', this.value)">
+        ${['not_done', 'done'].map(v => `<option value="${v}" ${a.status === v ? 'selected' : ''}>${v}</option>`).join('')}
+      </select>
+      <label>Last updated <input type="date" value="${escAttrEnv(a.last_updated)}" onchange="updateEsActivityField(this.closest('[data-activity-id]').dataset.activityId, 'last_updated', this.value)"></label>
+      <button type="button" class="btn danger" onclick="removeEsActivity(this.closest('[data-activity-id]').dataset.activityId)">Remove</button>
+    </div>`).join('') || '<div class="empty" style="padding:4px 0;">No ES activities yet</div>';
+
+  content.innerHTML = `
+    <a class="back" href="#" onclick="renderPortfolio(); return false;">&larr; Portfolio</a>
+    &middot;
+    <a class="back" href="#" onclick="VIEW='customer'; renderCustomer(); return false;">&larr; ${escEnv(CURRENT)}</a>
+    <h2>${escEnv(team.name)}</h2>
+    <div class="field"><label>Onboarding date</label><input type="date" value="${escAttrEnv(team.onboarding_date)}" onchange="updateTeamField(${idx}, 'onboarding_date', this.value)"></div>
+    <div class="field"><label>Renewal date</label><input type="date" value="${escAttrEnv(team.renewal_date)}" onchange="updateTeamField(${idx}, 'renewal_date', this.value)"></div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">Health: ${escEnv(health.level)}</div>
+      <div class="env-subsection-body">${reasonsHtml}</div>
+    </div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">Key Meetings &mdash; One-time (ES101 Onboarding)</div>
+      <div class="env-subsection-body">${oneTimeRowsHtml}</div>
+    </div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">Key Meetings &mdash; Recurring</div>
+      <div class="env-subsection-body">${recurringRowsHtml}</div>
+    </div>
+
+    <div class="env-subsection">
+      <div class="env-subsection-head">ES Activities
+        <button type="button" class="btn primary" data-team-id="${escAttrEnv(teamId)}" onclick="addEsActivity(this.dataset.teamId)">Add activity</button>
+      </div>
+      <div class="env-subsection-body">${activitiesHtml}</div>
+    </div>
+  `;
+}
+
+function environmentsHtml(c) {
+  if (!c.environments.length) return '<div class="empty">No environments yet</div>';
+
+  const indexed = c.environments.map((env, idx) => ({env, idx}));
+  const groups = c.teams.map(team => ({
+    id: 'group-' + team.id,
+    label: team.name,
+    entries: indexed.filter(({env}) => (env.team_ids || []).includes(team.id)),
+  }));
+
+  const validTeamIds = new Set(c.teams.map(t => t.id));
+  const unassigned = indexed.filter(
+    ({env}) => !(env.team_ids || []).some(id => validTeamIds.has(id))
+  );
+  groups.push({id: 'group-unassigned', label: 'Unassigned', entries: unassigned});
+
+  return groups
+    .filter(g => g.entries.length)
+    .map(g => environmentGroupHtml(g, c.teams))
+    .join('');
+}
+
+function environmentGroupHtml(group, teams) {
+  const collapsed = isExpanded(group.id) ? '' : 'collapsed';
+  const cards = group.entries.map(({env, idx}) => environmentCardHtml(env, idx, teams)).join('');
+  return `
+    <div class="env-group">
+      <div class="group-head">
+        ${caretHtml(group.id)}
+        <span>${escEnv(group.label)} (${group.entries.length})</span>
+      </div>
+      <div class="env-group-body collapsible-body ${collapsed}">${cards}</div>
+    </div>
+  `;
+}
+
+function environmentCardHtml(env, idx, teams) {
+  const teamChecks = teams.map(t => `
+    <label><input type="checkbox" class="team-check" data-env-idx="${idx}" data-team-id="${escAttrEnv(t.id)}" ${((env.team_ids||[]).includes(t.id)) ? 'checked' : ''}> ${escEnv(t.name)}</label>
+  `).join('') || '<span class="hint" style="padding:0">No teams defined yet</span>';
+
+  const componentChecks = COMPONENT_OPTIONS.map(comp => `
+    <label><input type="checkbox" ${((env.versions.components||[]).includes(comp)) ? 'checked' : ''}
+      onchange="toggleEnvComponent(${idx}, '${comp}', this.checked)"> ${comp}</label>
+  `).join('');
+
+  const collapsed = isExpanded(env.id) ? '' : 'collapsed';
+  return `
+    <div class="env-card">
+      <div class="env-card-head">
+        ${caretHtml(env.id)}
+        <input type="text" value="${escAttrEnv(env.label)}" onchange="updateEnvField(${idx}, 'label', this.value)" style="font-weight:600;font-size:12.5px;">
+        <button class="btn danger" onclick="removeEnvironment(${idx})">Remove</button>
+      </div>
+      <div class="env-card-body collapsible-body ${collapsed}">
+        <div class="field"><label>Teams</label><div class="team-checks">${teamChecks}</div></div>
+        <div class="field-grid">
+          <div><label>Deployment model</label>
+            <select onchange="updateDeploymentModel(${idx}, this.value)">
+              <option value="SaaS" ${env.deployment.model==='SaaS'?'selected':''}>SaaS</option>
+              <option value="Self-Managed" ${env.deployment.model==='Self-Managed'?'selected':''}>Self-Managed</option>
+            </select>
+          </div>
+          <div><label>Install method</label><input type="text" value="${escAttrEnv(env.deployment.install_method)}" ${env.deployment.model==='SaaS'?'disabled':''} onchange="updateEnvNested(${idx}, 'deployment', 'install_method', this.value)"></div>
+          <div><label>Sizing</label><input type="text" value="${escAttrEnv(env.deployment.sizing)}" ${env.deployment.model==='Self-Managed'?'disabled':''} onchange="updateEnvNested(${idx}, 'deployment', 'sizing', this.value)"></div>
+          <div><label>Camunda version</label><input type="text" value="${escAttrEnv(env.versions.camunda_version)}" onchange="updateEnvNested(${idx}, 'versions', 'camunda_version', this.value)"></div>
+        </div>
+        <div class="field"><label>Components</label><div class="team-checks">${componentChecks}</div></div>
+        <div class="field"><label>Support plan</label>${linkFieldHtml(env.links.support_plan, `updateEnvNestedAndRerender(${idx}, 'links', 'support_plan', this.value)`)}</div>
+        <div class="field"><label>Cluster URL</label>${linkFieldHtml(env.links.cluster_url, `updateEnvNestedAndRerender(${idx}, 'links', 'cluster_url', this.value)`)}</div>
+        <div class="field"><label>Runbook links</label>${urlListHtml(idx, 'links', 'runbook_links', env.links.runbook_links)}</div>
+        <div class="field"><label>Notes</label><textarea onchange="updateEnvField(${idx}, 'notes', this.value)">${escEnv(env.notes || '')}</textarea></div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Infrastructure</div>
+          <div class="env-subsection-body">
+            <div class="field-grid">
+              <div><label>OS</label><input type="text" value="${escAttrEnv(env.infrastructure.os)}" onchange="updateEnvNested(${idx}, 'infrastructure', 'os', this.value)"></div>
+              <div>${hostingPlatformHtml(idx, env)}</div>
+              <div><label>Kubectl access</label>
+                <select onchange="updateEnvNested(${idx}, 'infrastructure', 'kubectl_access', this.value)">
+                  <option value=""></option>
+                  ${YES_NO_OPTIONS.map(o => `<option value="${escAttrEnv(o)}" ${env.infrastructure.kubectl_access===o?'selected':''}>${escEnv(o)}</option>`).join('')}
+                </select>
+              </div>
+              <div><label>Secondary storage</label>
+                <select onchange="updateEnvNested(${idx}, 'infrastructure', 'secondary_storage', this.value)">
+                  <option value=""></option>
+                  ${SECONDARY_STORAGE_OPTIONS.map(o => `<option value="${escAttrEnv(o)}" ${env.infrastructure.secondary_storage===o?'selected':''}>${escEnv(o)}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Cluster</div>
+          <div class="env-subsection-body">
+            <div class="field-grid-3">
+              <div><label>Broker count</label><input type="number" min="0" step="1" value="${escAttrEnv(env.cluster.broker_count)}" onchange="updateEnvNested(${idx}, 'cluster', 'broker_count', this.value)"></div>
+              <div><label>Partitions</label><input type="number" min="0" step="1" value="${escAttrEnv(env.cluster.partitions)}" onchange="updateEnvNested(${idx}, 'cluster', 'partitions', this.value)"></div>
+              <div><label>Replication</label><input type="number" min="0" step="1" value="${escAttrEnv(env.cluster.replication)}" onchange="updateEnvNested(${idx}, 'cluster', 'replication', this.value)"></div>
+            </div>
+            <div class="field"><label>Multi-region</label><input type="text" style="width:100%" value="${escAttrEnv(env.cluster.multi_region)}" onchange="updateEnvNested(${idx}, 'cluster', 'multi_region', this.value)"></div>
+          </div>
+        </div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Observability</div>
+          <div class="env-subsection-body">
+            <div class="field-grid">
+              <div><label>Kibana</label>
+                <select onchange="updateEnvNested(${idx}, 'observability', 'kibana', this.value)">
+                  <option value=""></option>
+                  ${OBSERVABILITY_OPTIONS.map(o => `<option value="${escAttrEnv(o)}" ${env.observability.kibana===o?'selected':''}>${escEnv(o)}</option>`).join('')}
+                </select>
+              </div>
+              <div><label>Prometheus</label>
+                <select onchange="updateEnvNested(${idx}, 'observability', 'prometheus', this.value)">
+                  <option value=""></option>
+                  ${OBSERVABILITY_OPTIONS.map(o => `<option value="${escAttrEnv(o)}" ${env.observability.prometheus===o?'selected':''}>${escEnv(o)}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="field"><label>Custom dashboard links</label>${urlListHtml(idx, 'observability', 'dashboard_links', env.observability.dashboard_links)}</div>
+          </div>
+        </div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Multi-tenant</div>
+          <div class="env-subsection-body">
+            <div class="field"><label>Multi-tenancy</label>
+              <select style="width:100%" onchange="updateMultiTenancy(${idx}, this.value)">
+                <option value=""></option>
+                ${YES_NO_OPTIONS.map(o => `<option value="${escAttrEnv(o)}" ${env.multi_tenant.multi_tenancy===o?'selected':''}>${escEnv(o)}</option>`).join('')}
+              </select>
+            </div>
+            ${env.multi_tenant.multi_tenancy === 'Yes' ? `
+            <div class="field"><label>Tenant isolation</label><input type="text" style="width:100%" value="${escAttrEnv(env.multi_tenant.tenant_isolation)}" onchange="updateEnvNested(${idx}, 'multi_tenant', 'tenant_isolation', this.value)"></div>
+            <div class="field"><label>Tenant names (one per line)</label><textarea onchange="updateEnvListField(${idx}, 'multi_tenant', 'tenant_names', this.value)">${escEnv((env.multi_tenant.tenant_names||[]).join('\n'))}</textarea></div>
+            ` : ''}
+          </div>
+        </div>
+
+        <div class="env-subsection">
+          <div class="env-subsection-head">Supporting Files</div>
+          <div class="env-subsection-body">
+            <div class="field"><label>Diagnostic reports</label>${datedListHtml(idx, 'diagnostic_reports', env.diagnostic_reports, true)}</div>
+            <div class="field"><label>Helm values.yaml history</label>${datedListHtml(idx, 'helm_values', env.helm_values, false)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function useCasesHtml(c) {
+  if (!c.use_cases.length) return '<div class="empty">No use cases yet</div>';
+  return c.use_cases.map((uc, idx) => useCaseCardHtml(uc, idx, c)).join('');
+}
+
+function useCaseCardHtml(uc, idx, c) {
+  const collapsed = isExpanded(uc.id) ? '' : 'collapsed';
+  const envOptions = '<option value="">—</option>' + c.environments.map(env =>
+    `<option value="${escAttrEnv(env.id)}" ${uc.environment_id === env.id ? 'selected' : ''}>${escEnv(env.label)}</option>`
+  ).join('');
+  const teamOptions = '<option value="">—</option>' + c.teams.map(team =>
+    `<option value="${escAttrEnv(team.id)}" ${uc.team_id === team.id ? 'selected' : ''}>${escEnv(team.name)}</option>`
+  ).join('');
+  const statusOptions = '<option value=""></option>' + USE_CASE_STATUS_OPTIONS.map(o =>
+    `<option value="${escAttrEnv(o)}" ${uc.status === o ? 'selected' : ''}>${escEnv(o)}</option>`
+  ).join('');
+  return `
+    <div class="env-card">
+      <div class="env-card-head">
+        ${caretHtml(uc.id)}
+        <input type="text" placeholder="Use case name" value="${escAttrEnv(uc.name)}" onchange="updateUseCaseField(${idx}, 'name', this.value)" style="font-weight:600;font-size:12.5px;">
+        <button class="btn danger" onclick="removeUseCase(${idx})">Remove</button>
+      </div>
+      <div class="env-card-body collapsible-body ${collapsed}">
+        <div class="field"><label>Description</label><textarea onchange="updateUseCaseField(${idx}, 'description', this.value)">${escEnv(uc.description || '')}</textarea></div>
+        <div class="field-grid">
+          <div><label>Status</label><select onchange="updateUseCaseField(${idx}, 'status', this.value)">${statusOptions}</select></div>
+          <div><label>Go-live date</label><input type="date" value="${escAttrEnv(uc.go_live_date)}" onchange="updateUseCaseField(${idx}, 'go_live_date', this.value)"></div>
+          <div><label>Related environment</label><select onchange="updateUseCaseField(${idx}, 'environment_id', this.value)">${envOptions}</select></div>
+          <div><label>Related team</label><select onchange="updateUseCaseField(${idx}, 'team_id', this.value)">${teamOptions}</select></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function addUseCase() {
+  const id = 'usecase-' + Date.now();
+  STATE.customers[CURRENT].use_cases.push({
+    id, name: '', description: '', status: '', go_live_date: '', environment_id: '', team_id: '',
+  });
+  expandedIds.add(id);
+  saveExpandedIds();
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function removeUseCase(idx) {
+  const uc = STATE.customers[CURRENT].use_cases[idx];
+  if (!confirm(`Remove use case "${uc.name || '(unnamed)'}"?`)) return;
+  STATE.customers[CURRENT].use_cases.splice(idx, 1);
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function updateUseCaseField(idx, field, value) {
+  STATE.customers[CURRENT].use_cases[idx][field] = value;
+  markEnvironmentsDirty();
+}
+
+function datedListHtml(envIdx, key, rows, withTicket) {
+  const rowsHtml = (rows || []).map((row, rowIdx) => `
+    <div class="dated-list-row">
+      <input type="text" placeholder="Link" value="${escAttrEnv(row.link || '')}" onchange="updateDatedListField(${envIdx}, '${key}', ${rowIdx}, 'link', this.value)">
+      <input type="date" class="date-input" value="${escAttrEnv((withTicket ? row.generated_date : row.date) || '')}" onchange="updateDatedListField(${envIdx}, '${key}', ${rowIdx}, '${withTicket ? 'generated_date' : 'date'}', this.value)">
+      ${withTicket ? `<input type="text" class="ticket-input" placeholder="Ticket" value="${escAttrEnv(row.ticket || '')}" onchange="updateDatedListField(${envIdx}, '${key}', ${rowIdx}, 'ticket', this.value)">` : ''}
+      <button class="btn danger" onclick="removeDatedListRow(${envIdx}, '${key}', ${rowIdx})">Remove</button>
+    </div>
+  `).join('');
+  return rowsHtml + `<button class="btn" onclick="addDatedListRow(${envIdx}, '${key}', ${withTicket})">Add</button>`;
+}
+
+function addEnvironment() {
+  const label = prompt('Environment label (e.g. Production, Staging):');
+  if (!label || !label.trim()) return;
+  const id = 'env-' + Date.now();
+  STATE.customers[CURRENT].environments.push({
+    id,
+    label: label.trim(),
+    team_ids: [],
+    deployment: {model: 'SaaS', install_method: '', sizing: ''},
+    versions: {camunda_version: '', components: []},
+    infrastructure: {os: '', hosting_platform: '', kubectl_access: '', secondary_storage: ''},
+    cluster: {broker_count: '', partitions: '', replication: '', multi_region: ''},
+    observability: {kibana: '', prometheus: '', dashboard_links: []},
+    multi_tenant: {multi_tenancy: '', tenant_isolation: '', tenant_names: []},
+    links: {cluster_url: '', support_plan: '', runbook_links: []},
+    notes: '',
+    diagnostic_reports: [],
+    helm_values: [],
+  });
+  expandedIds.add(id);
+  expandedIds.add('group-unassigned');
+  saveExpandedIds();
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function removeEnvironment(idx) {
+  const env = STATE.customers[CURRENT].environments[idx];
+  if (!confirm(`Remove environment "${env.label}"?`)) return;
+  STATE.customers[CURRENT].environments.splice(idx, 1);
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function updateEnvField(idx, field, value) {
+  STATE.customers[CURRENT].environments[idx][field] = value;
+  markEnvironmentsDirty();
+}
+
+function updateEnvNested(idx, group, field, value) {
+  STATE.customers[CURRENT].environments[idx][group][field] = value;
+  markEnvironmentsDirty();
+}
+
+function updateEnvNestedAndRerender(idx, group, field, value) {
+  updateEnvNested(idx, group, field, value);
+  renderCustomer();
+}
+
+function updateDeploymentModel(idx, value) {
+  updateEnvNested(idx, 'deployment', 'model', value);
+  renderCustomer();
+}
+
+function updateMultiTenancy(idx, value) {
+  updateEnvNested(idx, 'multi_tenant', 'multi_tenancy', value);
+  renderCustomer();
+}
+
+function updateEnvListField(idx, group, field, textareaValue) {
+  STATE.customers[CURRENT].environments[idx][group][field] =
+    textareaValue.split('\n').map(s => s.trim()).filter(Boolean);
+  markEnvironmentsDirty();
+}
+
+// Whether a value looks like an http(s) URL — used to decide when to show
+// a clickable link icon next to an otherwise-freeform text field.
+function isLikelyUrl(value) {
+  return !!value && /^https?:\/\//i.test(value.trim());
+}
+
+function urlLinkIcon(value) {
+  if (!isLikelyUrl(value)) return '';
+  return `<a href="${escAttrEnv(value.trim())}" target="_blank" rel="noopener noreferrer" class="link-icon" title="Open link">&#8599;</a>`;
+}
+
+// Single-URL field: a text input plus a clickable link icon that appears
+// once the value looks like a URL. `onchange` is the raw JS expression for
+// the input's onchange attribute (caller wires it to rerender so the icon
+// reflects the latest value).
+function linkFieldHtml(value, onchange) {
+  return `<div class="link-field-row">
+    <input type="text" placeholder="https://..." value="${escAttrEnv(value)}" onchange="${onchange}">
+    ${urlLinkIcon(value)}
+  </div>`;
+}
+
+// Multi-URL field: one row per URL, each with its own clickable link icon,
+// plus add/remove controls. Used for fields that can hold several links
+// (runbook links, custom dashboard links).
+function urlListHtml(envIdx, group, key, rows) {
+  const rowsHtml = (rows || []).map((url, rowIdx) => `
+    <div class="dated-list-row">
+      <input type="text" placeholder="https://..." value="${escAttrEnv(url)}" onchange="updateUrlListItem(${envIdx}, '${group}', '${key}', ${rowIdx}, this.value)">
+      ${urlLinkIcon(url)}
+      <button class="btn danger" onclick="removeUrlListItem(${envIdx}, '${group}', '${key}', ${rowIdx})">Remove</button>
+    </div>
+  `).join('');
+  return rowsHtml + `<button class="btn" onclick="addUrlListItem(${envIdx}, '${group}', '${key}')">Add link</button>`;
+}
+
+function addUrlListItem(envIdx, group, key) {
+  const env = STATE.customers[CURRENT].environments[envIdx];
+  env[group][key] = env[group][key] || [];
+  env[group][key].push('');
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function removeUrlListItem(envIdx, group, key, rowIdx) {
+  STATE.customers[CURRENT].environments[envIdx][group][key].splice(rowIdx, 1);
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function updateUrlListItem(envIdx, group, key, rowIdx, value) {
+  STATE.customers[CURRENT].environments[envIdx][group][key][rowIdx] = value;
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+// Hosting platform is a fixed dropdown plus a free-text "Other" option.
+// A stored value that isn't one of the fixed options is treated as a
+// custom "Other" value and shown in the text box instead of the select.
+function hostingPlatformHtml(idx, env) {
+  const value = env.infrastructure.hosting_platform || '';
+  const isOther = value !== '' && !HOSTING_PLATFORM_OPTIONS.includes(value);
+  return `
+    <label>Hosting platform</label>
+    <select id="hosting-platform-select-${idx}" onchange="onHostingPlatformSelectChange(${idx}, this.value)">
+      <option value="" ${value===''?'selected':''}></option>
+      ${HOSTING_PLATFORM_OPTIONS.map(o => `<option value="${escAttrEnv(o)}" ${value===o?'selected':''}>${escEnv(o)}</option>`).join('')}
+      <option value="__other__" ${isOther?'selected':''}>Other</option>
+    </select>
+    <input type="text" id="hosting-platform-custom-${idx}" placeholder="Enter platform"
+      style="margin-top:4px;width:100%;${isOther ? '' : 'display:none;'}"
+      value="${escAttrEnv(isOther ? value : '')}"
+      onchange="updateEnvNested(${idx}, 'infrastructure', 'hosting_platform', this.value)">
+  `;
+}
+
+function onHostingPlatformSelectChange(idx, value) {
+  const customInput = document.getElementById('hosting-platform-custom-' + idx);
+  if (value === '__other__') {
+    customInput.style.display = '';
+    customInput.value = '';
+    customInput.focus();
+    updateEnvNested(idx, 'infrastructure', 'hosting_platform', '');
+  } else {
+    customInput.style.display = 'none';
+    updateEnvNested(idx, 'infrastructure', 'hosting_platform', value);
+  }
+}
+
+function toggleEnvTeam(idx, teamId, checked) {
+  const env = STATE.customers[CURRENT].environments[idx];
+  env.team_ids = env.team_ids || [];
+  if (checked) {
+    if (!env.team_ids.includes(teamId)) env.team_ids.push(teamId);
+  } else {
+    env.team_ids = env.team_ids.filter(id => id !== teamId);
+  }
+  markEnvironmentsDirty();
+}
+
+function toggleEnvComponent(idx, comp, checked) {
+  const env = STATE.customers[CURRENT].environments[idx];
+  env.versions.components = env.versions.components || [];
+  if (checked) {
+    if (!env.versions.components.includes(comp)) env.versions.components.push(comp);
+  } else {
+    env.versions.components = env.versions.components.filter(c => c !== comp);
+  }
+  markEnvironmentsDirty();
+}
+
+function addDatedListRow(envIdx, key, withTicket) {
+  const env = STATE.customers[CURRENT].environments[envIdx];
+  env[key] = env[key] || [];
+  env[key].push(withTicket ? {link: '', generated_date: '', ticket: ''} : {link: '', date: ''});
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function removeDatedListRow(envIdx, key, rowIdx) {
+  STATE.customers[CURRENT].environments[envIdx][key].splice(rowIdx, 1);
+  markEnvironmentsDirty();
+  renderCustomer();
+}
+
+function updateDatedListField(envIdx, key, rowIdx, field, value) {
+  STATE.customers[CURRENT].environments[envIdx][key][rowIdx][field] = value;
+  markEnvironmentsDirty();
+}
+
+function markEnvironmentsDirty() {
+  envDirty = true;
+  document.getElementById('env-save-btn').disabled = false;
+  document.getElementById('save-status').textContent = 'Unsaved changes';
+}
+
+async function saveAll() {
+  const btn = document.getElementById('env-save-btn');
+  const status = document.getElementById('save-status');
+  const c = STATE.customers[CURRENT];
+  btn.disabled = true;
+  status.textContent = 'Saving…';
+  try {
+    const r = await fetch(`api/environments/config/${encodeURIComponent(CURRENT)}`, {
+      method: 'PUT', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        teams: c.teams, environments: c.environments, use_cases: c.use_cases,
+        meetings: c.meetings, es_activities: c.es_activities,
+      }),
+      signal: envMountSignal,
+    });
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    envDirty = false;
+    status.textContent = '';
+    showToast(`Saved ${CURRENT} to Drive`, 'ok', 4000);
+    // Health/rollup are computed server-side on GET, not stored — re-fetch
+    // so the badge, rollup strip, and health breakdown reflect what was
+    // just saved instead of the pre-save values still sitting in STATE.
+    const refreshed = await fetch(`api/environments/config/${encodeURIComponent(CURRENT)}`, {credentials: 'include', signal: envMountSignal});
+    if (refreshed.ok) {
+      STATE.customers[CURRENT] = await refreshed.json();
+      ensureCustomer(CURRENT);
+      if (VIEW === 'team' && CURRENT_TEAM_ID) {
+        renderTeamDetail(CURRENT_TEAM_ID);
+      } else {
+        renderCustomer();
+      }
+    }
+  } catch(e) {
+    if (envMountSignal && envMountSignal.aborted) return; // navigated away mid-save — bail out silently
+    showToast('Save failed: ' + e.message, 'err', 5000);
+    status.textContent = 'Unsaved changes';
+    btn.disabled = false;
+  }
+}
+
+function escEnv(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+function escAttrEnv(s) { return escEnv(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+window.addEventListener('beforeunload', e => { if (envDirty) { e.preventDefault(); e.returnValue = ''; } });
+
+// ── Account Health area (migrated from templates/account_health.html) ──
+// load() -> loadAccountHealth(signal) (collides with the Customers tab's
+// bootstrap load() above, the same reason Tasks/Day Plan/Environments
+// renamed their own load()s) -- threads the mount AbortController signal
+// into its one fetch, with an `if (signal.aborted) return;` bail-out in the
+// catch block, matching the others. esc() -> escAH() (collides with the
+// Customers tab's own esc(), but with different behavior -- null-safe and
+// escapes single quotes, which the Customers tab's esc()/escAttr() don't --
+// so renamed rather than reused, the same call Environments made for its
+// own esc()/escAttr() -> escEnv()/escAttrEnv()). .badge/.group-head/
+// .field-grid/.panel/.panel-head collided with different-looking rules
+// Tasks/Day Plan/Environments already defined under #area-content, so
+// Account Health's versions are scoped under ah- prefixed names instead of
+// silently overriding them (see the CSS section's note for detail). The
+// dropped top-of-page "← Back to briefs" link (the sidebar replaces it,
+// same as every other migrated area) means a.back's CSS wasn't carried
+// over either, since Account Health's own JS never used it elsewhere the
+// way Environments' in-app back-links did.
+//
+// The Customers tab's own roster + Key Contacts markup/JS (cut from the
+// Settings modal's #tab-customers panel, now living in <template
+// id="tpl-account-health"> below the health cards) is relocated onto this
+// page too, per the Account Health task. Its own load() -> loadCustomersConfig()
+// rename is covered above, next to its definition; AREAS['account-health']
+// .mount below calls loadAccountHealth/loadCustomersConfig/loadKeyContacts
+// together so all three sections populate on every visit to this area.
+let PAGE_DATA = null;
+let ahKeydownBound = false;
+
+function todayLocalIso() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function escAH(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+const HEALTH_LABELS = {needs_attention: 'Needs Attention', watch: 'Watch', healthy: 'Healthy', no_health_data: 'No Health Data'};
+
+function healthBadge(group) {
+  return `<span class="ah-badge ah-badge-${escAH(group)}">${escAH(HEALTH_LABELS[group] || group)}</span>`;
+}
+
+function fieldValue(value, placeholderText) {
+  if (value === null || value === undefined || value === '') {
+    return `<div class="field-value placeholder">${escAH(placeholderText)}</div>`;
+  }
+  return `<div class="field-value">${escAH(value)}</div>`;
+}
+
+function actionItemsListHtml(items, placeholderText) {
+  if (!items || !items.length) {
+    return `<div class="action-items placeholder"><span class="action-items-label">Action items</span>${escAH(placeholderText)}</div>`;
+  }
+  return `<div class="action-items"><span class="action-items-label">Action items</span><ul>${items.map(item =>
+    `<li>${escAH(item.text)}${item.source === 'context_doc' ? ' <span class="risk-tag">[Context Doc]</span>' : ''}${item.asana_url ? ` <a class="asana-link" href="${escAH(item.asana_url)}" target="_blank">Open in Asana &rarr;</a>` : ''}</li>`
+  ).join('')}</ul></div>`;
+}
+
+function firstActionItemText(account) {
+  const items = account.action_items;
+  return (items && items.length) ? items[0].text : (account.no_doc ? 'No research yet' : 'Not captured this sweep');
+}
+
+function renderCard(account) {
+  const placeholder = account.no_doc ? 'No research yet' : 'Not captured this sweep';
+  const arr = account.arr || {};
+  const arrDisplay = arr.raw ? `${arr.raw}${arr.disputed ? ' (disputed)' : ''}` : null;
+  const risksHtml = (account.risks && account.risks.length)
+    ? `<div class="risks"><div class="risks-label">Risks</div><ul>${account.risks.map(r =>
+        `<li>${escAH(r.text)}${r.source_tag ? ` <span class="risk-tag">[${escAH(r.source_tag)}]</span>` : ''}</li>`
+      ).join('')}</ul></div>`
+    : '';
+  const actionItemsHtml = actionItemsListHtml(account.action_items, placeholder);
+  const refreshHref = `claude://claude.ai/new?q=${encodeURIComponent(account.refresh_query)}`;
+  const docLink = account.doc_url
+    ? `<a href="${escAH(account.doc_url)}" target="_blank">Open Context doc &rarr;</a>`
+    : '';
+
+  return `
+    <div class="card" data-account-name="${escAH(account.account_name)}">
+      <div class="card-top">
+        <span class="card-name">${escAH(account.account_name)}</span>
+        ${healthBadge(account.health_group)}
+        ${account.commercial_tier ? `<span class="pill">${escAH(account.commercial_tier)}</span>` : ''}
+        <span class="swept-pill">${escAH(account.swept_label)}</span>
+      </div>
+      <div class="ah-field-grid">
+        <div><div class="field-label">ARR</div>${fieldValue(arrDisplay, placeholder)}${arr.disputed && arr.note ? `<div class="field-note">${escAH(arr.note)}</div>` : ''}</div>
+        <div><div class="field-label">Renewal</div>${fieldValue(account.renewal, placeholder)}</div>
+        <div><div class="field-label">Health</div>${fieldValue((account.health_signals || []).join(', ') || null, placeholder)}${account.health_disagree ? '<div class="field-note">Scores disagree</div>' : ''}</div>
+        <div><div class="field-label">CSM</div>${fieldValue(account.csm, placeholder)}</div>
+        <div><div class="field-label">AE</div>${fieldValue(account.ae, placeholder)}</div>
+        <div><div class="field-label">TAM</div>${fieldValue(account.tam, placeholder)}</div>
+      </div>
+      ${risksHtml}
+      ${actionItemsHtml}
+      <div class="card-footer">
+        ${docLink}
+        <a href="${refreshHref}" target="_blank">Refresh research</a>
+      </div>
+    </div>`;
+}
+
+function renderGroups(groups) {
+  const body = document.getElementById('ah-body');
+  if (!groups.some(g => g.count > 0)) {
+    body.innerHTML = '<div class="empty">No accounts configured yet.</div>';
+    return;
+  }
+  body.innerHTML = groups.map(g => `
+    <div class="group">
+      <div class="ah-group-head">
+        <span>${escAH(g.label)} (${g.count})</span>
+        <span class="ghead-sub">${escAH(g.arr_subtotal_raw)} ARR</span>
+      </div>
+      ${g.accounts.length ? g.accounts.map(renderCard).join('') : '<div class="empty">None</div>'}
+    </div>
+  `).join('');
+}
+
+function renderStatTiles(stats) {
+  const tiles = [
+    {key: 'accounts', label: 'Accounts', value: stats.accounts_count},
+    {key: 'arr', label: 'Combined ARR', value: stats.combined_arr_raw,
+     note: stats.combined_arr_disputed_count > 0 ? `${stats.combined_arr_disputed_count} figure(s) disputed` : null},
+    {key: 'needs-attention', label: 'Needs Attention', value: stats.needs_attention_count},
+    {key: 'stale', label: 'Stale Data (>30d)', value: stats.stale_count},
+  ];
+  document.getElementById('ah-stats').innerHTML = tiles.map(t => `
+    <div class="stat" data-tile="${t.key}">
+      <div class="stat-label">${escAH(t.label)}</div>
+      <div class="stat-value">${escAH(t.value)}</div>
+      ${t.note ? `<div class="stat-note">${escAH(t.note)}</div>` : ''}
+    </div>
+  `).join('');
+
+  document.querySelectorAll('#ah-stats .stat').forEach(el => {
+    el.addEventListener('click', () => openPanel(el.dataset.tile));
+  });
+}
+
+function renderCallout(callout) {
+  const box = document.getElementById('ah-callout');
+  if (!callout || !callout.findings || !callout.findings.length) {
+    box.classList.add('hidden');
+    return;
+  }
+  document.getElementById('ah-callout-list').innerHTML = callout.findings.map(f => `<li>${escAH(f)}</li>`).join('');
+  box.classList.remove('hidden');
+}
+
+function allAccounts() {
+  return (PAGE_DATA.groups || []).flatMap(g => g.accounts);
+}
+
+const TILE_FILTERS = {
+  'accounts': {title: 'All accounts', match: () => true, note: a => a.swept_label},
+  'arr': {title: 'Disputed ARR', match: a => a.arr && a.arr.disputed, note: a => (a.arr && a.arr.note) || ''},
+  'needs-attention': {title: 'Needs Attention', match: a => a.health_group === 'needs_attention', note: a => a.swept_label},
+  'stale': {title: 'Stale Data (>30d)', match: a => a.swept_days !== null && a.swept_days !== undefined && a.swept_days > 30, note: a => a.swept_label},
+};
+
+function openPanel(tileKey) {
+  const filter = TILE_FILTERS[tileKey];
+  if (!filter || !PAGE_DATA) return;
+  const matches = allAccounts().filter(filter.match);
+
+  document.getElementById('ah-panel-title').textContent = filter.title;
+  document.getElementById('ah-panel-rows').innerHTML = matches.length
+    ? matches.map(a => `
+        <div class="ah-panel-row" data-account-name="${escAH(a.account_name)}">
+          <div class="ah-panel-row-top">
+            <span class="ah-panel-row-name">${escAH(a.account_name)}</span>
+            ${healthBadge(a.health_group)}
+          </div>
+          <div class="ah-panel-row-step">${escAH(firstActionItemText(a))}</div>
+          <div class="ah-panel-row-note">${escAH(filter.note(a))}</div>
+        </div>
+      `).join('')
+    : '<div class="empty">No matching accounts.</div>';
+
+  document.querySelectorAll('#ah-panel-rows .ah-panel-row').forEach(el => {
+    el.addEventListener('click', () => jumpToCard(el.dataset.accountName));
+  });
+
+  document.getElementById('ah-panel-backdrop').classList.remove('hidden');
+}
+
+function closePanel() {
+  // Optional chaining: this element only exists while Account Health is the
+  // mounted area (its markup lives in <template id="tpl-account-health">).
+  // The document-level Escape listener below stays bound for the page's
+  // whole lifetime, so pressing Escape on any other area after having
+  // visited Account Health once previously threw a TypeError here.
+  document.getElementById('ah-panel-backdrop')?.classList.add('hidden');
+}
+
+function jumpToCard(accountName) {
+  closePanel();
+  const card = document.querySelector(`.card[data-account-name="${CSS.escape(accountName)}"]`);
+  if (!card) return;
+  card.scrollIntoView({behavior: 'smooth', block: 'center'});
+  card.classList.add('jump-highlight');
+  setTimeout(() => card.classList.remove('jump-highlight'), 1600);
+}
+
+async function loadAccountHealth(signal) {
+  document.getElementById('ah-panel-close').addEventListener('click', closePanel);
+  document.getElementById('ah-panel-backdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'ah-panel-backdrop') closePanel();
+  });
+  if (!ahKeydownBound) {
+    ahKeydownBound = true;
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closePanel();
+    });
+  }
+
+  const emailEl = document.getElementById('account-health-user-email');
+  fetch('api/whoami', { signal }).then(r => r.json()).then(d => {
+    if (!signal.aborted && emailEl) emailEl.textContent = d.email || '';
+  }).catch(() => {});
+
+  const body = document.getElementById('ah-body');
+  body.innerHTML = '<div class="empty">Loading&hellip;</div>';
+  try {
+    const r = await fetch(`api/account-health/${todayLocalIso()}`, {credentials: 'include', signal});
+    if (!r.ok) {
+      let message = r.statusText;
+      try { message = (await r.json()).error || message; } catch (_) { /* non-JSON error body (e.g. a login redirect) */ }
+      throw new Error(message);
+    }
+    const data = await r.json();
+    PAGE_DATA = data;
+    document.getElementById('ah-count').textContent = `${data.stat_tiles.accounts_count} account(s)`;
+    renderStatTiles(data.stat_tiles);
+    renderCallout(data.callout);
+    renderGroups(data.groups);
+  } catch (e) {
+    if (signal.aborted) return; // navigated away mid-fetch — bail out silently
+    body.innerHTML = `<div class="empty" style="color:var(--bad-t)">Failed to load: ${escAH(e.message)}</div>`;
+  }
+}
+
+// ── Sidebar shell: client-side area router ─────────────────────
+// Brief, Environments, Tasks, Day Plan, and Account Health are all
+// fully-wired areas (Tasks 3-6 migrated each one's real markup/JS into
+// this shell in turn).
+let briefLoadedOnce = false;
+const AREAS = {
+  brief: {
+    mount() {
+      document.getElementById('viewer-wrap').style.display = '';
+      document.querySelector('.selector-wrap').style.display = '';
+      document.getElementById('timeline-bar').style.display = '';
+      // Only fetch the brief list on the first mount — flipping back to
+      // Brief after visiting another area shouldn't re-fetch it every time.
+      if (!briefLoadedOnce) { briefLoadedOnce = true; loadBriefList(); }
+    },
+    unmount() {
+      document.getElementById('viewer-wrap').style.display = 'none';
+      // Brief's own topbar/timeline controls (the brief picker, refresh
+      // button + count, and the date timeline) aren't global chrome like
+      // the title/mode-toggle/Google-Connect button are — they only make
+      // sense while Brief is the visible area. Left visible, they stayed
+      // clickable over every other area (e.g. picking a timeline date
+      // loaded a brief into the now-hidden Brief area with no visible
+      // effect) — see Important #2 in the final-review fix report.
+      document.querySelector('.selector-wrap').style.display = 'none';
+      document.getElementById('timeline-bar').style.display = 'none';
+      // status-bar is Brief's own loading/error indicator (setStatus/
+      // clearStatus) — hide it on the way out so a stale "could not load"
+      // message doesn't linger over an unrelated area.
+      clearStatus();
+    },
+  },
+  environments: {
+    mount(signal) { envMountSignal = signal; envDirty = false; loadEnvironments(signal); },
+    canLeave() {
+      if (!envDirty) return true;
+      if (!confirm('You have unsaved changes in Environments. Discard them and leave?')) return false;
+      envDirty = false;
+      return true;
+    },
+  },
+  tasks: { mount(signal) { loadTasks(signal); } },
+  'day-plan': {
+    mount(signal) { dpcDirty = false; mountDayPlan(signal); },
+    canLeave() {
+      if (!dpcDirty) return true;
+      if (!confirm('You have unsaved changes to Quick Action Categories. Discard them and leave?')) return false;
+      dpcDirty = false;
+      return true;
+    },
+  },
+  'account-health': {
+    mount(signal) {
+      dirty = false; kcDirty = false;
+      loadAccountHealth(signal); loadCustomersConfig(signal); loadKeyContacts(signal);
+    },
+    canLeave() {
+      if (!dirty && !kcDirty) return true;
+      if (!confirm('You have unsaved changes in Customers or Key Contacts. Discard them and leave?')) return false;
+      dirty = false; kcDirty = false;
+      return true;
+    },
+  },
+};
+let currentArea = null, currentAbort = null;
+
+// Navigates to areaSlug. Returns true if the navigation happened, or false
+// if the area being left vetoed it via canLeave() (e.g. the user cancelled
+// an unsaved-changes confirm) — in which case nothing changed: no abort, no
+// unmount, no history entry, no new area mounted.
+function navigateTo(areaSlug, { push = true, query = '' } = {}) {
+  if (!AREAS[areaSlug]) areaSlug = 'brief';
+
+  // Re-clicking the already-active sidebar item is a no-op: without this,
+  // it would duplicate a history entry and re-run the full unmount/mount
+  // cycle (re-fetching everything) while skipping the canLeave() check
+  // below (areaSlug !== currentArea is false), silently discarding any
+  // unsaved edit in the area the user is already looking at.
+  if (areaSlug === currentArea && push) return true;
+
+  if (
+    currentArea && areaSlug !== currentArea &&
+    AREAS[currentArea] && typeof AREAS[currentArea].canLeave === 'function' &&
+    !AREAS[currentArea].canLeave()
+  ) {
+    return false;
+  }
+
+  // Cancel any in-flight fetch from the area we're leaving so a slow
+  // response can't land in #area-content after a different area has
+  // already mounted (rapid sidebar clicking).
+  if (currentAbort) currentAbort.abort();
+
+  if (currentArea && AREAS[currentArea] && typeof AREAS[currentArea].unmount === 'function') {
+    AREAS[currentArea].unmount();
+  }
+
+  const areaContent = document.getElementById('area-content');
+  areaContent.innerHTML = '';
+  const tpl = document.getElementById('tpl-' + areaSlug);
+  if (tpl) areaContent.appendChild(tpl.content.cloneNode(true));
+
+  document.querySelectorAll('.sidebar-item[data-area]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.area === areaSlug);
+  });
+
+  currentArea = areaSlug;
+  currentAbort = new AbortController();
+
+  // Push the new URL *before* mounting — areas (e.g. Day Plan) may read
+  // location.search during mount to pick up a query param like ?date=,
+  // and need the URL already updated to see it rather than the previous
+  // area's leftover query string.
+  if (push) {
+    // Relative, not absolute (areaSlug === 'brief' ? './' : areaSlug) —
+    // this app is served under a path prefix in production
+    // (app.py's APP_PATH_PREFIX/ForcePrefixMiddleware), the same reason
+    // every fetch() in this file uses a relative 'api/...' URL instead of
+    // '/api/...'. An absolute pushState target would escape that prefix.
+    const target = (areaSlug === 'brief' ? './' : areaSlug) + query;
+    history.pushState({ area: areaSlug }, '', target);
+  }
+
+  if (AREAS[areaSlug] && typeof AREAS[areaSlug].mount === 'function') {
+    AREAS[areaSlug].mount(currentAbort.signal);
+  }
+
+  return true;
+}
+
+// Shared with normalizeAmbiguousPrefixRoot() below, which needs to ask the
+// same "is this segment a recognized area?" question areaFromPathname
+// answers here — kept as one table so the two can't drift apart.
+const AREA_SLUG_MAP = { '': 'brief', 'index.html': 'brief', 'environments': 'environments', 'tasks': 'tasks', 'day-plan': 'day-plan', 'account-health': 'account-health' };
+
+// Matches on the last non-empty path segment rather than the full absolute
+// path, so this still recognizes e.g. "/daily-brief-v2/tasks" as Tasks when
+// the app is served under a path prefix (the prefix itself never reaches
+// here as a distinct segment worth mapping).
+function areaFromPathname(pathname) {
+  const segment = pathname.replace(/\/+$/, '').split('/').pop() || '';
+  return AREA_SLUG_MAP[segment] || 'brief';
+}
+
+// A bare, no-trailing-slash pathname whose last segment isn't a recognized
+// area (areaFromPathname would have fallen through to its 'brief' default)
+// is ambiguous for relative-URL resolution: it could be a real-but-unknown
+// page segment, or it could be the deployment path prefix itself with
+// nothing after it (e.g. ".../daily-brief-v2" via ingress.yaml's
+// "/daily-brief-v2(/|$)(.*)" rule, loaded directly while already
+// authenticated, so login_required's own redirect-to-trailing-slash never
+// runs). In that second case, the relative pushState targets navigateTo()
+// builds (see its comment above) would resolve against this segment as if
+// it were "the current page" and replace it — silently dropping the whole
+// prefix. Normalizing the history entry to end in '/' first removes the
+// ambiguity for every subsequent relative pushState, and is a no-op for
+// every already-working shape: a path already ending in '/', or one whose
+// last segment is a real recognized area (home, tasks, environments, etc.),
+// is left untouched.
+function normalizeAmbiguousPrefixRoot() {
+  const path = location.pathname;
+  if (path.endsWith('/')) return;
+  const segment = path.split('/').pop() || '';
+  if (Object.prototype.hasOwnProperty.call(AREA_SLUG_MAP, segment)) return;
+  history.replaceState(history.state, '', path + '/' + location.search);
+}
+
+window.addEventListener('popstate', () => {
+  const target = areaFromPathname(location.pathname);
+  const leavingArea = currentArea;
+  if (target === leavingArea) return;
+  const navigated = navigateTo(target, { push: false });
+  if (navigated === false) {
+    // The browser already moved the address bar for this back/forward step
+    // before popstate fired — canLeave() vetoed the navigation, so restore
+    // the URL to match the area that's still actually displayed.
+    history.pushState({ area: leavingArea }, '', leavingArea === 'brief' ? './' : leavingArea);
+  }
+});
+document.querySelectorAll('.sidebar-item[data-area]').forEach(btn =>
+  btn.addEventListener('click', () => navigateTo(btn.dataset.area)));
+document.getElementById('sidebar-settings').addEventListener('click', () => openSettings('setup'));
+
 initMode();
-loadBriefList();
 refreshGoogleStatus();
 checkOnboarding();
 openSettingsFromQuery();
+normalizeAmbiguousPrefixRoot();
+navigateTo(areaFromPathname(location.pathname), { push: false });
 </script>
+
 </body>
 </html>

@@ -31,6 +31,7 @@ scoped to their own row in Postgres by user_id — every query filters on the
 current session's verified identity, never anything client-supplied. See
 db.py and db/README.md for the storage model.
 """
+import hashlib
 import hmac
 import json
 import logging
@@ -83,6 +84,11 @@ SECTIONS = [
     {'slug': 'customer-updates', 'label': 'Customer Updates', 'open_default': False},
     {'slug': 'manager-update', 'label': 'Manager / Leadership Update', 'open_default': False},
 ]
+
+# Reused everywhere a section slug needs validating against the known set
+# (e.g. api_section below, set_subitem_checked's input validation) so the
+# allowed list can't drift out of sync between call sites.
+SECTION_SLUGS = {s['slug'] for s in SECTIONS}
 
 
 ASANA_ACTION_ITEM_PREFIX = 'action-'
@@ -650,6 +656,67 @@ def format_status_buckets(text):
     return Markup(''.join(html))
 
 
+@app.template_filter('parse_status_buckets')
+def parse_status_buckets(text):
+    """Jinja2 filter mirroring `format_status_buckets`'s header-detection
+    logic, but returning structured bucket data instead of an HTML string:
+    a list of {'key', 'label', 'bullets'} dicts in header order, or None
+    when the text doesn't contain all three STATUS_BUCKET_HEADERS in order.
+    Used by section_fragment.html's customer-updates and account-recap
+    branches to render individually-checkable bullet checkboxes, rather
+    than a single preformatted block. Does not modify or replace
+    `format_status_buckets`, which other callers still use for HTML-string
+    rendering.
+
+    Every bullet that is the literal string "None" (case-insensitive,
+    after stripping) is dropped, not just when it's the bucket's sole
+    bullet -- a generator can emit "None" as one line among other real
+    bullets, and that placeholder should never render as a checkable row
+    or count toward the bucket's total."""
+    if not text:
+        return None
+    lines = [line.strip() for line in text.splitlines()]
+    header_positions = [i for i, line in enumerate(lines) if _bucket_header_text(line) in STATUS_BUCKET_HEADERS]
+    if (
+        len(header_positions) < len(STATUS_BUCKET_HEADERS)
+        or [_bucket_header_text(lines[i]) for i in header_positions[:3]] != list(STATUS_BUCKET_HEADERS)
+    ):
+        return None
+
+    header_positions = header_positions[:3]
+    buckets = []
+    for idx, pos in enumerate(header_positions):
+        header = _bucket_header_text(lines[pos])
+        end = header_positions[idx + 1] if idx + 1 < len(header_positions) else len(lines)
+        bullets = [
+            STATUS_BUCKET_BULLET_RE.sub('', line)
+            for line in lines[pos + 1:end]
+            if line
+        ]
+        bullets = [b for b in bullets if b.strip().lower() != 'none']
+        buckets.append({
+            'key': STATUS_BUCKET_CSS_CLASS[header],
+            'label': header,
+            'bullets': bullets,
+        })
+    return buckets
+
+
+@app.template_filter('subitem_hash')
+def subitem_hash(text):
+    """Jinja2 filter: short, stable hex digest of a bullet/action item's own
+    display text, used as the position-independent part of a subitem_key
+    (see set_subitem_checked / section_fragment.html's customer-updates and
+    account-recap branches). Content-derived rather than positional so a
+    same-day Refresh that reorders or inserts a bullet doesn't silently
+    reattach someone else's checked state to a different bullet -- editing
+    a bullet's own text instead drops its check, which is the accepted
+    tradeoff. Doesn't need to be cryptographically strong, just
+    deterministic and collision-unlikely for a realistic number of bullets
+    in one section."""
+    return hashlib.sha1((text or '').strip().encode('utf-8')).hexdigest()[:10]
+
+
 @app.template_filter('resolve_link_url')
 def resolve_link_url(url):
     """Jinja2 filter for link href values: if the URL is a bare Jira ticket
@@ -1032,10 +1099,35 @@ def set_folder_id():
 
 # ── App routes ────────────────────────────────────────────────────────────
 
-@app.route('/')
 @app.route('/index.html')
+@app.route('/')
 @login_required
 def index():
+    # NOTE: decorators apply bottom-up, so the one immediately above
+    # @login_required is the FIRST rule Flask/Werkzeug registers for the
+    # 'index' endpoint — and url_for('index') builds from that first-
+    # registered rule. '/' must stay innermost (closest to @login_required)
+    # so url_for('index') keeps resolving to '/', not '/index.html' — see
+    # the test asserting this in tests/test_index_route.py and the three
+    # call sites that depend on it (post-login redirect, the Google Drive
+    # connect callback, and /logout's post_logout_redirect_uri).
+    return send_from_directory(VIEWER_HTML_DIR, 'daily-brief-viewer.html')
+
+
+# Each client-side area (see the AREAS registry / router in
+# daily-brief-viewer.html) serves the exact same SPA shell on a direct load
+# or reload, so the router's own areaFromPathname() can pick up the right one
+# from the URL. This used to be registered under the same 'index' endpoint as
+# '/' above (via stacked @app.route decorators on def index()) — but Flask/
+# Werkzeug builds url_for(endpoint) from the rules registered under that
+# endpoint, and with five rules sharing 'index', url_for('index') stopped
+# reliably resolving to '/' (see the three call sites below that depend on
+# it: post-login redirect, the Google Drive connect callback, and
+# /logout's post_logout_redirect_uri). Giving these their own endpoint name
+# keeps 'index' unambiguous while still serving the identical shell file.
+@app.route("/<any('environments', 'tasks', 'day-plan', 'account-health'):area>")
+@login_required
+def area_shell(area):
     return send_from_directory(VIEWER_HTML_DIR, 'daily-brief-viewer.html')
 
 
@@ -1248,7 +1340,7 @@ def customers_page():
     daily-brief-viewer.html (see its "migrated from templates/customers.html"
     comments) -- redirect bookmarks/old links there instead of maintaining
     two separate editors of the same account-config.json/config.json."""
-    return redirect(url_for('index', openSettings='customers'))
+    return redirect(url_for('area_shell', area='account-health'))
 
 
 @app.route('/api/customers/config')
@@ -1420,12 +1512,6 @@ def _portfolio_health_cache_set(user_id, payload):
 def _portfolio_health_cache_evict(user_id):
     with _portfolio_health_cache_lock:
         _portfolio_health_cache.pop(user_id, None)
-
-
-@app.route('/environments')
-@login_required
-def environments_page():
-    return render_template('environments.html', user_email=request.brief_user['email'])
 
 
 def _load_in_scope_customers(request):
@@ -1782,12 +1868,6 @@ def api_live_action_items(date_str):
     return jsonify({'html': html, 'count': total_count})
 
 
-@app.route('/tasks')
-@login_required
-def tasks_page():
-    return render_template('tasks.html', user_email=request.brief_user['email'])
-
-
 @app.route('/api/tasks')
 @login_required
 def api_tasks():
@@ -1875,8 +1955,7 @@ def api_section(date_str, slug):
     downloads complete rather than waiting for all of them."""
     if not DATE_RE.match(date_str):
         abort(400)
-    valid_slugs = {s['slug'] for s in SECTIONS}
-    if slug not in valid_slugs:
+    if slug not in SECTION_SLUGS:
         abort(404)
 
     t0 = time.monotonic()
@@ -1892,6 +1971,27 @@ def api_section(date_str, slug):
 
     today_iso = date.today().isoformat()
 
+    # Per-bullet/sub-item checked state (bucket bullets, Action Items list
+    # entries, the Manager Update "drafted" box) — keyed by item_key then
+    # subitem_key. Every other slug gets an empty dict (no-op for templates
+    # that don't look at it). 'today' is deliberately excluded — its
+    # section_fragment.html branch has no .subcheck markup, so looking up
+    # its subitem checks would just be a wasted query every load.
+    checked_subitems = {}
+    if slug in ('customer-updates', 'account-recap', 'manager-update'):
+        brief_day = db.get_brief_day(request.brief_user['id'], date_str)
+        if brief_day:
+            try:
+                checked_subitems = db.get_subitem_checks(brief_day['id'], slug)
+            except Exception as e:
+                # A DB hiccup here shouldn't break rendering for sections
+                # that don't even use subchecks (e.g. Drive-only sections
+                # sharing this code path) — fall back to "nothing checked"
+                # for this request rather than letting the exception
+                # propagate out of the route.
+                logger.error(f'get_subitem_checks failed for date={date_str} slug={slug}: {e}', exc_info=True)
+                checked_subitems = {}
+
     # Action Items gets special handling — the brief-file items render
     # immediately; the live Asana pull is a separate async call.
     if slug == 'action-items':
@@ -1906,6 +2006,7 @@ def api_section(date_str, slug):
             asana_pat_configured=bool(asana_pat),
             brief_date=date_str,
             today_iso=today_iso,
+            checked_subitems=checked_subitems,
         )
         count = sum(len(g['items']) for g in action_subsections)
     else:
@@ -1917,6 +2018,7 @@ def api_section(date_str, slug):
             asana_pat_configured=False,
             brief_date=date_str,
             today_iso=today_iso,
+            checked_subitems=checked_subitems,
         )
         count = len(items)
 
@@ -2016,6 +2118,43 @@ def set_item_due_date(section, item_key):
     return jsonify(result)
 
 
+@app.route('/api/items/<section>/<item_key>/subitems/<subitem_key>/checked', methods=['PATCH'])
+@login_required
+def set_subitem_checked(section, item_key, subitem_key):
+    """
+    Generic PATCH for one sub-item's checked state inside a parent item —
+    a bucket bullet inside an Account Update card (customer-updates),
+    an account-recap card's action items, and the Manager Update "drafted"
+    box all reuse this same route. Deliberately not hardcoded to any one
+    section, unlike set_item_checked above.
+
+    Unlike set_item_checked, db.set_subitem_checked always upserts into
+    item_subchecks (see its docstring) rather than matching an existing
+    items row, so there's no "not found" item branch here — any valid
+    date whose brief day exists always returns 200.
+    """
+    date_str = request.args.get('date', '')
+    if not DATE_RE.match(date_str):
+        abort(400, 'date query param (YYYY-MM-DD) is required')
+    if section not in SECTION_SLUGS:
+        abort(400, 'unknown section')
+    # Generous but bounded — these are short key-shaped identifiers
+    # (item_key / subitem_key), never free text, so there's no legitimate
+    # reason for either to run long.
+    if len(item_key) > 200 or len(subitem_key) > 200:
+        abort(400, 'item_key/subitem_key too long')
+    body = request.get_json(silent=True) or {}
+    if 'checked' not in body:
+        abort(400, 'checked (bool) is required')
+    checked = bool(body['checked'])
+
+    brief_day = db.get_brief_day(request.brief_user['id'], date_str)
+    if not brief_day:
+        abort(404)
+    db.set_subitem_checked(brief_day['id'], section, item_key, subitem_key, checked)
+    return jsonify({'status': 'ok'})
+
+
 @app.route('/api/items/<section>/<item_key>/post-to-slack', methods=['POST'])
 @login_required
 def post_item_to_slack(section, item_key):
@@ -2084,12 +2223,6 @@ def _day_plan_render_kwargs(data, dict_fields=(), list_fields=()):
     return kwargs
 
 
-@app.route('/day-plan')
-@login_required
-def day_plan_page():
-    return render_template('day_plan.html', user_email=request.brief_user['email'])
-
-
 @app.route('/api/day-plan/<date_str>/morning')
 @login_required
 def api_day_plan_morning(date_str):
@@ -2130,12 +2263,6 @@ def api_day_plan_evening(date_str):
     )
     html = render_template('evening_wrapup_fragment.html', available=True, **kwargs)
     return jsonify({'available': True, 'html': html})
-
-
-@app.route('/account-health')
-@login_required
-def account_health_page():
-    return render_template('account_health.html', user_email=request.brief_user['email'])
 
 
 @app.route('/api/account-health/<date_str>')

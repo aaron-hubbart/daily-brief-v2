@@ -486,6 +486,49 @@ def set_item_due_date(brief_day_id: int, section: str, item_key: str, due_on) ->
         return cur.rowcount > 0
 
 
+def set_subitem_checked(brief_day_id: int, section: str, item_key: str, subitem_key: str, checked: bool) -> None:
+    """
+    Sets the checked state of one sub-item (a bucket bullet inside an
+    Account Update card, an Action Items list entry, the Manager Update
+    "drafted" checkbox, etc.) within a parent item. Deliberately its own
+    table (see migrations/013_add_item_subchecks.sql) rather than a foreign
+    key into items.id -- items.id round-trips through db.upsert_item, which
+    is dead code (never called), so the existing items.checked persistence
+    is effectively broken. item_subchecks upserts on first toggle instead,
+    independent of whether an items row for item_key exists at all.
+
+    Always succeeds (upsert) -- unlike set_item_checked there's no "not
+    found" case, since there's no pre-existing row this has to match.
+    """
+    with cursor(commit=True) as cur:
+        cur.execute(
+            """
+            INSERT INTO item_subchecks (brief_day_id, section, item_key, subitem_key, checked)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (brief_day_id, section, item_key, subitem_key) DO UPDATE SET
+                checked = EXCLUDED.checked,
+                updated_at = now()
+            """,
+            (brief_day_id, section, item_key, subitem_key, checked),
+        )
+
+
+def get_subitem_checks(brief_day_id: int, section: str) -> dict:
+    """Returns every sub-item's checked state for one section of one brief
+    day, as {item_key: {subitem_key: checked}}, for the template/endpoint
+    layer to fold into whatever it's rendering (bucket bullets, Action
+    Items entries, the Manager Update "drafted" checkbox)."""
+    with cursor() as cur:
+        cur.execute(
+            "SELECT item_key, subitem_key, checked FROM item_subchecks WHERE brief_day_id = %s AND section = %s",
+            (brief_day_id, section),
+        )
+        result: dict = {}
+        for row in cur.fetchall():
+            result.setdefault(row['item_key'], {})[row['subitem_key']] = row['checked']
+        return result
+
+
 def get_google_refresh_token(user_id: int) -> Optional[str]:
     """Get the user's stored Google refresh token."""
     if not DATABASE_URL:

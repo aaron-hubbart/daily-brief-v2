@@ -12,6 +12,7 @@
   --accent:#1a5ca0; --accent-bg:#eef3fb; --accent-t:#1a5ca0;
   --warn-bg:#fdf5e6; --warn-t:#7a5000;
   --bad-bg:#fef1f0; --bad-t:#b02520;
+  --good-bg:#eef7ee; --good-t:#2a7a34;
   --done:.35; --font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
   --mono:ui-monospace,"SF Mono","Cascadia Code",monospace; --r:5px;
 }
@@ -20,6 +21,7 @@
   --t1:#eceae4; --t2:#aba991; --t3:#726f64;
   --accent:#5a9de0; --accent-bg:#0f2140; --accent-t:#6aade8;
   --warn-bg:#28200a; --warn-t:#e8a020; --bad-bg:#280e0e; --bad-t:#e06868;
+  --good-bg:#122415; --good-t:#5cc26a;
 }}
 html{font-size:14px;}
 body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5;-webkit-font-smoothing:antialiased;padding:24px 16px 60px;max-width:1400px;margin:0 auto;}
@@ -27,16 +29,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 .head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1.5px solid var(--border-strong);}
 .head h1{font-size:19px;font-weight:600;letter-spacing:-.025em;}
 .head .sub{font-size:12px;color:var(--t3);margin-top:1px;}
-.prog-label{font-size:11px;font-weight:500;color:var(--t3);margin-bottom:5px;text-align:right;}
-.prog-track{width:110px;height:3px;background:var(--border);border-radius:99px;overflow:hidden;margin-left:auto;}
-.prog-fill{height:100%;background:var(--accent);border-radius:99px;transition:width .2s;width:0%;}
-details.sec{border:1px solid var(--border);border-radius:var(--r);margin-bottom:14px;overflow:hidden;}
-details.sec>summary.sec-summary{list-style:none;cursor:pointer;padding:10px 14px;background:var(--surface2);border-bottom:2px solid var(--border-strong);display:flex;align-items:center;justify-content:space-between;user-select:none;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t1);}
-details.sec:not([open])>summary.sec-summary{border-bottom-color:transparent;}
-details.sec>summary.sec-summary::-webkit-details-marker{display:none;}
-details.sec>summary.sec-summary::before{content:'▸';margin-right:8px;font-size:9px;display:inline-block;color:var(--t2);transition:transform .15s;}
-details.sec[open]>summary.sec-summary::before{transform:rotate(90deg);}
-details.sec>.sec-body{padding:4px 14px 10px;}
+.sec-tabs{display:flex;overflow-x:auto;gap:2px;margin-bottom:0;border-bottom:2px solid var(--border-strong);scrollbar-width:thin;}
+.sec-tab{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-start;gap:3px;cursor:pointer;padding:8px 14px;background:var(--surface2);color:inherit;border:1px solid var(--border);border-bottom:none;border-radius:var(--r) var(--r) 0 0;font-family:var(--font);user-select:none;white-space:nowrap;}
+.sec-tab:hover{background:var(--accent-bg);}
+.sec-tab.active{background:var(--surface);border-color:var(--border-strong);}
+.sec-tab-label{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t1);}
+.tab-progress{font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px;color:var(--t3);}
+.tab-progress-empty{background:transparent;padding:1px 0;color:var(--t3);}
+.tab-progress-zero{background:var(--surface2);color:var(--t3);}
+.tab-progress-low{background:var(--bad-bg);color:var(--bad-t);}
+.tab-progress-mid{background:var(--warn-bg);color:var(--warn-t);}
+.tab-progress-done{background:var(--good-bg);color:var(--good-t);}
+.sec-panel{display:none;border:1px solid var(--border-strong);border-top:none;border-radius:0 0 var(--r) var(--r);background:var(--surface);padding:4px 14px 10px;margin-bottom:14px;}
+.sec-panel.active{display:block;}
+.sec-panel-head{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:6px;margin-bottom:2px;}
+.sec-count{font-size:10.5px;color:var(--t3);}
 .ssub{font-size:10.5px;font-weight:700;color:var(--accent-t);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 4px;padding-bottom:4px;border-bottom:1px solid var(--border);}
 .sec-body>.ssub:first-child{margin-top:6px;}
 .bnew{background:var(--accent-bg);color:var(--accent-t);}
@@ -67,6 +74,10 @@ details.sec>.sec-body{padding:4px 14px 10px;}
 .status-bucket-list li{margin-bottom:2px;}
 .status-bucket-list li:last-child{margin-bottom:0;}
 .status-bucket-none{color:var(--t2);}
+.subcheck{display:flex;align-items:flex-start;gap:6px;cursor:pointer;-webkit-user-select:none;user-select:none;}
+.subcheck input[type=checkbox]{margin-top:2px;flex-shrink:0;cursor:pointer;accent-color:var(--accent);}
+.subcheck.done{opacity:var(--done);}
+.subcheck.done span{text-decoration:line-through;}
 .iboard{font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--accent-t);text-transform:uppercase;margin-top:2px;}
 .asana-hint{font-size:11.5px;color:var(--t2);background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:8px;line-height:1.45;}
 .ilinks{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
@@ -102,7 +113,6 @@ details.sec>.sec-body{padding:4px 14px 10px;}
 .reset-btn:hover{color:var(--t2);}
 .sec-refresh{font-size:10px;font-weight:600;letter-spacing:.03em;text-transform:none;padding:2px 7px;border-radius:99px;border:.5px solid var(--border-strong);color:var(--t3);background:var(--surface);cursor:pointer;text-decoration:none;margin-left:8px;white-space:nowrap;}
 .sec-refresh:hover{color:var(--t2);filter:brightness(.95);}
-.sec-summary-right{display:flex;align-items:center;}
 .toolbar{display:flex;gap:8px;margin-bottom:14px;}
 .toolbtn{font-size:11px;font-weight:500;padding:4px 10px;background:var(--surface);color:var(--t2);border:1px solid var(--border-strong);border-radius:var(--r);cursor:pointer;font-family:var(--font);text-decoration:none;display:inline-block;}
 .toolbtn:hover{background:var(--accent-bg);color:var(--accent-t);border-color:var(--accent);}
@@ -117,10 +127,6 @@ details.sec>.sec-body{padding:4px 14px 10px;}
     <div>
       <h1>{{ brief_date_label }}</h1>
       <div class="sub">{{ brief_type|default('Brief', true)|capitalize }}{% if brief_type %} brief{% endif %}</div>
-    </div>
-    <div>
-      <div class="prog-label" id="prog-label">0 of {{ checkable_count }} done</div>
-      <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
     </div>
   </div>
 
@@ -156,17 +162,23 @@ details.sec>.sec-body{padding:4px 14px 10px;}
   </div>
   {% endmacro %}
 
+  <div class="sec-tabs">
+    {% for section in sections %}
+    <button type="button" class="sec-tab{% if loop.first %} active{% endif %}" data-section="{{ section.slug }}">
+      <span class="sec-tab-label">{{ section.label }}</span>
+      <span class="tab-progress" data-section="{{ section.slug }}"></span>
+    </button>
+    {% endfor %}
+  </div>
+
   {% for section in sections %}
-  <details class="sec" data-section="{{ section.slug }}"{% if section.open_default %} open{% endif %}>
-    <summary class="sec-summary">
-      <span class="sec-label">{{ section.label }}</span>
-      <span class="sec-summary-right">
-        <span class="sec-count">{{ section.count_label }}</span>
-        {% if section.slug not in ('customer-updates', 'manager-update') %}
-        <a class="sec-refresh" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh section:' + section.slug + ' date:' + brief_date)|urlencode }}" target="_blank" title="Regenerate this section only" onclick="event.stopPropagation(); event.preventDefault(); window.open(this.href, '_blank');">Refresh</a>
-        {% endif %}
-      </span>
-    </summary>
+  <div class="sec-panel{% if loop.first %} active{% endif %}" data-section="{{ section.slug }}">
+    <div class="sec-panel-head">
+      <span class="sec-count">{{ section.count_label }}</span>
+      {% if section.slug not in ('customer-updates', 'manager-update') %}
+      <a class="sec-refresh" href="claude://claude.ai/new?q={{ ('/daily-brief Refresh section:' + section.slug + ' date:' + brief_date)|urlencode }}" target="_blank" title="Regenerate this section only">Refresh</a>
+      {% endif %}
+    </div>
     <div class="sec-body" id="sec-body-{{ section.slug }}">
       {% if progressive %}
       <div class="section-loader" style="display:flex;align-items:center;gap:8px;padding:8px 0;">
@@ -187,7 +199,7 @@ details.sec>.sec-body{padding:4px 14px 10px;}
         {% endfor %}
       {% endif %}
     </div>
-  </details>
+  </div>
   {% endfor %}
 
   <div class="footer">
@@ -200,12 +212,28 @@ details.sec>.sec-body{padding:4px 14px 10px;}
 <script>
 (function () {
   function setAllDetails(open) {
-    document.querySelectorAll('details').forEach(function (d) { d.open = open; });
+    // Scoped to the active tab's panel only -- other (hidden) tabs' nested
+    // <details> (account-cards, Action-Items board-groups) are left alone.
+    var activePanel = document.querySelector('.sec-panel.active');
+    if (!activePanel) return;
+    activePanel.querySelectorAll('details').forEach(function (d) { d.open = open; });
   }
   var expandBtn = document.getElementById('expand-all-btn');
   var collapseBtn = document.getElementById('collapse-all-btn');
   if (expandBtn) expandBtn.addEventListener('click', function () { setAllDetails(true); });
   if (collapseBtn) collapseBtn.addEventListener('click', function () { setAllDetails(false); });
+
+  // Tab switching: exactly one .sec-tab/.sec-panel pair holds .active at a
+  // time. Panels stay in the DOM at all times (only display is toggled) so
+  // rapid tab switching never tears down or re-fetches section content --
+  // see Review Focus on this task.
+  document.querySelectorAll('.sec-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      var slug = tab.dataset.section;
+      document.querySelectorAll('.sec-tab').forEach(function (t) { t.classList.toggle('active', t === tab); });
+      document.querySelectorAll('.sec-panel').forEach(function (p) { p.classList.toggle('active', p.dataset.section === slug); });
+    });
+  });
 
   var briefDate = '{{ brief_date }}';
   // Use url_for to build correct absolute paths regardless of app mount point

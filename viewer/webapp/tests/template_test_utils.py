@@ -5,6 +5,7 @@ psycopg2 (via `import db`), neither of which this test environment has.
 Template-only tests render the real template files through a standalone
 Jinja2 Environment instead, with the same custom filters app.py registers
 (kept in sync by hand with app.py's @app.template_filter functions)."""
+import hashlib
 import re
 from pathlib import Path
 
@@ -92,6 +93,42 @@ def _format_status_buckets(text):
     return Markup(''.join(html))
 
 
+def parse_status_buckets(text):
+    if not text:
+        return None
+    lines = [line.strip() for line in text.splitlines()]
+    header_positions = [i for i, line in enumerate(lines) if _bucket_header_text(line) in STATUS_BUCKET_HEADERS]
+    if (
+        len(header_positions) < len(STATUS_BUCKET_HEADERS)
+        or [_bucket_header_text(lines[i]) for i in header_positions[:3]] != list(STATUS_BUCKET_HEADERS)
+    ):
+        return None
+
+    header_positions = header_positions[:3]
+    buckets = []
+    for idx, pos in enumerate(header_positions):
+        header = _bucket_header_text(lines[pos])
+        end = header_positions[idx + 1] if idx + 1 < len(header_positions) else len(lines)
+        bullets = [
+            STATUS_BUCKET_BULLET_RE.sub('', line)
+            for line in lines[pos + 1:end]
+            if line
+        ]
+        bullets = [b for b in bullets if b.strip().lower() != 'none']
+        buckets.append({
+            'key': STATUS_BUCKET_CSS_CLASS[header],
+            'label': header,
+            'bullets': bullets,
+        })
+    return buckets
+
+
+def subitem_hash(text):
+    """Mirrors app.py's `subitem_hash` Jinja2 filter (kept in sync by hand,
+    same as the rest of this module's filter mirrors)."""
+    return hashlib.sha1((text or '').strip().encode('utf-8')).hexdigest()[:10]
+
+
 def make_env():
     """A Jinja2 Environment wired up like app.py's Flask app, minus
     anything that needs a running Flask app (callers that render a
@@ -107,4 +144,6 @@ def make_env():
     env.filters['autolink_jira'] = _autolink_jira
     env.filters['resolve_link_url'] = _resolve_link_url
     env.filters['format_status_buckets'] = _format_status_buckets
+    env.filters['parse_status_buckets'] = parse_status_buckets
+    env.filters['subitem_hash'] = subitem_hash
     return env
