@@ -145,13 +145,18 @@ spec:
                   name: daily-brief-secrets
                   key: ASANA_PAT_ENCRYPTION_KEY
                   optional: true
+          # 128Mi was getting OOMKilled under normal load: gunicorn.conf.py's
+          # 2 gthread workers x 8 threads each hold their own Slack/Asana/
+          # Google Drive/Postgres connections for the brief view's parallel
+          # section fan-out, and idle RSS alone (~90Mi) left almost no
+          # headroom before a burst of concurrent requests crossed 128Mi.
           resources:
             requests:
               cpu: 50m
-              memory: 64Mi
+              memory: 128Mi
             limits:
               cpu: 200m
-              memory: 128Mi
+              memory: 384Mi
           readinessProbe:
             httpGet:
               path: /readyz
