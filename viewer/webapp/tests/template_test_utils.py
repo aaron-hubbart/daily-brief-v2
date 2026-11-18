@@ -92,6 +92,37 @@ def _format_status_buckets(text):
     return Markup(''.join(html))
 
 
+def parse_status_buckets(text):
+    if not text:
+        return None
+    lines = [line.strip() for line in text.splitlines()]
+    header_positions = [i for i, line in enumerate(lines) if _bucket_header_text(line) in STATUS_BUCKET_HEADERS]
+    if (
+        len(header_positions) < len(STATUS_BUCKET_HEADERS)
+        or [_bucket_header_text(lines[i]) for i in header_positions[:3]] != list(STATUS_BUCKET_HEADERS)
+    ):
+        return None
+
+    header_positions = header_positions[:3]
+    buckets = []
+    for idx, pos in enumerate(header_positions):
+        header = _bucket_header_text(lines[pos])
+        end = header_positions[idx + 1] if idx + 1 < len(header_positions) else len(lines)
+        bullets = [
+            STATUS_BUCKET_BULLET_RE.sub('', line)
+            for line in lines[pos + 1:end]
+            if line
+        ]
+        if len(bullets) == 1 and bullets[0].strip().lower() == 'none':
+            bullets = []
+        buckets.append({
+            'key': STATUS_BUCKET_CSS_CLASS[header],
+            'label': header,
+            'bullets': bullets,
+        })
+    return buckets
+
+
 def make_env():
     """A Jinja2 Environment wired up like app.py's Flask app, minus
     anything that needs a running Flask app (callers that render a
@@ -107,4 +138,5 @@ def make_env():
     env.filters['autolink_jira'] = _autolink_jira
     env.filters['resolve_link_url'] = _resolve_link_url
     env.filters['format_status_buckets'] = _format_status_buckets
+    env.filters['parse_status_buckets'] = parse_status_buckets
     return env

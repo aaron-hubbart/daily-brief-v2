@@ -650,6 +650,46 @@ def format_status_buckets(text):
     return Markup(''.join(html))
 
 
+@app.template_filter('parse_status_buckets')
+def parse_status_buckets(text):
+    """Jinja2 filter mirroring `format_status_buckets`'s header-detection
+    logic, but returning structured bucket data instead of an HTML string:
+    a list of {'key', 'label', 'bullets'} dicts in header order, or None
+    when the text doesn't contain all three STATUS_BUCKET_HEADERS in order.
+    Used by the Account Update card to render individually-checkable bullet
+    checkboxes (see checkable_item), rather than a single preformatted
+    block. Does not modify or replace `format_status_buckets`, which other
+    callers still use for HTML-string rendering."""
+    if not text:
+        return None
+    lines = [line.strip() for line in text.splitlines()]
+    header_positions = [i for i, line in enumerate(lines) if _bucket_header_text(line) in STATUS_BUCKET_HEADERS]
+    if (
+        len(header_positions) < len(STATUS_BUCKET_HEADERS)
+        or [_bucket_header_text(lines[i]) for i in header_positions[:3]] != list(STATUS_BUCKET_HEADERS)
+    ):
+        return None
+
+    header_positions = header_positions[:3]
+    buckets = []
+    for idx, pos in enumerate(header_positions):
+        header = _bucket_header_text(lines[pos])
+        end = header_positions[idx + 1] if idx + 1 < len(header_positions) else len(lines)
+        bullets = [
+            STATUS_BUCKET_BULLET_RE.sub('', line)
+            for line in lines[pos + 1:end]
+            if line
+        ]
+        if len(bullets) == 1 and bullets[0].strip().lower() == 'none':
+            bullets = []
+        buckets.append({
+            'key': STATUS_BUCKET_CSS_CLASS[header],
+            'label': header,
+            'bullets': bullets,
+        })
+    return buckets
+
+
 @app.template_filter('resolve_link_url')
 def resolve_link_url(url):
     """Jinja2 filter for link href values: if the URL is a bare Jira ticket
