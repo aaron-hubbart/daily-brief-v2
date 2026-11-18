@@ -4887,14 +4887,41 @@ function navigateTo(areaSlug, { push = true, query = '' } = {}) {
   return true;
 }
 
+// Shared with normalizeAmbiguousPrefixRoot() below, which needs to ask the
+// same "is this segment a recognized area?" question areaFromPathname
+// answers here — kept as one table so the two can't drift apart.
+const AREA_SLUG_MAP = { '': 'brief', 'index.html': 'brief', 'environments': 'environments', 'tasks': 'tasks', 'day-plan': 'day-plan', 'account-health': 'account-health' };
+
 // Matches on the last non-empty path segment rather than the full absolute
 // path, so this still recognizes e.g. "/daily-brief-v2/tasks" as Tasks when
 // the app is served under a path prefix (the prefix itself never reaches
 // here as a distinct segment worth mapping).
 function areaFromPathname(pathname) {
-  const map = { '': 'brief', 'index.html': 'brief', 'environments': 'environments', 'tasks': 'tasks', 'day-plan': 'day-plan', 'account-health': 'account-health' };
   const segment = pathname.replace(/\/+$/, '').split('/').pop() || '';
-  return map[segment] || 'brief';
+  return AREA_SLUG_MAP[segment] || 'brief';
+}
+
+// A bare, no-trailing-slash pathname whose last segment isn't a recognized
+// area (areaFromPathname would have fallen through to its 'brief' default)
+// is ambiguous for relative-URL resolution: it could be a real-but-unknown
+// page segment, or it could be the deployment path prefix itself with
+// nothing after it (e.g. ".../daily-brief-v2" via ingress.yaml's
+// "/daily-brief-v2(/|$)(.*)" rule, loaded directly while already
+// authenticated, so login_required's own redirect-to-trailing-slash never
+// runs). In that second case, the relative pushState targets navigateTo()
+// builds (see its comment above) would resolve against this segment as if
+// it were "the current page" and replace it — silently dropping the whole
+// prefix. Normalizing the history entry to end in '/' first removes the
+// ambiguity for every subsequent relative pushState, and is a no-op for
+// every already-working shape: a path already ending in '/', or one whose
+// last segment is a real recognized area (home, tasks, environments, etc.),
+// is left untouched.
+function normalizeAmbiguousPrefixRoot() {
+  const path = location.pathname;
+  if (path.endsWith('/')) return;
+  const segment = path.split('/').pop() || '';
+  if (Object.prototype.hasOwnProperty.call(AREA_SLUG_MAP, segment)) return;
+  history.replaceState(history.state, '', path + '/' + location.search);
 }
 
 window.addEventListener('popstate', () => {
@@ -4917,6 +4944,7 @@ initMode();
 refreshGoogleStatus();
 checkOnboarding();
 openSettingsFromQuery();
+normalizeAmbiguousPrefixRoot();
 navigateTo(areaFromPathname(location.pathname), { push: false });
 </script>
 
