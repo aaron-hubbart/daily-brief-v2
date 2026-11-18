@@ -1945,12 +1945,12 @@ def api_section(date_str, slug):
 
     today_iso = date.today().isoformat()
 
-    # Per-bullet/sub-item checked state (bucket bullets, etc.) — keyed by
-    # item_key then subitem_key. Only customer-updates uses this today;
-    # every other slug gets an empty dict (no-op for templates that don't
-    # look at it).
+    # Per-bullet/sub-item checked state (bucket bullets, Action Items list
+    # entries, the Manager Update "drafted" box) — keyed by item_key then
+    # subitem_key. Every other slug gets an empty dict (no-op for templates
+    # that don't look at it).
     checked_subitems = {}
-    if slug == 'customer-updates':
+    if slug in ('customer-updates', 'account-recap', 'today', 'manager-update'):
         brief_day = db.get_brief_day(request.brief_user['id'], date_str)
         if brief_day:
             checked_subitems = db.get_subitem_checks(brief_day['id'], slug)
