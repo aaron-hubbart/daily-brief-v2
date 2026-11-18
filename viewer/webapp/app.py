@@ -1032,14 +1032,35 @@ def set_folder_id():
 
 # ── App routes ────────────────────────────────────────────────────────────
 
-@app.route('/')
 @app.route('/index.html')
-@app.route('/environments')
-@app.route('/tasks')
-@app.route('/day-plan')
-@app.route('/account-health')
+@app.route('/')
 @login_required
 def index():
+    # NOTE: decorators apply bottom-up, so the one immediately above
+    # @login_required is the FIRST rule Flask/Werkzeug registers for the
+    # 'index' endpoint — and url_for('index') builds from that first-
+    # registered rule. '/' must stay innermost (closest to @login_required)
+    # so url_for('index') keeps resolving to '/', not '/index.html' — see
+    # the test asserting this in tests/test_index_route.py and the three
+    # call sites that depend on it (post-login redirect, the Google Drive
+    # connect callback, and /logout's post_logout_redirect_uri).
+    return send_from_directory(VIEWER_HTML_DIR, 'daily-brief-viewer.html')
+
+
+# Each client-side area (see the AREAS registry / router in
+# daily-brief-viewer.html) serves the exact same SPA shell on a direct load
+# or reload, so the router's own areaFromPathname() can pick up the right one
+# from the URL. This used to be registered under the same 'index' endpoint as
+# '/' above (via stacked @app.route decorators on def index()) — but Flask/
+# Werkzeug builds url_for(endpoint) from the rules registered under that
+# endpoint, and with five rules sharing 'index', url_for('index') stopped
+# reliably resolving to '/' (see the three call sites below that depend on
+# it: post-login redirect, the Google Drive connect callback, and
+# /logout's post_logout_redirect_uri). Giving these their own endpoint name
+# keeps 'index' unambiguous while still serving the identical shell file.
+@app.route("/<any('environments', 'tasks', 'day-plan', 'account-health'):area>")
+@login_required
+def area_shell(area):
     return send_from_directory(VIEWER_HTML_DIR, 'daily-brief-viewer.html')
 
 
@@ -1252,7 +1273,7 @@ def customers_page():
     daily-brief-viewer.html (see its "migrated from templates/customers.html"
     comments) -- redirect bookmarks/old links there instead of maintaining
     two separate editors of the same account-config.json/config.json."""
-    return redirect(url_for('index', area='account-health'))
+    return redirect(url_for('area_shell', area='account-health'))
 
 
 @app.route('/api/customers/config')

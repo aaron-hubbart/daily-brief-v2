@@ -190,6 +190,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
   .sidebar-item::before{content:attr(data-glyph);font-size:14px;font-weight:600;line-height:1;}
 }
 #shell-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;}
+/* Matches .viewer-wrap's own scroll handling above -- without this, long
+   areas (Environments, Account Health) scroll the whole document instead of
+   just their own content pane, taking the sidebar and sticky topbar with
+   them off-screen. */
+#area-content{flex:1;overflow-y:auto;min-height:0;}
 #area-content:empty{display:none;}
 
 /* ── Settings modal: tabs ── */
@@ -550,12 +555,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
 
 <div id="shell-body" style="display:flex;">
   <nav id="sidebar">
-    <button class="sidebar-item active" data-area="brief" data-glyph="B">Brief</button>
-    <button class="sidebar-item" data-area="environments" data-glyph="E">Environments</button>
-    <button class="sidebar-item" data-area="tasks" data-glyph="T">Tasks</button>
-    <button class="sidebar-item" data-area="day-plan" data-glyph="D">Day Plan</button>
-    <button class="sidebar-item" data-area="account-health" data-glyph="A">Account Health</button>
-    <button id="sidebar-settings" class="sidebar-item" data-glyph="&#9881;">&#9881; Settings</button>
+    <button class="sidebar-item active" data-area="brief" data-glyph="B" title="Brief" aria-label="Brief">Brief</button>
+    <button class="sidebar-item" data-area="environments" data-glyph="E" title="Environments" aria-label="Environments">Environments</button>
+    <button class="sidebar-item" data-area="tasks" data-glyph="T" title="Tasks" aria-label="Tasks">Tasks</button>
+    <button class="sidebar-item" data-area="day-plan" data-glyph="D" title="Day Plan" aria-label="Day Plan">Day Plan</button>
+    <button class="sidebar-item" data-area="account-health" data-glyph="A" title="Account Health" aria-label="Account Health">Account Health</button>
+    <button id="sidebar-settings" class="sidebar-item" data-glyph="&#9881;" title="Settings" aria-label="Settings">&#9881; Settings</button>
   </nav>
   <div id="shell-main">
 
@@ -566,6 +571,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.
     <select class="brief-select" id="brief-select" disabled><option value="">Loading…</option></select>
     <button class="icon-btn" id="refresh-btn" onclick="loadBriefList()">Refresh</button>
     <span class="brief-count" id="brief-count"></span>
+    <button class="icon-btn" id="day-plan-view-btn" onclick="viewDayPlanForSelectedBrief()" title="View the Day Plan for this brief's date">View Day Plan</button>
   </div>
   <button class="icon-btn" id="google-connect-btn" onclick="connectGoogleDrive()" style="display:none;" title="Connect Google Drive to view briefs">Connect Google Drive</button>
   <button class="mode-btn" id="mode-btn" onclick="toggleMode()" title="Toggle light/dark mode">☀</button>
@@ -1782,13 +1788,12 @@ async function selectBrief(idx) {
   const content = document.getElementById('brief-content');
   const empty = document.getElementById('empty-state');
 
-  // Set immediately (not after the fetch below) so Day Plan stays clickable
-  // for the newly-selected date even while this brief is still loading.
-  // (The old topbar nav link this used to target was replaced by the
-  // sidebar in the nav redesign — Task 4 re-threads this date into the
-  // shell's Day Plan area; guarded here since the element no longer exists.)
-  const dayPlanLink = document.getElementById('day-plan-link');
-  if (dayPlanLink) dayPlanLink.href = 'day-plan?date=' + encodeURIComponent(brief.name);
+  // Set immediately (not after the fetch below) so "View Day Plan" targets
+  // the newly-selected date even while this brief is still loading. (The
+  // old topbar nav link this used to set directly was replaced by the
+  // sidebar in the nav redesign; this module-level variable is what
+  // mountDayPlan() falls back to now — see its own comment.)
+  selectedBriefDate = brief.name;
 
   setStatus('Loading ' + formatLabel(brief) + '…');
   content.style.display = 'none';
@@ -1846,6 +1851,15 @@ document.getElementById('brief-select').addEventListener('change', function() {
   const i = parseInt(this.value, 10);
   if (!isNaN(i)) selectBrief(i);
 });
+
+// Restores the "view this date's plan" control that used to be the topbar's
+// own day-plan-link (dropped when the sidebar redesign replaced the topbar
+// nav links — see mountDayPlan()'s comment on where the date itself is
+// threaded through). Falls back to today if no brief has loaded yet.
+function viewDayPlanForSelectedBrief() {
+  const date = selectedBriefDate || dpTodayLocalIso();
+  navigateTo('day-plan', { query: '?date=' + encodeURIComponent(date) });
+}
 
 // ── Setup walkthrough + Account panel ──────────────────────────────
 
@@ -2921,6 +2935,12 @@ function dpTodayLocalIso() {
 const DP_VIEW_SLUG = {morning: 'morning-plan', evening: 'evening-wrapup'};
 
 let dpViewDate = null, dpIsToday = false, currentView = 'evening', dpMountSignal = null;
+// Set by selectBrief() whenever a brief date is picked (timeline dot or the
+// brief-select dropdown) — lets mountDayPlan() below fall back to "the date
+// of the brief currently being viewed" when it's reached without an
+// explicit ?date= query param (e.g. via the sidebar rather than the
+// "View Day Plan" control next to the brief picker).
+let selectedBriefDate = null;
 
 function updateDateAndRefreshLink() {
   document.getElementById('dp-date-label').textContent = dpIsToday ? `Today (${dpViewDate})` : dpViewDate;
@@ -3113,8 +3133,12 @@ function mountDayPlan(signal) {
     if (!signal.aborted && emailEl) emailEl.textContent = d.email || '';
   }).catch(() => {});
 
+  // Reads location.search at mount time — navigateTo() now pushes the new
+  // URL (including this area's query string, if any) *before* calling
+  // mount(), so this sees the just-navigated-to URL rather than whatever
+  // the previously-mounted area's query string happened to be.
   const params = new URLSearchParams(window.location.search);
-  dpViewDate = params.get('date') || dpTodayLocalIso();
+  dpViewDate = params.get('date') || selectedBriefDate || dpTodayLocalIso();
   dpIsToday = dpViewDate === dpTodayLocalIso();
   // Default view: today uses the time-of-day split (local hour >= 12 is
   // evening); any other date always defaults to evening, since a past day
@@ -3145,6 +3169,12 @@ let CURRENT = null;
 let envDirty = false;
 let VIEW = 'portfolio';
 let CURRENT_TEAM_ID = null;
+// Set from the mount AbortController signal (AREAS.environments.mount,
+// same pattern mountDayPlan's dpMountSignal already used) -- threaded into
+// renderPortfolio/selectCustomer/saveAll's fetches below so navigating away
+// mid-fetch aborts them instead of letting a stale response land after a
+// different area (or no area) is mounted.
+let envMountSignal = null;
 
 const COMPONENT_OPTIONS = ['Connectors', 'Operate', 'Optimize', 'Tasklist', 'Zeebe'];
 const STANDARD_ENV_NAMES = ['Development', 'DR/Failover', 'Production', 'QA/Test', 'Sandbox', 'Staging'];
@@ -3503,7 +3533,7 @@ async function renderPortfolio() {
   const content = document.getElementById('content');
   content.innerHTML = '<div class="empty">Loading&hellip;</div>';
   try {
-    const r = await fetch(`api/environments/portfolio-health`, {credentials:'include'});
+    const r = await fetch(`api/environments/portfolio-health`, {credentials:'include', signal: envMountSignal});
     const body = await r.json();
     if (!r.ok) throw new Error(body.error || r.statusText);
     const visible = new Set(visibleCustomerNames());
@@ -3522,6 +3552,7 @@ async function renderPortfolio() {
         <tbody>${rows}</tbody>
       </table>`;
   } catch(e) {
+    if (envMountSignal && envMountSignal.aborted) return; // navigated away mid-fetch — bail out silently
     content.innerHTML = `<div class="empty" style="color:var(--bad-t)">Failed to load portfolio: ${escEnv(e.message)}</div>`;
   }
 }
@@ -3541,11 +3572,12 @@ async function selectCustomer(name) {
   if (!STATE.customers[name] && !STATE.loadError[name]) {
     document.getElementById('content').innerHTML = '<div class="empty">Loading&hellip;</div>';
     try {
-      const r = await fetch(`api/environments/config/${encodeURIComponent(name)}`, {credentials:'include'});
+      const r = await fetch(`api/environments/config/${encodeURIComponent(name)}`, {credentials:'include', signal: envMountSignal});
       const body = await r.json();
       if (!r.ok) throw new Error(body.error || r.statusText);
       STATE.customers[name] = body;
     } catch(e) {
+      if (envMountSignal && envMountSignal.aborted) return; // navigated away mid-fetch — bail out silently
       STATE.loadError[name] = e.message;
     }
   }
@@ -4444,6 +4476,7 @@ async function saveAll() {
         teams: c.teams, environments: c.environments, use_cases: c.use_cases,
         meetings: c.meetings, es_activities: c.es_activities,
       }),
+      signal: envMountSignal,
     });
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     envDirty = false;
@@ -4452,7 +4485,7 @@ async function saveAll() {
     // Health/rollup are computed server-side on GET, not stored — re-fetch
     // so the badge, rollup strip, and health breakdown reflect what was
     // just saved instead of the pre-save values still sitting in STATE.
-    const refreshed = await fetch(`api/environments/config/${encodeURIComponent(CURRENT)}`, {credentials: 'include'});
+    const refreshed = await fetch(`api/environments/config/${encodeURIComponent(CURRENT)}`, {credentials: 'include', signal: envMountSignal});
     if (refreshed.ok) {
       STATE.customers[CURRENT] = await refreshed.json();
       ensureCustomer(CURRENT);
@@ -4463,6 +4496,7 @@ async function saveAll() {
       }
     }
   } catch(e) {
+    if (envMountSignal && envMountSignal.aborted) return; // navigated away mid-save — bail out silently
     showToast('Save failed: ' + e.message, 'err', 5000);
     status.textContent = 'Unsaved changes';
     btn.disabled = false;
@@ -4668,7 +4702,12 @@ function openPanel(tileKey) {
 }
 
 function closePanel() {
-  document.getElementById('ah-panel-backdrop').classList.add('hidden');
+  // Optional chaining: this element only exists while Account Health is the
+  // mounted area (its markup lives in <template id="tpl-account-health">).
+  // The document-level Escape listener below stays bound for the page's
+  // whole lifetime, so pressing Escape on any other area after having
+  // visited Account Health once previously threw a TypeError here.
+  document.getElementById('ah-panel-backdrop')?.classList.add('hidden');
 }
 
 function jumpToCard(accountName) {
@@ -4727,27 +4766,77 @@ const AREAS = {
   brief: {
     mount() {
       document.getElementById('viewer-wrap').style.display = '';
+      document.querySelector('.selector-wrap').style.display = '';
+      document.getElementById('timeline-bar').style.display = '';
       // Only fetch the brief list on the first mount — flipping back to
       // Brief after visiting another area shouldn't re-fetch it every time.
       if (!briefLoadedOnce) { briefLoadedOnce = true; loadBriefList(); }
     },
     unmount() {
       document.getElementById('viewer-wrap').style.display = 'none';
+      // Brief's own topbar/timeline controls (the brief picker, refresh
+      // button + count, and the date timeline) aren't global chrome like
+      // the title/mode-toggle/Google-Connect button are — they only make
+      // sense while Brief is the visible area. Left visible, they stayed
+      // clickable over every other area (e.g. picking a timeline date
+      // loaded a brief into the now-hidden Brief area with no visible
+      // effect) — see Important #2 in the final-review fix report.
+      document.querySelector('.selector-wrap').style.display = 'none';
+      document.getElementById('timeline-bar').style.display = 'none';
       // status-bar is Brief's own loading/error indicator (setStatus/
       // clearStatus) — hide it on the way out so a stale "could not load"
       // message doesn't linger over an unrelated area.
       clearStatus();
     },
   },
-  environments: { mount(signal) { loadEnvironments(signal); } },
+  environments: {
+    mount(signal) { envMountSignal = signal; envDirty = false; loadEnvironments(signal); },
+    canLeave() {
+      if (!envDirty) return true;
+      if (!confirm('You have unsaved changes in Environments. Discard them and leave?')) return false;
+      envDirty = false;
+      return true;
+    },
+  },
   tasks: { mount(signal) { loadTasks(signal); } },
-  'day-plan': { mount(signal) { mountDayPlan(signal); } },
-  'account-health': { mount(signal) { loadAccountHealth(signal); loadCustomersConfig(signal); loadKeyContacts(signal); } },
+  'day-plan': {
+    mount(signal) { dpcDirty = false; mountDayPlan(signal); },
+    canLeave() {
+      if (!dpcDirty) return true;
+      if (!confirm('You have unsaved changes to Quick Action Categories. Discard them and leave?')) return false;
+      dpcDirty = false;
+      return true;
+    },
+  },
+  'account-health': {
+    mount(signal) {
+      dirty = false; kcDirty = false;
+      loadAccountHealth(signal); loadCustomersConfig(signal); loadKeyContacts(signal);
+    },
+    canLeave() {
+      if (!dirty && !kcDirty) return true;
+      if (!confirm('You have unsaved changes in Customers or Key Contacts. Discard them and leave?')) return false;
+      dirty = false; kcDirty = false;
+      return true;
+    },
+  },
 };
 let currentArea = null, currentAbort = null;
 
-function navigateTo(areaSlug, { push = true } = {}) {
+// Navigates to areaSlug. Returns true if the navigation happened, or false
+// if the area being left vetoed it via canLeave() (e.g. the user cancelled
+// an unsaved-changes confirm) — in which case nothing changed: no abort, no
+// unmount, no history entry, no new area mounted.
+function navigateTo(areaSlug, { push = true, query = '' } = {}) {
   if (!AREAS[areaSlug]) areaSlug = 'brief';
+
+  if (
+    currentArea && areaSlug !== currentArea &&
+    AREAS[currentArea] && typeof AREAS[currentArea].canLeave === 'function' &&
+    !AREAS[currentArea].canLeave()
+  ) {
+    return false;
+  }
 
   // Cancel any in-flight fetch from the area we're leaving so a slow
   // response can't land in #area-content after a different area has
@@ -4769,21 +4858,50 @@ function navigateTo(areaSlug, { push = true } = {}) {
 
   currentArea = areaSlug;
   currentAbort = new AbortController();
+
+  // Push the new URL *before* mounting — areas (e.g. Day Plan) may read
+  // location.search during mount to pick up a query param like ?date=,
+  // and need the URL already updated to see it rather than the previous
+  // area's leftover query string.
+  if (push) {
+    // Relative, not absolute (areaSlug === 'brief' ? './' : areaSlug) —
+    // this app is served under a path prefix in production
+    // (app.py's APP_PATH_PREFIX/ForcePrefixMiddleware), the same reason
+    // every fetch() in this file uses a relative 'api/...' URL instead of
+    // '/api/...'. An absolute pushState target would escape that prefix.
+    const target = (areaSlug === 'brief' ? './' : areaSlug) + query;
+    history.pushState({ area: areaSlug }, '', target);
+  }
+
   if (AREAS[areaSlug] && typeof AREAS[areaSlug].mount === 'function') {
     AREAS[areaSlug].mount(currentAbort.signal);
   }
 
-  if (push) {
-    history.pushState({ area: areaSlug }, '', areaSlug === 'brief' ? '/' : '/' + areaSlug);
-  }
+  return true;
 }
 
+// Matches on the last non-empty path segment rather than the full absolute
+// path, so this still recognizes e.g. "/daily-brief-v2/tasks" as Tasks when
+// the app is served under a path prefix (the prefix itself never reaches
+// here as a distinct segment worth mapping).
 function areaFromPathname(pathname) {
-  const map = { '/': 'brief', '/index.html': 'brief', '/environments': 'environments', '/tasks': 'tasks', '/day-plan': 'day-plan', '/account-health': 'account-health' };
-  return map[pathname] || 'brief';
+  const map = { '': 'brief', 'index.html': 'brief', 'environments': 'environments', 'tasks': 'tasks', 'day-plan': 'day-plan', 'account-health': 'account-health' };
+  const segment = pathname.replace(/\/+$/, '').split('/').pop() || '';
+  return map[segment] || 'brief';
 }
 
-window.addEventListener('popstate', () => navigateTo(areaFromPathname(location.pathname), { push: false }));
+window.addEventListener('popstate', () => {
+  const target = areaFromPathname(location.pathname);
+  const leavingArea = currentArea;
+  if (target === leavingArea) return;
+  const navigated = navigateTo(target, { push: false });
+  if (navigated === false) {
+    // The browser already moved the address bar for this back/forward step
+    // before popstate fired — canLeave() vetoed the navigation, so restore
+    // the URL to match the area that's still actually displayed.
+    history.pushState({ area: leavingArea }, '', leavingArea === 'brief' ? './' : leavingArea);
+  }
+});
 document.querySelectorAll('.sidebar-item[data-area]').forEach(btn =>
   btn.addEventListener('click', () => navigateTo(btn.dataset.area)));
 document.getElementById('sidebar-settings').addEventListener('click', () => openSettings('setup'));
