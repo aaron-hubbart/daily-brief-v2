@@ -101,6 +101,7 @@ if ($ADC) {
 Push-Location $RepoPath
 try {
     Invoke-Step -Description "git pull origin main" -Command {
+        git checkout main
         git pull origin main
     }
 
