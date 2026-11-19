@@ -9,9 +9,18 @@
     Once auth is confirmed, runs the deploy sequence:
       git pull origin main
       gcloud builds submit . --config=viewer/webapp/cloudbuild.yaml
+      kubectl apply -f viewer/webapp/k8s/deployment.yaml
       kubectl rollout restart deployment/daily-brief-viewer -n daily-brief-v2
       kubectl rollout status deployment/daily-brief-viewer -n daily-brief-v2
     Each step stops the script on failure.
+
+    The kubectl apply step exists because the image tag is :latest -- a plain
+    rollout restart picks up new code, but NOT a changed resource limit, env
+    var, or other pod-spec field committed to k8s/deployment.yaml. Without
+    it, a manifest change can be merged and believed deployed while the
+    live Deployment silently keeps running the old spec (see the Nov 2026
+    incident: PR #104 raised the memory limit in the manifest, but it was
+    never applied, and the pod kept segfaulting under the old 128Mi limit).
 
 .PARAMETER ADC
     Also check/set up Application Default Credentials (gcloud auth application-default login).
@@ -106,6 +115,10 @@ try {
 
     Invoke-Step -Description "gcloud builds submit (viewer/webapp/cloudbuild.yaml)" -Command {
         gcloud builds submit . --config=viewer/webapp/cloudbuild.yaml
+    }
+
+    Invoke-Step -Description "kubectl apply -f viewer/webapp/k8s/deployment.yaml" -Command {
+        kubectl apply -f viewer/webapp/k8s/deployment.yaml
     }
 
     Invoke-Step -Description "kubectl rollout restart deployment/daily-brief-viewer" -Command {
