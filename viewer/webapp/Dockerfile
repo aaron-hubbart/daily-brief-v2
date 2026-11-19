@@ -18,6 +18,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY daily-brief-viewer.html ./
 COPY webapp/app.py webapp/db.py webapp/gdrive_briefs.py webapp/asana_discovery.py webapp/es_health.py webapp/account_health.py webapp/archive_briefs.py webapp/action_items.py webapp/gunicorn.conf.py ./
 COPY webapp/templates/ ./templates/
+# db.py's MIGRATIONS_DIR (./db/migrations) backs app.py's startup safeguard
+# that refuses to boot if a migration hasn't been applied to the running
+# Postgres -- without this COPY, that check always sees an empty directory
+# and silently never detects a pending migration.
+COPY webapp/db/ ./db/
 
 RUN chown -R appuser:appuser /app
 
