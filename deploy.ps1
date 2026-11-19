@@ -7,6 +7,7 @@
     Checks for an active gcloud account. If none is found, runs `gcloud auth login`.
     Pass -ADC to also ensure Application Default Credentials are set.
     Once auth is confirmed, runs the deploy sequence:
+      git checkout main
       git pull origin main
       gcloud builds submit . --config=viewer/webapp/cloudbuild.yaml
       kubectl apply -f viewer/webapp/k8s/deployment.yaml
@@ -21,6 +22,12 @@
     live Deployment silently keeps running the old spec (see the Nov 2026
     incident: PR #104 raised the memory limit in the manifest, but it was
     never applied, and the pod kept segfaulting under the old 128Mi limit).
+
+    The git checkout main step exists because this script previously just
+    ran `git pull origin main` on whatever branch the repo root happened to
+    have checked out -- if that wasn't main (e.g. a feature branch left
+    checked out from other work), the pull merged main's changes into that
+    branch instead of fast-forwarding main itself.
 
 .PARAMETER ADC
     Also check/set up Application Default Credentials (gcloud auth application-default login).
@@ -109,7 +116,8 @@ if ($ADC) {
 
 Push-Location $RepoPath
 try {
-    Invoke-Step -Description "git pull origin main" -Command {
+    Invoke-Step -Description "git checkout main && git pull origin main" -Command {
+        git checkout main
         git pull origin main
     }
 
