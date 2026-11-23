@@ -71,15 +71,22 @@ _FILE_TO_SECTION = {
 
 _cache_lock = threading.Lock()
 
-# {refresh_token: (drive_service, expiry_monotonic)}
-_drive_cache: Dict[str, Tuple] = {}
-_DRIVE_TTL = 45 * 60  # 45 minutes (Google access tokens last 60 min)
-
-# {refresh_token: (credentials, expiry_monotonic)} -- kept alongside
-# _drive_cache so read_account_context_docs can build one Drive service per
-# worker thread (httplib2 HTTP transports aren't safe to share across
-# threads) without paying for a second OAuth refresh round trip.
+# {refresh_token: (credentials, expiry_monotonic)}. Only the refreshed OAuth
+# Credentials are cached -- token refresh is the genuinely expensive network
+# call. The Drive *service* (and its underlying httplib2 HTTP transport) is
+# deliberately never cached/shared: gunicorn's gthread workers run several
+# requests concurrently in one process (the client-side progressive loader
+# alone fires one concurrent request per brief section -- see api_section),
+# and two threads sharing one httplib2 transport corrupts its connection
+# state. The Nov 2026 incident (`malloc(): unsorted double linked list
+# corrupted`, workers killed with SIGABRT/SIGSEGV, plus a
+# "'NoneType' object has no attribute 'close'" from one thread nulling the
+# connection mid-read by another) traced to exactly that: _get_drive_service
+# used to cache and hand out one shared Resource per refresh_token.
+# build('drive', 'v3', ...) is local (bundled discovery docs, no network
+# round trip), so building a fresh one per call costs nothing.
 _credentials_cache: Dict[str, Tuple] = {}
+_CREDENTIALS_TTL = 45 * 60  # 45 minutes (Google access tokens last 60 min)
 
 # {cache_key: (folder_id, expiry_monotonic)}
 _folder_cache: Dict[str, Tuple] = {}
@@ -90,19 +97,17 @@ _listing_cache: Dict[str, Tuple] = {}
 _LISTING_TTL = 2 * 60  # 2 minutes
 
 
-def _get_drive_service(refresh_token: str):
-    """Get or create a cached Google Drive service for this refresh token."""
-    if not GDRIVE_AVAILABLE or not refresh_token:
-        return None
-    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-        logger.error('_get_drive_service: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set')
-        return None
-
+def _get_or_refresh_credentials(refresh_token: str):
+    """Cached, already-refreshed Credentials for this refresh token. Safe to
+    share across threads: a Credentials object just carries the OAuth
+    token, with none of the per-request connection state that makes a
+    built Drive service/httplib2 transport unsafe to share (see
+    _get_drive_service)."""
     now = time.monotonic()
     cache_key = refresh_token[-16:]  # last 16 chars as key (avoid storing full token)
 
     with _cache_lock:
-        cached = _drive_cache.get(cache_key)
+        cached = _credentials_cache.get(cache_key)
         if cached and cached[1] > now:
             return cached[0]
 
@@ -117,38 +122,40 @@ def _get_drive_service(refresh_token: str):
         )
         request = Request()
         credentials.refresh(request)
-        drive = build('drive', 'v3', credentials=credentials)
         elapsed = time.monotonic() - t0
-        logger.info(f'_get_drive_service: token refresh + build took {elapsed:.1f}s')
+        logger.info(f'_get_or_refresh_credentials: token refresh took {elapsed:.1f}s')
 
         with _cache_lock:
-            _drive_cache[cache_key] = (drive, now + _DRIVE_TTL)
-            _credentials_cache[cache_key] = (credentials, now + _DRIVE_TTL)
-        return drive
+            _credentials_cache[cache_key] = (credentials, now + _CREDENTIALS_TTL)
+        return credentials
     except Exception as e:
-        logger.error(f'_get_drive_service: Failed to build Drive service: {e}', exc_info=True)
+        logger.error(f'_get_or_refresh_credentials: Failed to refresh token: {e}', exc_info=True)
         return None
+
+
+def _get_drive_service(refresh_token: str):
+    """Build a fresh Google Drive service for this refresh token. Always
+    builds a new Resource (and underlying httplib2 HTTP transport) rather
+    than caching/sharing one across requests -- see the comment above
+    _credentials_cache for why that matters."""
+    if not GDRIVE_AVAILABLE or not refresh_token:
+        return None
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        logger.error('_get_drive_service: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set')
+        return None
+
+    credentials = _get_or_refresh_credentials(refresh_token)
+    if not credentials:
+        return None
+    return build('drive', 'v3', credentials=credentials)
 
 
 def _get_drive_credentials(refresh_token: str):
     """Cached, already-refreshed Credentials for this refresh token, for
-    building a fresh per-thread Drive service in
-    read_account_context_docs. Piggybacks on _get_drive_service for the
-    actual OAuth refresh so there's still only one refresh per cache
-    window, not one per worker thread."""
+    building a fresh per-thread Drive service in read_account_context_docs."""
     if not refresh_token:
         return None
-    now = time.monotonic()
-    cache_key = refresh_token[-16:]
-    with _cache_lock:
-        cached = _credentials_cache.get(cache_key)
-        if cached and cached[1] > now:
-            return cached[0]
-    if not _get_drive_service(refresh_token):
-        return None
-    with _cache_lock:
-        cached = _credentials_cache.get(cache_key)
-        return cached[0] if cached else None
+    return _get_or_refresh_credentials(refresh_token)
 
 
 def _find_folder_cached(drive, parent_id: str, name: str) -> Optional[str]:
@@ -996,10 +1003,12 @@ def read_account_context_docs(
     other's lookups rather than racing.
 
     Each worker builds its own Drive service from the shared cached
-    credentials rather than reusing _get_drive_service's cached Resource:
-    the googleapiclient Resource's underlying httplib2 HTTP transport is
-    not safe to use from more than one thread at a time, and sharing it
-    here would risk corrupted/misrouted requests, not just a crash."""
+    credentials -- same as _get_drive_service does per call now, spelled
+    out explicitly here since this is the thread pool that motivated never
+    sharing a built Resource across threads in the first place. The
+    googleapiclient Resource's underlying httplib2 HTTP transport is not
+    safe to use from more than one thread at a time, and sharing it here
+    would risk corrupted/misrouted requests, not just a crash."""
     if not refresh_token or not account_names:
         return {}
 
